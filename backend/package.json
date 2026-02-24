@@ -1,0 +1,18 @@
+{
+  "name": "learn2hire-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Learn2Hire",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongodb": "^6.8.0",
+    "mongoose": "^8.5.0"
+  }
+}
