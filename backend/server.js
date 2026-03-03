@@ -3,15 +3,18 @@ require('dotenv').config();
 const express = require('express');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Parse JSON body (required for signup/login)
+// Parse JSON body (required for signup/login and profile APIs)
 app.use(express.json());
 
 // Auth routes: signup & login
 app.use('/api/auth', authRoutes);
+// Student profile routes (protected)
+app.use('/api/profile', profileRoutes);
 
 // Simple route: when someone visits http://localhost:5000 they see this
 app.get('/', (req, res) => {
