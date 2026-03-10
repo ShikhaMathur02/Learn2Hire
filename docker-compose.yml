@@ -1,0 +1,39 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: learn2hire-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: ./backend
+    container_name: learn2hire-backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      PORT: 5000
+      JWT_SECRET: learn2hire-jwt-secret-change-in-production
+      MONGODB_URI: mongodb://mongo:27017/learn2hire
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: learn2hire-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_PROXY_TARGET: http://backend:5000
+    command: npm run dev -- --host 0.0.0.0
+    ports:
+      - "3000:3000"
+
+volumes:
+  mongo_data:

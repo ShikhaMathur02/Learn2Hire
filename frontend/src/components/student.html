@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn2Hire - Student Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3a0ca3;
+            --success: #4cc9f0;
+            --warning: #f72585;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --gray: #6c757d;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fb;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--primary);
+            color: white;
+            padding: 20px;
+            position: fixed;
+            width: 250px;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+            margin-right: 10px;
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .nav-links {
+            list-style: none;
+        }
+
+        .nav-links li {
+            margin-bottom: 10px;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            border-radius: var(--border-radius);
+            transition: var(--transition);
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-links i {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            grid-column: 2;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 20px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            object-fit: cover;
+        }
+
+        .logout-btn {
+            background: var(--warning);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .logout-btn:hover {
+            background: #d81159;
+        }
+
+        /* Dashboard Sections */
+        .dashboard-section {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 20px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .dashboard-section.active {
+            display: block;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--light);
+            color: var(--primary);
+        }
+
+        /* Onboarding Form */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-size: 1rem;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn:hover {
+            background: var(--secondary);
+        }
+
+        /* Learning Materials */
+        .materials-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .material-card {
+            background: var(--light);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .material-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--box-shadow);
+        }
+
+        .material-icon {
+            background: var(--primary);
+            color: white;
+            font-size: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 120px;
+        }
+
+        .material-content {
+            padding: 15px;
+        }
+
+        .material-title {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        /* Quiz Section */
+        .quiz-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .question-card {
+            background: var(--light);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+        }
+
+        .options-list {
+            list-style: none;
+            margin-top: 15px;
+        }
+
+        .options-list li {
+            padding: 10px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .options-list li:hover {
+            background: #e9ecef;
+        }
+
+        /* Scorecard */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 30px;
+        }
+
+        .score-indicators {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .score-item {
+            padding: 15px;
+            border-radius: var(--border-radius);
+            background: var(--light);
+            text-align: center;
+        }
+
+        .score-good {
+            border-left: 4px solid #2ecc71;
+        }
+
+        .score-weak {
+            border-left: 4px solid #e74c3c;
+        }
+
+        /* Feedback */
+        .feedback-list {
+            list-style: none;
+        }
+
+        .feedback-list li {
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: var(--border-radius);
+            background: var(--light);
+        }
+
+        .weak-area {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
+        /* Job Applications */
+        .job-list {
+            list-style: none;
+        }
+
+        .job-item {
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: var(--border-radius);
+            background: var(--light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .eligibility-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .eligible {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .not-eligible {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: relative;
+                width: 100%;
+                height: auto;
+            }
+
+            .main-content {
+                grid-column: 1;
+            }
+
+            .materials-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            }
+        }
+
+        @media (max-width: 576px) {
+            .header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .user-info {
+                margin-bottom: 15px;
+            }
+
+            .materials-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-graduation-cap"></i>
+                <h1>Learn2Hire</h1>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#" class="nav-link active" data-section="dashboard"><i class="fas fa-home"></i>
+                        Dashboard</a></li>
+                <li><a href="#" class="nav-link" data-section="onboarding"><i class="fas fa-user-graduate"></i> Profile
+                        Setup</a></li>
+                <li><a href="#" class="nav-link" data-section="learning"><i class="fas fa-book"></i> Learning</a></li>
+                <li><a href="#" class="nav-link" data-section="quizzes"><i class="fas fa-tasks"></i> Quizzes</a></li>
+                <li><a href="#" class="nav-link" data-section="scorecard"><i class="fas fa-chart-line"></i>
+                        Scorecard</a></li>
+                <li><a href="#" class="nav-link" data-section="feedback"><i class="fas fa-comments"></i> Feedback</a>
+                </li>
+                <li><a href="#" class="nav-link" data-section="remedial"><i class="fas fa-hands-helping"></i>
+                        Remedial</a></li>
+                <li><a href="#" class="nav-link" data-section="placement"><i class="fas fa-briefcase"></i> Placement</a>
+                </li>
+                <li><a href="#" class="nav-link" data-section="applications"><i class="fas fa-file-alt"></i> Job
+                        Applications</a></li>
+            </ul>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header with User Info -->
+            <header class="header">
+                <div class="user-info">
+                    <img src="https://ui-avatars.com/api/?name=Student+Name&background=random" alt="Profile"
+                        id="profile-picture">
+                    <div>
+                        <h3 id="student-name">Student Name</h3>
+                        <p id="student-degree">Computer Science</p>
+                    </div>
+                </div>
+                <button class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </header>
+
+            <!-- Dashboard Overview -->
+            <section id="dashboard" class="dashboard-section active">
+                <h2 class="section-title">Dashboard Overview</h2>
+                <div class="materials-grid">
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-book"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">Learning Materials</h3>
+                            <p>
+                                <a href="./study.html" >
+                                    Access study materials for all subjects
+                                </a>
+                            </p>
+                        </div>
+
+                    </div>
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">Quizzes & Tests</h3>
+                            <a href="https://quiz.com/" target="_blank">
+                                <p>Practice with quizzes and mock tests</p>
+
+                            </a>
+                            
+                        </div>
+                    </div>
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">Performance</h3>
+                            <p>Check your scores and progress</p>
+                        </div>
+                    </div>
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-briefcase"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">Placement</h3>
+                            <p>Job applications and placement status</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Onboarding & Profile Setup -->
+            <section id="onboarding" class="dashboard-section">
+                <h2 class="section-title">Complete Your Profile</h2>
+                <form id="profile-form">
+                    <div class="form-group">
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="roll-number">Roll Number</label>
+                        <input type="text" id="roll-number" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="degree">Degree</label>
+                        <select id="degree" class="form-control" required>
+                            <option value="">Select Degree</option>
+                            <option value="B.Tech">B.Tech</option>
+                            <option value="MCA">MCA</option>
+                            <option value="BCA">BCA</option>
+                            <option value="M.Tech">M.Tech</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="batch">Batch</label>
+                        <input type="text" id="batch" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="profile-pic-upload">Profile Picture</label>
+                        <input type="file" id="profile-pic-upload" class="form-control" accept="image/*">
+                    </div>
+                    <button type="submit" class="btn">Save Profile</button>
+                </form>
+            </section>
+
+            <!-- Learning Materials -->
+            <section id="learning" class="dashboard-section">
+                <h2 class="section-title">Learning Materials</h2>
+                <div class="materials-grid">
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">DBMS</h3>
+                            <p>Database Management Systems materials</p>
+                            <a href="#" class="btn">View Materials</a>
+                        </div>
+                    </div>
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-desktop"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">Operating Systems</h3>
+                            <p>OS concepts and materials</p>
+                            <a href="#" class="btn">View Materials</a>
+                        </div>
+                    </div>
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-network-wired"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">Computer Networks</h3>
+                            <p>Networking concepts and materials</p>
+                            <a href="#" class="btn">View Materials</a>
+                        </div>
+                    </div>
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">DSA</h3>
+                            <p>Data Structures and Algorithms</p>
+                            <a href="#" class="btn">View Materials</a>
+                        </div>
+                    </div>
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-calculator"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">Aptitude</h3>
+                            <p>Quantitative and logical aptitude</p>
+                            <a href="#" class="btn">View Materials</a>
+                        </div>
+                    </div>
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">Soft Skills</h3>
+                            <p>Communication and interpersonal skills</p>
+                            <a href="#" class="btn">View Materials</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quizzes Section -->
+            <section id="quizzes" class="dashboard-section">
+                <h2 class="section-title">Practice Quizzes</h2>
+                <div class="quiz-container">
+                    <div class="question-card">
+                        <h3>Question 1: What does SQL stand for?</h3>
+                        <ul class="options-list">
+                            <li data-correct="true">Structured Query Language</li>
+                            <li>Simple Query Language</li>
+                            <li>Structured Question Language</li>
+                            <li>Simple Question Language</li>
+                        </ul>
+                    </div>
+                    <div class="question-card">
+                        <h3>Question 2: Which data structure uses LIFO?</h3>
+                        <ul class="options-list">
+                            <li>Queue</li>
+                            <li data-correct="true">Stack</li>
+                            <li>Array</li>
+                            <li>Linked List</li>
+                        </ul>
+                    </div>
+                    <div class="question-card">
+                        <h3>Question 3: What is the time complexity of binary search?</h3>
+                        <ul class="options-list">
+                            <li>O(n)</li>
+                            <li>O(n log n)</li>
+                            <li data-correct="true">O(log n)</li>
+                            <li>O(1)</li>
+                        </ul>
+                    </div>
+                    <button class="btn" id="submit-quiz">Submit Answers</button>
+                </div>
+            </section>
+
+            <!-- Scorecard Section -->
+            <section id="scorecard" class="dashboard-section">
+                <h2 class="section-title">Performance Scorecard</h2>
+                <div class="chart-container">
+                    <canvas id="score-chart"></canvas>
+                </div>
+                <div class="score-indicators">
+                    <div class="score-item score-good">
+                        <h3>DBMS</h3>
+                        <p>85%</p>
+                    </div>
+                    <div class="score-item score-weak">
+                        <h3>Operating Systems</h3>
+                        <p>65%</p>
+                    </div>
+                    <div class="score-item score-good">
+                        <h3>Computer Networks</h3>
+                        <p>82%</p>
+                    </div>
+                    <div class="score-item score-good">
+                        <h3>DSA</h3>
+                        <p>88%</p>
+                    </div>
+                    <div class="score-item score-weak">
+                        <h3>Aptitude</h3>
+                        <p>58%</p>
+                    </div>
+                    <div class="score-item score-good">
+                        <h3>Soft Skills</h3>
+                        <p>78%</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Feedback Section -->
+            <section id="feedback" class="dashboard-section">
+                <h2 class="section-title">Personalized Feedback</h2>
+                <ul class="feedback-list">
+                    <li>
+                        <h3>Strengths</h3>
+                        <p>You're performing well in <strong>DSA</strong> and <strong>DBMS</strong>. Keep up the good
+                            work!</p>
+                    </li>
+                    <li>
+                        <h3>Areas for Improvement</h3>
+                        <p>Your scores in <span class="weak-area">Aptitude</span> and <span class="weak-area">Operating
+                                Systems</span> need improvement. Focus on these areas.</p>
+                    </li>
+                    <li>
+                        <h3>Recommendations</h3>
+                        <p>We recommend attending the remedial sessions for Aptitude and practicing more problems in
+                            Operating Systems.</p>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- Remedial Support -->
+            <section id="remedial" class="dashboard-section">
+                <h2 class="section-title">Remedial Support</h2>
+                <div class="materials-grid">
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">Aptitude Workshop</h3>
+                            <p><strong>Date:</strong> Oct 15, 2023</p>
+                            <p><strong>Time:</strong> 2:00 PM - 4:00 PM</p>
+                            <div class="form-group">
+                                <label for="aptitude-attendance">Mark Attendance</label>
+                                <select id="aptitude-attendance" class="form-control">
+                                    <option value="present">Present</option>
+                                    <option value="absent">Absent</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="material-card">
+                        <div class="material-icon">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                        </div>
+                        <div class="material-content">
+                            <h3 class="material-title">OS Concepts Workshop</h3>
+                            <p><strong>Date:</strong> Oct 20, 2023</p>
+                            <p><strong>Time:</strong> 10:00 AM - 12:00 PM</p>
+                            <div class="form-group">
+                                <label for="os-attendance">Mark Attendance</label>
+                                <select id="os-attendance" class="form-control">
+                                    <option value="present">Present</option>
+                                    <option value="absent">Absent</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Placement Readiness -->
+            <section id="placement" class="dashboard-section">
+                <h2 class="section-title">Placement Readiness</h2>
+                <div class="score-item">
+                    <h3>Placement Readiness Score</h3>
+                    <p>72%</p>
+                </div>
+                <div class="form-group">
+                    <button class="btn" id="generate-resume">Generate Resume</button>
+                </div>
+                <div id="resume-preview"
+                    style="display: none; margin-top: 20px; padding: 20px; border: 1px solid #ddd; border-radius: var(--border-radius);">
+                    <h3>Resume Preview</h3>
+                    <div id="resume-content">
+                        <!-- Resume content will be generated here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Job Applications -->
+            <section id="applications" class="dashboard-section">
+                <h2 class="section-title">Job Applications</h2>
+                <ul class="job-list">
+                    <li class="job-item">
+                        <div>
+                            <h3>Software Developer at TechCorp</h3>
+                            <p>Requirements: DSA (80%), DBMS (75%), Aptitude (70%)</p>
+                        </div>
+                        <div>
+                            <span class="eligibility-badge eligible">Eligible</span>
+                            <button class="btn">Apply</button>
+                        </div>
+                    </li>
+                    <li class="job-item">
+                        <div>
+                            <h3>Network Engineer at NetSolutions</h3>
+                            <p>Requirements: CN (85%), OS (80%), Aptitude (65%)</p>
+                        </div>
+                        <div>
+                            <span class="eligibility-badge not-eligible">Not Eligible</span>
+                            <button class="btn" disabled>Apply</button>
+                        </div>
+                    </li>
+                    <li class="job-item">
+                        <div>
+                            <h3>Data Analyst at DataWorks</h3>
+                            <p>Requirements: Aptitude (85%), DBMS (80%), DSA (75%)</p>
+                        </div>
+                        <div>
+                            <span class="eligibility-badge not-eligible">Not Eligible</span>
+                            <button class="btn" disabled>Apply</button>
+                        </div>
+                    </li>
+                </ul>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Initialize student data if not exists
+        if (!localStorage.getItem('studentData')) {
+            const initialData = {
+                name: 'Student Name',
+                email: 'student@example.com',
+                rollNumber: 'CS001',
+                degree: 'B.Tech',
+                batch: '2020-2024',
+                profilePic: 'https://ui-avatars.com/api/?name=Student+Name&background=random',
+                scores: {
+                    dbms: 85,
+                    os: 65,
+                    cn: 82,
+                    dsa: 88,
+                    aptitude: 58,
+                    softSkills: 78
+                },
+                placementStatus: 'Not Placed',
+                attendance: {
+                    aptitude: 'present',
+                    os: 'present'
+                }
+            };
+            localStorage.setItem('studentData', JSON.stringify(initialData));
+        }
+
+        // Get student data
+        const studentData = JSON.parse(localStorage.getItem('studentData'));
+
+        // DOM Content Loaded
+        document.addEventListener('DOMContentLoaded', function () {
+            // Navigation
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('.dashboard-section');
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const targetSection = this.getAttribute('data-section');
+
+                    // Update active nav link
+                    navLinks.forEach(nav => nav.classList.remove('active'));
+                    this.classList.add('active');
+
+                    // Show target section
+                    sections.forEach(section => {
+                        section.classList.remove('active');
+                        if (section.id === targetSection) {
+                            section.classList.add('active');
+
+                            // If scorecard section, render chart
+                            if (targetSection === 'scorecard') {
+                                renderScoreChart();
+                            }
+                        }
+                    });
+                });
+            });
+
+            // Profile form submission
+            const profileForm = document.getElementById('profile-form');
+            profileForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                // Update student data
+                studentData.name = document.getElementById('name').value;
+                studentData.email = document.getElementById('email').value;
+                studentData.rollNumber = document.getElementById('roll-number').value;
+                studentData.degree = document.getElementById('degree').value;
+                studentData.batch = document.getElementById('batch').value;
+
+                // Handle profile picture upload
+                const fileInput = document.getElementById('profile-pic-upload');
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        studentData.profilePic = e.target.result;
+                        updateProfileDisplay();
+                    };
+                    reader.readAsDataURL(file);
+                }
+
+                // Save to localStorage
+                localStorage.setItem('studentData', JSON.stringify(studentData));
+
+                // Update profile display
+                updateProfileDisplay();
+
+                alert('Profile updated successfully!');
+            });
+
+            // Populate form with existing data
+            document.getElementById('name').value = studentData.name;
+            document.getElementById('email').value = studentData.email;
+            document.getElementById('roll-number').value = studentData.rollNumber;
+            document.getElementById('degree').value = studentData.degree;
+            document.getElementById('batch').value = studentData.batch;
+
+            // Update profile display
+            updateProfileDisplay();
+
+            // Quiz functionality
+            const quizOptions = document.querySelectorAll('.options-list li');
+            quizOptions.forEach(option => {
+                option.addEventListener('click', function () {
+                    this.parentNode.querySelectorAll('li').forEach(li => {
+                        li.style.background = 'white';
+                    });
+                    this.style.background = '#e9ecef';
+                });
+            });
+
+            document.getElementById('submit-quiz').addEventListener('click', function () {
+                let score = 0;
+                const questions = document.querySelectorAll('.question-card');
+
+                questions.forEach(question => {
+                    const selected = question.querySelector('li[style="background: rgb(233, 236, 239);"]');
+                    if (selected && selected.getAttribute('data-correct') === 'true') {
+                        score++;
+                    }
+                });
+
+                alert(`You scored ${score} out of ${questions.length}`);
+            });
+
+            // Generate Resume
+            document.getElementById('generate-resume').addEventListener('click', function () {
+                const resumeContent = document.getElementById('resume-content');
+                resumeContent.innerHTML = `
+                    <h2>${studentData.name}</h2>
+                    <p>${studentData.degree} | ${studentData.batch} | ${studentData.rollNumber}</p>
+                    <p>Email: ${studentData.email}</p>
+                    <hr>
+                    <h3>Skills Assessment</h3>
+                    <ul>
+                        <li>DBMS: ${studentData.scores.dbms}%</li>
+                        <li>Operating Systems: ${studentData.scores.os}%</li>
+                        <li>Computer Networks: ${studentData.scores.cn}%</li>
+                        <li>DSA: ${studentData.scores.dsa}%</li>
+                        <li>Aptitude: ${studentData.scores.aptitude}%</li>
+                        <li>Soft Skills: ${studentData.scores.softSkills}%</li>
+                    </ul>
+                    <p>Placement Readiness: 72%</p>
+                `;
+
+                document.getElementById('resume-preview').style.display = 'block';
+            });
+
+            // Render score chart
+            function renderScoreChart() {
+                const ctx = document.getElementById('score-chart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['DBMS', 'OS', 'CN', 'DSA', 'Aptitude', 'Soft Skills'],
+                        datasets: [{
+                            label: 'Scores (%)',
+                            data: [
+                                studentData.scores.dbms,
+                                studentData.scores.os,
+                                studentData.scores.cn,
+                                studentData.scores.dsa,
+                                studentData.scores.aptitude,
+                                studentData.scores.softSkills
+                            ],
+                            backgroundColor: [
+                                'rgba(54, 162, 235, 0.7)',
+                                'rgba(255, 99, 132, 0.7)',
+                                'rgba(75, 192, 192, 0.7)',
+                                'rgba(255, 206, 86, 0.7)',
+                                'rgba(153, 102, 255, 0.7)',
+                                'rgba(255, 159, 64, 0.7)'
+                            ],
+                            borderColor: [
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(255, 206, 86, 1)',
+                                'rgba(153, 102, 255, 1)',
+                                'rgba(255, 159, 64, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Update profile display
+            function updateProfileDisplay() {
+                document.getElementById('student-name').textContent = studentData.name;
+                document.getElementById('student-degree').textContent = studentData.degree;
+                document.getElementById('profile-picture').src = studentData.profilePic;
+            }
+        });
+    </script>
+</body>
+
+</html>

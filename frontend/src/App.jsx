@@ -2,6 +2,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
+import CreateAssessment from './pages/CreateAssessment';
+import LandingPage from './pages/LandingPage';
+import StudentAssessment from './pages/StudentAssessment';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -16,15 +19,10 @@ function PublicRoute({ children }) {
   return children;
 }
 
-function IndexRedirect() {
-  const token = localStorage.getItem('token');
-  return <Navigate to={token ? '/dashboard' : '/login'} replace />;
-}
-
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<IndexRedirect />} />
+      <Route path="/" element={<LandingPage />} />
       <Route
         path="/login"
         element={
@@ -49,6 +47,23 @@ function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/assessments/create"
+        element={
+          <ProtectedRoute>
+            <CreateAssessment />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assessments/:id"
+        element={
+          <ProtectedRoute>
+            <StudentAssessment />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

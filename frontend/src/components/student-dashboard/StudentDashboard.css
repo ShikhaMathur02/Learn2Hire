@@ -1,0 +1,382 @@
+.student-dashboard-container {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  min-height: 100vh;
+  background-color: #f5f7fb;
+  color: #212529;
+}
+
+.student-sidebar {
+  background: #4361ee;
+  color: white;
+  padding: 20px;
+  position: fixed;
+  width: 250px;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.student-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.student-logo h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.student-nav-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.student-nav-links li {
+  margin-bottom: 10px;
+}
+
+.student-nav-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: white;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.student-nav-button:hover,
+.student-nav-button.active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.student-main-content {
+  grid-column: 2;
+  padding: 20px;
+}
+
+.student-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.student-user-info {
+  display: flex;
+  align-items: center;
+}
+
+.student-user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+  object-fit: cover;
+}
+
+.student-logout-btn {
+  background: #f72585;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.student-logout-btn:hover {
+  background: #d81159;
+}
+
+.student-dashboard-section {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.student-section-title {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f8f9fa;
+  color: #4361ee;
+}
+
+.student-form-group {
+  margin-bottom: 15px;
+}
+
+.student-form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.student-form-control {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.student-btn {
+  background: #4361ee;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.student-btn:hover {
+  background: #3a0ca3;
+}
+
+.student-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.student-materials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.student-material-card {
+  background: #f8f9fa;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.student-material-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.student-material-icon {
+  background: #4361ee;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 120px;
+}
+
+.student-material-content {
+  padding: 15px;
+}
+
+.student-material-title {
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+}
+
+.student-material-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.student-quiz-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.student-question-card {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.student-options-list {
+  list-style: none;
+  margin-top: 15px;
+  padding: 0;
+}
+
+.student-options-list li {
+  padding: 10px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.student-options-list li:hover {
+  background: #e9ecef;
+}
+
+.student-options-list li.selected {
+  border-color: #4361ee;
+  background: #e8edff;
+}
+
+.student-chart-placeholder {
+  position: relative;
+  height: 300px;
+  margin-bottom: 30px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #eef2ff 0%, #f8f9fa 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6c757d;
+  text-align: center;
+  padding: 20px;
+}
+
+.student-score-indicators {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.student-score-item {
+  padding: 15px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  text-align: center;
+}
+
+.student-score-good {
+  border-left: 4px solid #2ecc71;
+}
+
+.student-score-weak {
+  border-left: 4px solid #e74c3c;
+}
+
+.student-feedback-list {
+  list-style: none;
+  padding: 0;
+}
+
+.student-feedback-list li {
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+.student-weak-area {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+.student-job-list {
+  list-style: none;
+  padding: 0;
+}
+
+.student-job-item {
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.student-job-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.student-eligibility-badge {
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.student-eligible {
+  background: #d4edda;
+  color: #155724;
+}
+
+.student-not-eligible {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.student-resume-preview {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+@media (max-width: 992px) {
+  .student-dashboard-container {
+    grid-template-columns: 1fr;
+  }
+
+  .student-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+  }
+
+  .student-main-content {
+    grid-column: 1;
+  }
+
+  .student-materials-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 576px) {
+  .student-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 15px;
+  }
+
+  .student-user-info {
+    margin-bottom: 0;
+    flex-direction: column;
+  }
+
+  .student-user-avatar {
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+
+  .student-materials-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-job-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

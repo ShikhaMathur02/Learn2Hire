@@ -1,89 +1,132 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
+
+import AuthField from "../components/auth/AuthField";
+import AuthLayout from "../components/auth/AuthLayout";
+import { Button } from "../components/ui/button";
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState({});
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const validate = () => {
+    const nextErrors = {};
+
+    if (!email.trim()) {
+      nextErrors.email = "Email is required.";
+    } else if (!emailPattern.test(email)) {
+      nextErrors.email = "Enter a valid email address.";
+    }
+
+    if (!password.trim()) {
+      nextErrors.password = "Password is required.";
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
+
+    if (!validate()) return;
+
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.message || 'Login failed');
+        setError(data.message || "Login failed");
         return;
       }
 
-      localStorage.setItem('token', data.data.token);
-      localStorage.setItem('user', JSON.stringify(data.data.user));
-      navigate('/dashboard');
+      localStorage.setItem("token", data.data.token);
+      localStorage.setItem("user", JSON.stringify(data.data.user));
+      navigate("/dashboard");
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  const inputClassName =
+    "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:bg-slate-100";
+
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1>Learn2Hire</h1>
-        <p className="subtitle">Sign in to your account</p>
-
-        <form onSubmit={handleSubmit}>
-          {error && <div className="error">{error}</div>}
-
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
-              disabled={loading}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-              disabled={loading}
-            />
-          </div>
-
-          <button type="submit" className="btn" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
-
-        <p className="footer">
-          Don't have an account? <Link to="/signup">Sign up</Link>
+    <AuthLayout
+      badge="Welcome Back"
+      title="Sign in to your account"
+      subtitle="Access your dashboard, assessments, and placement workflow with your Learn2Hire credentials."
+      footer={
+        <p>
+          Don&apos;t have an account?{" "}
+          <Link to="/signup" className="font-semibold text-indigo-600 hover:text-indigo-500">
+            Sign up
+          </Link>
         </p>
-      </div>
-    </div>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {error ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
+
+        <AuthField label="Email" htmlFor="email" error={errors.email}>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={validate}
+            placeholder="you@example.com"
+            autoComplete="email"
+            disabled={loading}
+            className={inputClassName}
+          />
+        </AuthField>
+
+        <AuthField label="Password" htmlFor="password" error={errors.password}>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onBlur={validate}
+            placeholder="Enter your password"
+            autoComplete="current-password"
+            disabled={loading}
+            className={inputClassName}
+          />
+        </AuthField>
+
+        <Button
+          type="submit"
+          disabled={loading}
+          className="h-12 w-full justify-center rounded-2xl text-sm shadow-lg shadow-indigo-600/20"
+        >
+          {loading ? "Signing in..." : "Sign in"}
+          {!loading ? <ArrowRight className="h-4 w-4" /> : null}
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }
 
