@@ -155,7 +155,10 @@ function Signup() {
             className={inputClassName}
           >
             <option value="student">Student</option>
+            <option value="alumni">Alumni</option>
             <option value="faculty">Faculty</option>
+            <option value="company">Company</option>
+            <option value="admin">Admin</option>
           </select>
         </AuthField>
 

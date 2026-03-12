@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   BookOpen,
+  BriefcaseBusiness,
   ClipboardList,
   Gauge,
   LayoutDashboard,
@@ -161,6 +162,11 @@ function StudentDashboard({ user, onLogout }) {
       <SectionTitle
         title="Student Dashboard"
         description="Track your skill growth, upcoming assessments, and recent performance at a glance."
+        action={
+          <Button asChild variant="outline">
+            <Link to="/jobs">Browse Jobs</Link>
+          </Button>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -237,8 +243,8 @@ function StudentDashboard({ user, onLogout }) {
               title="Available Assessments"
               description="Published tests you can attempt right now."
               action={
-                <Button variant="outline" onClick={() => setActiveSection("assessments")}>
-                  View all
+                <Button asChild variant="outline">
+                  <Link to="/assessments">View all</Link>
                 </Button>
               }
             />
@@ -273,6 +279,34 @@ function StudentDashboard({ user, onLogout }) {
                   description="Published assessments from faculty will appear here when they are ready."
                 />
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-white/10 bg-white/5 shadow-none">
+          <CardContent className="p-6">
+            <SectionTitle
+              title="Career Opportunities"
+              description="Browse company openings and apply directly from your workspace."
+              action={
+                <Button asChild variant="outline">
+                  <Link to="/jobs">Open Jobs</Link>
+                </Button>
+              }
+            />
+            <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
+                  <BriefcaseBusiness className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Start exploring roles</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Use the jobs page to browse open roles posted by companies, then submit your
+                    application with a short cover letter.
+                  </p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -407,9 +441,14 @@ function StudentDashboard({ user, onLogout }) {
                       Skill: {assessment.skill || "General"} · Max Score: {assessment.maxScore || 0}
                     </p>
                   </div>
-                  <Button asChild variant="outline">
-                    <Link to={`/assessments/${assessment._id}`}>View details</Link>
-                  </Button>
+                  <div className="flex flex-wrap gap-3">
+                    <Button asChild variant="outline">
+                      <Link to={`/assessments/${assessment._id}`}>View details</Link>
+                    </Button>
+                    <Button asChild>
+                      <Link to="/assessments">All assessments</Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))

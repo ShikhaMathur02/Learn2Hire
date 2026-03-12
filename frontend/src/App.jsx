@@ -4,6 +4,9 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import CreateAssessment from './pages/CreateAssessment';
 import LandingPage from './pages/LandingPage';
+import AssessmentsList from './pages/AssessmentsList';
+import CompanyJobsPage from './pages/CompanyJobsPage';
+import JobsPage from './pages/JobsPage';
 import StudentAssessment from './pages/StudentAssessment';
 import './App.css';
 
@@ -44,6 +47,30 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/assessments"
+        element={
+          <ProtectedRoute>
+            <AssessmentsList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/company/jobs"
+        element={
+          <ProtectedRoute>
+            <CompanyJobsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/jobs"
+        element={
+          <ProtectedRoute>
+            <JobsPage />
           </ProtectedRoute>
         }
       />

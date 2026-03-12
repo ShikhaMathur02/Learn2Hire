@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
+import AdminDashboard from "../components/admin-dashboard/AdminDashboard";
+import CompanyDashboard from "../components/company-dashboard/CompanyDashboard";
 import FacultyDashboard from "../components/faculty-dashboard/FacultyDashboard";
 import StudentDashboard from "../components/student-dashboard/StudentDashboard";
 import { Button } from "../components/ui/button";
@@ -54,6 +56,54 @@ function Dashboard() {
     return <FacultyDashboard user={user} onLogout={handleLogout} />;
   }
 
+  if (user.role === "company") {
+    return <CompanyDashboard user={user} onLogout={handleLogout} />;
+  }
+
+  if (user.role === "admin") {
+    return <AdminDashboard user={user} onLogout={handleLogout} />;
+  }
+
+  if (user.role === "alumni") {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="mx-auto max-w-5xl">
+          <Card className="border-0">
+            <CardContent className="p-8">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-indigo-600">Alumni Dashboard</p>
+                  <h1 className="mt-1 text-3xl font-bold text-slate-900">
+                    Welcome, {user.name}
+                  </h1>
+                  <p className="mt-2 text-slate-600">
+                    Browse open company roles and track your applications from Learn2Hire.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <Button asChild>
+                    <Link to="/jobs">Browse Jobs</Link>
+                  </Button>
+                  <Button variant="outline" onClick={handleLogout}>
+                    Logout
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                <h2 className="text-xl font-semibold text-slate-900">Career Opportunities</h2>
+                <p className="mt-2 text-slate-600">
+                  Your alumni account now has access to the jobs workspace. Open the jobs page to
+                  review company openings and apply directly.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-5xl">
@@ -74,8 +124,13 @@ function Dashboard() {
               </Button>
             </div>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <StudentDashboard user={user} onLogout={handleLogout} />
+            <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6">
+              <h2 className="text-xl font-semibold text-slate-900">Workspace setup in progress</h2>
+              <p className="mt-2 text-slate-600">
+                A dedicated dashboard for the <span className="capitalize">{user.role}</span> role
+                is not added yet. Your account is working correctly, and you can log in with this
+                role now.
+              </p>
             </div>
           </CardContent>
         </Card>
