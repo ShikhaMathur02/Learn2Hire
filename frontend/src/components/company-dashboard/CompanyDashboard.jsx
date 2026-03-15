@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  Bell,
   BriefcaseBusiness,
   Building2,
   FileSearch,
@@ -235,6 +236,12 @@ function CompanyDashboard({ user, onLogout }) {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              <Button asChild variant="outline">
+                <Link to="/notifications">
+                  <Bell className="h-4 w-4" />
+                  Notifications
+                </Link>
+              </Button>
               <Button asChild>
                 <Link to="/company/jobs">Manage Jobs</Link>
               </Button>

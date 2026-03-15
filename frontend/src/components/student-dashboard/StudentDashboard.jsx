@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
+  Bell,
   BookOpen,
   BriefcaseBusiness,
   ClipboardList,
@@ -20,6 +21,7 @@ const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "assessments", label: "Assessments", icon: ClipboardList },
+  { id: "jobs", label: "Jobs", icon: BriefcaseBusiness, path: "/jobs" },
   { id: "progress", label: "Progress", icon: BarChart3 },
 ];
 
@@ -162,11 +164,6 @@ function StudentDashboard({ user, onLogout }) {
       <SectionTitle
         title="Student Dashboard"
         description="Track your skill growth, upcoming assessments, and recent performance at a glance."
-        action={
-          <Button asChild variant="outline">
-            <Link to="/jobs">Browse Jobs</Link>
-          </Button>
-        }
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -288,11 +285,6 @@ function StudentDashboard({ user, onLogout }) {
             <SectionTitle
               title="Career Opportunities"
               description="Browse company openings and apply directly from your workspace."
-              action={
-                <Button asChild variant="outline">
-                  <Link to="/jobs">Open Jobs</Link>
-                </Button>
-              }
             />
             <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
               <div className="flex items-start gap-4">
@@ -541,13 +533,20 @@ function StudentDashboard({ user, onLogout }) {
             <nav className="space-y-2">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeSection === item.id;
+                const isActive = !item.path && activeSection === item.id;
 
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setActiveSection(item.id)}
+                    onClick={() => {
+                      if (item.path) {
+                        navigate(item.path);
+                        return;
+                      }
+
+                      setActiveSection(item.id);
+                    }}
                     className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
                       isActive
                         ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
@@ -583,6 +582,16 @@ function StudentDashboard({ user, onLogout }) {
               </div>
 
               <div className="flex items-center gap-3">
+                <Button
+                  asChild
+                  variant="outline"
+                  className="hidden border-white/15 text-slate-200 hover:bg-white/10 hover:text-white md:inline-flex"
+                >
+                  <Link to="/notifications">
+                    <Bell className="h-4 w-4" />
+                    Notifications
+                  </Link>
+                </Button>
                 <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-cyan-300 sm:inline-flex">
                   {displayUser.role}
                 </div>

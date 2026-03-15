@@ -2,6 +2,7 @@ const AssessmentSubmission = require('../models/AssessmentSubmission');
 const Assessment = require('../models/Assessment');
 const StudentProfile = require('../models/StudentProfile');
 const mongoose = require('mongoose');
+const { createNotification } = require('../utils/notificationService');
 
 // Grade answers against assessment questions
 const gradeSubmission = (assessment, answers) => {
@@ -105,6 +106,33 @@ exports.submitAssessment = async (req, res) => {
     const populated = await AssessmentSubmission.findById(submission._id)
       .populate('user', 'name email')
       .populate('assessment', 'title skill maxScore');
+
+    await createNotification({
+      recipient: req.user._id,
+      title: 'Assessment submitted',
+      message: `Your submission for ${assessment.title} has been recorded.`,
+      category: 'assessment',
+      type: 'assessment_submitted',
+      actionUrl: `/assessments/${assessment._id}`,
+      metadata: {
+        assessmentId: assessment._id,
+        submissionId: submission._id,
+      },
+    });
+
+    await createNotification({
+      recipient: assessment.createdBy,
+      title: 'New assessment submission',
+      message: `${req.user.name} submitted ${assessment.title}.`,
+      category: 'assessment',
+      type: 'assessment_submission_received',
+      actionUrl: '/dashboard',
+      metadata: {
+        assessmentId: assessment._id,
+        submissionId: submission._id,
+        studentId: req.user._id,
+      },
+    });
 
     res.status(201).json({
       success: true,

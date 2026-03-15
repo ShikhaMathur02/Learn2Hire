@@ -23,11 +23,11 @@ exports.signup = async (req, res) => {
       });
     }
 
-    const validRoles = ['student', 'alumni', 'faculty', 'company', 'admin'];
+    const validRoles = ['student', 'alumni', 'faculty', 'company', 'admin', 'college'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: 'Role must be one of: student, alumni, faculty, company, admin',
+        message: 'Role must be one of: student, alumni, faculty, company, admin, college',
       });
     }
 

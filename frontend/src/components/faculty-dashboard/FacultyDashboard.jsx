@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
+  Bell,
   BookOpenCheck,
   ClipboardList,
   LayoutDashboard,
@@ -9,7 +10,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
@@ -477,6 +478,16 @@ function FacultyDashboard({ user, onLogout }) {
               </div>
 
               <div className="flex items-center gap-3">
+                <Button
+                  asChild
+                  variant="outline"
+                  className="hidden border-white/15 text-slate-200 hover:bg-white/10 hover:text-white md:inline-flex"
+                >
+                  <Link to="/notifications">
+                    <Bell className="h-4 w-4" />
+                    Notifications
+                  </Link>
+                </Button>
                 <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium capitalize text-cyan-300 sm:inline-flex">
                   {me.role}
                 </div>

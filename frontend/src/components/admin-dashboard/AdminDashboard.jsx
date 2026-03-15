@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
+  Bell,
   ClipboardCheck,
   LoaderCircle,
   LogOut,
@@ -8,7 +9,7 @@ import {
   Users,
   Workflow,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../../lib/api";
 import { Button } from "../ui/button";
@@ -213,6 +214,15 @@ function AdminDashboard({ user, onLogout }) {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              <Button asChild variant="outline">
+                <Link to="/notifications">
+                  <Bell className="h-4 w-4" />
+                  Notifications
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link to="/admin/jobs">Manage Jobs</Link>
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => navigate("/")}

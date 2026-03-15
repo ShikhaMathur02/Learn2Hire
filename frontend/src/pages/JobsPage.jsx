@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, BriefcaseBusiness, LoaderCircle, Send } from "lucide-react";
+import {
+  ArrowLeft,
+  BriefcaseBusiness,
+  Heart,
+  LoaderCircle,
+  MapPin,
+  Search,
+} from "lucide-react";
 
 import { readApiResponse } from "../lib/api";
 import { Button } from "../components/ui/button";
@@ -11,10 +18,15 @@ function JobsPage() {
   const [user, setUser] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [savedJobs, setSavedJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [applyingJobId, setApplyingJobId] = useState("");
-  const [selectedJobId, setSelectedJobId] = useState("");
-  const [coverLetter, setCoverLetter] = useState("");
+  const [savingJobId, setSavingJobId] = useState("");
+  const [filters, setFilters] = useState({
+    search: "",
+    location: "",
+    employmentType: "",
+    savedOnly: false,
+  });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -52,12 +64,13 @@ function JobsPage() {
         Authorization: `Bearer ${token}`,
       };
 
-      const [jobsRes, applicationsRes] = await Promise.all([
+      const [jobsRes, applicationsRes, savedRes] = await Promise.all([
         fetch("/api/jobs", { headers }),
         fetch("/api/jobs/applications/me", { headers }),
+        fetch("/api/jobs/saved/me", { headers }),
       ]);
 
-      const [jobsData, applicationsData] = await Promise.all([
+      const [jobsData, applicationsData, savedData] = await Promise.all([
         readApiResponse(
           jobsRes,
           "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
@@ -66,9 +79,13 @@ function JobsPage() {
           applicationsRes,
           "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
         ),
+        readApiResponse(
+          savedRes,
+          "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
+        ),
       ]);
 
-      if (jobsRes.status === 401 || applicationsRes.status === 401) {
+      if ([jobsRes, applicationsRes, savedRes].some((response) => response.status === 401)) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         navigate("/login");
@@ -83,8 +100,13 @@ function JobsPage() {
         throw new Error(applicationsData.message || "Failed to load applications.");
       }
 
+      if (!savedRes.ok) {
+        throw new Error(savedData.message || "Failed to load saved jobs.");
+      }
+
       setJobs(jobsData.data?.jobs || []);
       setApplications(applicationsData.data?.applications || []);
+      setSavedJobs(savedData.data?.savedJobs || []);
     } catch (err) {
       setError(err.message || "Unable to load jobs right now.");
     } finally {
@@ -106,28 +128,56 @@ function JobsPage() {
     [applications]
   );
 
-  const handleApply = async (jobId) => {
-    const token = localStorage.getItem("token");
+  const savedJobMap = useMemo(
+    () =>
+      Object.fromEntries(
+        savedJobs
+          .filter((item) => item.job?._id)
+          .map((item) => [item.job._id, item])
+      ),
+    [savedJobs]
+  );
 
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      const matchesSearch = filters.search
+        ? `${job.title} ${job.description} ${job.createdBy?.name || ""}`
+            .toLowerCase()
+            .includes(filters.search.toLowerCase())
+        : true;
+
+      const matchesLocation = filters.location
+        ? (job.location || "").toLowerCase().includes(filters.location.toLowerCase())
+        : true;
+
+      const matchesType = filters.employmentType
+        ? job.employmentType === filters.employmentType
+        : true;
+
+      const matchesSaved = filters.savedOnly ? Boolean(savedJobMap[job._id]) : true;
+
+      return matchesSearch && matchesLocation && matchesType && matchesSaved;
+    });
+  }, [filters, jobs, savedJobMap]);
+
+  const handleSaveToggle = async (jobId) => {
+    const token = localStorage.getItem("token");
     if (!token) {
       navigate("/login");
       return;
     }
 
-    setApplyingJobId(jobId);
+    const isSaved = Boolean(savedJobMap[jobId]);
+    setSavingJobId(jobId);
     setError("");
     setSuccess("");
 
     try {
-      const response = await fetch(`/api/jobs/${jobId}/apply`, {
-        method: "POST",
+      const response = await fetch(`/api/jobs/${jobId}/save`, {
+        method: isSaved ? "DELETE" : "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          coverLetter: coverLetter.trim(),
-        }),
       });
 
       const data = await readApiResponse(
@@ -136,17 +186,15 @@ function JobsPage() {
       );
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to apply for this job.");
+        throw new Error(data.message || "Failed to update saved job.");
       }
 
-      setSuccess("Application submitted successfully.");
-      setSelectedJobId("");
-      setCoverLetter("");
+      setSuccess(isSaved ? "Job removed from saved list." : "Job saved successfully.");
       await fetchJobsData();
     } catch (err) {
-      setError(err.message || "Unable to submit application.");
+      setError(err.message || "Unable to update saved jobs.");
     } finally {
-      setApplyingJobId("");
+      setSavingJobId("");
     }
   };
 
@@ -176,7 +224,7 @@ function JobsPage() {
             <p className="text-sm font-medium text-cyan-300">Career Workspace</p>
             <h1 className="mt-1 text-3xl font-bold">Open Jobs</h1>
             <p className="mt-2 text-sm text-slate-400">
-              Browse company openings and submit applications directly from Learn2Hire.
+              Search roles, save opportunities, and open full job details before applying.
             </p>
           </div>
 
@@ -202,11 +250,17 @@ function JobsPage() {
           </div>
         ) : null}
 
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <div className="mb-6 grid gap-4 md:grid-cols-4">
           <Card className="border border-white/10 bg-white/5 shadow-none">
             <CardContent className="p-5">
               <p className="text-sm text-slate-400">Available Jobs</p>
               <p className="mt-2 text-lg font-semibold text-white">{jobs.length}</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-white/10 bg-white/5 shadow-none">
+            <CardContent className="p-5">
+              <p className="text-sm text-slate-400">Saved Jobs</p>
+              <p className="mt-2 text-lg font-semibold text-white">{savedJobs.length}</p>
             </CardContent>
           </Card>
           <Card className="border border-white/10 bg-white/5 shadow-none">
@@ -225,12 +279,66 @@ function JobsPage() {
           </Card>
         </div>
 
+        <Card className="mb-6 border border-white/10 bg-white/5 shadow-none">
+          <CardContent className="p-6">
+            <div className="mb-4 flex items-center gap-3">
+              <Search className="h-5 w-5 text-cyan-300" />
+              <h2 className="text-xl font-semibold text-white">Filters</h2>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <input
+                type="text"
+                value={filters.search}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, search: e.target.value }))
+                }
+                placeholder="Search title or company"
+                className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+              />
+              <input
+                type="text"
+                value={filters.location}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, location: e.target.value }))
+                }
+                placeholder="Filter by location"
+                className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+              />
+              <select
+                value={filters.employmentType}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, employmentType: e.target.value }))
+                }
+                className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+              >
+                <option value="">All types</option>
+                <option value="full-time">Full-time</option>
+                <option value="internship">Internship</option>
+                <option value="part-time">Part-time</option>
+                <option value="contract">Contract</option>
+              </select>
+              <label className="flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={filters.savedOnly}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, savedOnly: e.target.checked }))
+                  }
+                  className="h-4 w-4 rounded border-white/20 bg-slate-950/70"
+                />
+                Show saved jobs only
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
           <Card className="border border-white/10 bg-white/5 shadow-none">
             <CardContent className="p-6">
               <h2 className="text-2xl font-bold text-white">My Applications</h2>
               <p className="mt-2 text-sm text-slate-400">
-                Track jobs you have already applied to and their latest status.
+                Review submitted applications, cover notes, and your shared links.
               </p>
 
               <div className="mt-6 space-y-4">
@@ -260,11 +368,40 @@ function JobsPage() {
                           {application.status}
                         </span>
                       </div>
+
+                      <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-400">
+                        {application.resumeLink ? (
+                          <a
+                            href={application.resumeLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full bg-white/10 px-3 py-1 text-slate-200 transition hover:bg-white/20"
+                          >
+                            Resume Link
+                          </a>
+                        ) : null}
+                        {application.portfolioLink ? (
+                          <a
+                            href={application.portfolioLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full bg-white/10 px-3 py-1 text-slate-200 transition hover:bg-white/20"
+                          >
+                            Portfolio Link
+                          </a>
+                        ) : null}
+                        <Link
+                          to={`/jobs/${application.job?._id}`}
+                          className="rounded-full bg-indigo-500/20 px-3 py-1 text-cyan-200 transition hover:bg-indigo-500/30"
+                        >
+                          View Job
+                        </Link>
+                      </div>
                     </div>
                   ))
                 ) : (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
-                    No applications yet. Start by applying to an open role.
+                    No applications yet. Open a job to submit your first application.
                   </div>
                 )}
               </div>
@@ -275,15 +412,15 @@ function JobsPage() {
             <CardContent className="p-6">
               <h2 className="text-2xl font-bold text-white">Browse Opportunities</h2>
               <p className="mt-2 text-sm text-slate-400">
-                Explore open company roles and submit your application when you are ready.
+                Filter open roles, save interesting ones, and open the details page when you are
+                ready to apply.
               </p>
 
               <div className="mt-6 space-y-4">
-                {jobs.length ? (
-                  jobs.map((job) => {
+                {filteredJobs.length ? (
+                  filteredJobs.map((job) => {
                     const existingApplication = applicationMap[job._id];
-                    const applying = applyingJobId === job._id;
-                    const isExpanded = selectedJobId === job._id;
+                    const isSaved = Boolean(savedJobMap[job._id]);
 
                     return (
                       <div
@@ -299,9 +436,19 @@ function JobsPage() {
                               <div>
                                 <h3 className="font-semibold text-white">{job.title}</h3>
                                 <p className="mt-1 text-sm text-slate-400">
-                                  {job.createdBy?.name || "Company"} · {job.location || "Remote"}
+                                  {job.createdBy?.name || "Company"}
                                 </p>
                               </div>
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-slate-200">
+                                <MapPin className="h-3.5 w-3.5" />
+                                {job.location || "Remote"}
+                              </span>
+                              <span className="rounded-full bg-white/10 px-3 py-1 capitalize text-slate-200">
+                                {job.employmentType}
+                              </span>
                             </div>
 
                             <p className="mt-4 text-sm leading-6 text-slate-300">
@@ -309,17 +456,20 @@ function JobsPage() {
                             </p>
 
                             <div className="mt-4 flex flex-wrap gap-2">
-                              <span className="rounded-full bg-white/10 px-3 py-1 text-xs capitalize text-slate-200">
-                                {job.employmentType}
-                              </span>
-                              {job.skillsRequired?.map((skill) => (
-                                <span
-                                  key={`${job._id}-${skill}`}
-                                  className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300"
-                                >
-                                  {skill}
+                              {job.skillsRequired?.length ? (
+                                job.skillsRequired.map((skill) => (
+                                  <span
+                                    key={`${job._id}-${skill}`}
+                                    className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300"
+                                  >
+                                    {skill}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
+                                  General role
                                 </span>
-                              ))}
+                              )}
                             </div>
                           </div>
 
@@ -328,50 +478,33 @@ function JobsPage() {
                               {existingApplication ? existingApplication.status : job.status}
                             </span>
 
-                            {existingApplication ? (
-                              <Button disabled className="min-w-36">
-                                Already Applied
-                              </Button>
-                            ) : (
+                            <div className="flex flex-wrap gap-2">
                               <Button
-                                variant={isExpanded ? "outline" : "default"}
-                                onClick={() =>
-                                  setSelectedJobId((prev) => (prev === job._id ? "" : job._id))
-                                }
-                                className="min-w-36"
+                                variant="outline"
+                                onClick={() => handleSaveToggle(job._id)}
+                                disabled={savingJobId === job._id}
                               >
-                                {isExpanded ? "Close" : "Apply Now"}
+                                <Heart className={`h-4 w-4 ${isSaved ? "fill-current" : ""}`} />
+                                {savingJobId === job._id
+                                  ? "Saving..."
+                                  : isSaved
+                                    ? "Saved"
+                                    : "Save"}
                               </Button>
-                            )}
-                          </div>
-                        </div>
-
-                        {isExpanded && !existingApplication ? (
-                          <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-                            <label className="block text-sm font-medium text-white">
-                              Cover Letter
-                            </label>
-                            <textarea
-                              value={coverLetter}
-                              onChange={(e) => setCoverLetter(e.target.value)}
-                              rows={4}
-                              placeholder="Write a short note about your skills, experience, or interest in this job."
-                              className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
-                            />
-                            <div className="mt-4 flex justify-end">
-                              <Button onClick={() => handleApply(job._id)} disabled={applying}>
-                                {applying ? "Submitting..." : "Submit Application"}
-                                {!applying ? <Send className="h-4 w-4" /> : null}
+                              <Button asChild>
+                                <Link to={`/jobs/${job._id}`}>
+                                  {existingApplication ? "View Application" : "View Details"}
+                                </Link>
                               </Button>
                             </div>
                           </div>
-                        ) : null}
+                        </div>
                       </div>
                     );
                   })
                 ) : (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
-                    No open jobs available right now. Check back again soon.
+                    No jobs match your current filters. Try changing search or filter options.
                   </div>
                 )}
               </div>

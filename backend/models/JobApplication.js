@@ -17,6 +17,16 @@ const jobApplicationSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    resumeLink: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    portfolioLink: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     status: {
       type: String,
       enum: ['applied', 'reviewing', 'shortlisted', 'rejected', 'hired'],

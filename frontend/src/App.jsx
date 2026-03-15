@@ -1,11 +1,14 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import AdminJobsPage from './pages/AdminJobsPage';
+import CompanyJobsPage from './pages/CompanyJobsPage';
 import Dashboard from './pages/Dashboard';
 import CreateAssessment from './pages/CreateAssessment';
+import JobDetailsPage from './pages/JobDetailsPage';
 import LandingPage from './pages/LandingPage';
+import NotificationsPage from './pages/NotificationsPage';
 import AssessmentsList from './pages/AssessmentsList';
-import CompanyJobsPage from './pages/CompanyJobsPage';
 import JobsPage from './pages/JobsPage';
 import StudentAssessment from './pages/StudentAssessment';
 import './App.css';
@@ -51,10 +54,26 @@ function App() {
         }
       />
       <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute>
+            <NotificationsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/assessments"
         element={
           <ProtectedRoute>
             <AssessmentsList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/jobs"
+        element={
+          <ProtectedRoute>
+            <AdminJobsPage />
           </ProtectedRoute>
         }
       />
@@ -71,6 +90,14 @@ function App() {
         element={
           <ProtectedRoute>
             <JobsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/jobs/:id"
+        element={
+          <ProtectedRoute>
+            <JobDetailsPage />
           </ProtectedRoute>
         }
       />

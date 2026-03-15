@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   ExternalLink,
   LoaderCircle,
+  Search,
   Trash2,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -12,35 +13,18 @@ import { readApiResponse } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 
-const emptyForm = {
-  title: "",
-  description: "",
-  location: "",
-  employmentType: "full-time",
-  skillsRequired: "",
-  status: "draft",
-};
-
-function mapJobToForm(job) {
-  if (!job) return emptyForm;
-
-  return {
-    title: job.title || "",
-    description: job.description || "",
-    location: job.location || "",
-    employmentType: job.employmentType || "full-time",
-    skillsRequired: Array.isArray(job.skillsRequired) ? job.skillsRequired.join(", ") : "",
-    status: job.status || "draft",
-  };
-}
-
-function CompanyJobsPage() {
+function AdminJobsPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [applications, setApplications] = useState([]);
-  const [form, setForm] = useState(emptyForm);
+  const [filters, setFilters] = useState({
+    search: "",
+    company: "",
+    status: "",
+  });
+  const [statusDraft, setStatusDraft] = useState("draft");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -48,9 +32,23 @@ function CompanyJobsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      const matchesSearch = filters.search
+        ? `${job.title} ${job.description || ""}`.toLowerCase().includes(filters.search.toLowerCase())
+        : true;
+      const matchesCompany = filters.company
+        ? (job.createdBy?.name || "").toLowerCase().includes(filters.company.toLowerCase())
+        : true;
+      const matchesStatus = filters.status ? job.status === filters.status : true;
+
+      return matchesSearch && matchesCompany && matchesStatus;
+    });
+  }, [filters, jobs]);
+
   const selectedJob = useMemo(
-    () => jobs.find((job) => job._id === selectedJobId) || null,
-    [jobs, selectedJobId]
+    () => filteredJobs.find((job) => job._id === selectedJobId) || jobs.find((job) => job._id === selectedJobId) || null,
+    [filteredJobs, jobs, selectedJobId]
   );
 
   const fetchJobs = useCallback(async () => {
@@ -74,8 +72,8 @@ function CompanyJobsPage() {
       return [];
     }
 
-    if (parsedUser.role !== "company") {
-      setError("This page is available only for company accounts.");
+    if (parsedUser.role !== "admin") {
+      setError("This page is available only for admin accounts.");
       setLoading(false);
       return [];
     }
@@ -129,13 +127,6 @@ function CompanyJobsPage() {
         "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
       );
 
-      if (response.status === 401) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        navigate("/login");
-        return;
-      }
-
       if (!response.ok) {
         throw new Error(data.message || "Failed to load applications.");
       }
@@ -155,8 +146,9 @@ function CompanyJobsPage() {
         nextJobs.find((job) => job._id === selectedJobId)?._id || nextJobs[0]?._id || "";
 
       setSelectedJobId(nextSelectedJobId);
-      const nextSelectedJob = nextJobs.find((job) => job._id === nextSelectedJobId) || null;
-      setForm(mapJobToForm(nextSelectedJob));
+
+      const nextSelected = nextJobs.find((job) => job._id === nextSelectedJobId) || null;
+      setStatusDraft(nextSelected?.status || "draft");
 
       if (nextSelectedJobId) {
         await fetchApplications(nextSelectedJobId);
@@ -164,7 +156,7 @@ function CompanyJobsPage() {
         setApplications([]);
       }
     } catch (err) {
-      setError(err.message || "Unable to load company jobs.");
+      setError(err.message || "Unable to load admin jobs.");
     } finally {
       setLoading(false);
     }
@@ -176,30 +168,12 @@ function CompanyJobsPage() {
 
   useEffect(() => {
     if (selectedJob) {
-      setForm(mapJobToForm(selectedJob));
+      setStatusDraft(selectedJob.status || "draft");
     }
   }, [selectedJob]);
 
-  const handleSelectJob = async (job) => {
-    setSelectedJobId(job._id);
-    setForm(mapJobToForm(job));
-    setError("");
-    setSuccess("");
-
-    try {
-      await fetchApplications(job._id);
-    } catch (err) {
-      setError(err.message || "Unable to load applications for this job.");
-    }
-  };
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-
-    if (!selectedJobId) {
-      setError("Select a job first.");
-      return;
-    }
+  const handleStatusSave = async () => {
+    if (!selectedJob) return;
 
     setSaving(true);
     setError("");
@@ -212,19 +186,13 @@ function CompanyJobsPage() {
         return;
       }
 
-      const response = await fetch(`/api/jobs/${selectedJobId}`, {
+      const response = await fetch(`/api/jobs/${selectedJob._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          ...form,
-          skillsRequired: form.skillsRequired
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-        }),
+        body: JSON.stringify({ status: statusDraft }),
       });
 
       const data = await readApiResponse(
@@ -233,23 +201,20 @@ function CompanyJobsPage() {
       );
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to update job.");
+        throw new Error(data.message || "Failed to update job status.");
       }
 
-      setSuccess("Job updated successfully.");
+      setSuccess("Job status updated successfully.");
       await refreshPage();
     } catch (err) {
-      setError(err.message || "Unable to update job.");
+      setError(err.message || "Unable to update job status.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!selectedJobId) {
-      setError("Select a job first.");
-      return;
-    }
+  const handleDeleteJob = async () => {
+    if (!selectedJob) return;
 
     setDeleting(true);
     setError("");
@@ -262,7 +227,7 @@ function CompanyJobsPage() {
         return;
       }
 
-      const response = await fetch(`/api/jobs/${selectedJobId}`, {
+      const response = await fetch(`/api/jobs/${selectedJob._id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -326,15 +291,12 @@ function CompanyJobsPage() {
     }
   };
 
-  const inputClassName =
-    "h-12 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20";
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
-          Loading company jobs...
+          Loading admin job management...
         </div>
       </div>
     );
@@ -350,12 +312,12 @@ function CompanyJobsPage() {
                 Dashboard
               </Link>
               <span>/</span>
-              <span className="text-slate-300">Manage Jobs</span>
+              <span className="text-slate-300">Admin Jobs</span>
             </div>
-            <p className="text-sm font-medium text-cyan-300">Company Workspace</p>
-            <h1 className="mt-1 text-3xl font-bold">Manage Job Posts</h1>
+            <p className="text-sm font-medium text-cyan-300">Admin Workspace</p>
+            <h1 className="mt-1 text-3xl font-bold">Jobs Management</h1>
             <p className="mt-2 text-sm text-slate-400">
-              Update role details, change status, review applicants, and remove old openings.
+              Review all company jobs, manage status, and inspect applications across the platform.
             </p>
           </div>
 
@@ -381,21 +343,60 @@ function CompanyJobsPage() {
           </div>
         ) : null}
 
+        <Card className="mb-6 border border-white/10 bg-white/5 shadow-none">
+          <CardContent className="p-6">
+            <div className="mb-4 flex items-center gap-3">
+              <Search className="h-5 w-5 text-cyan-300" />
+              <h2 className="text-xl font-semibold text-white">Filters</h2>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <input
+                type="text"
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                placeholder="Search by title"
+                className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+              />
+              <input
+                type="text"
+                value={filters.company}
+                onChange={(e) => setFilters((prev) => ({ ...prev, company: e.target.value }))}
+                placeholder="Filter by company"
+                className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+              />
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+                className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+              >
+                <option value="">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="open">Open</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
           <Card className="border border-white/10 bg-white/5 shadow-none">
             <CardContent className="p-6">
-              <h2 className="text-2xl font-bold text-white">Your Jobs</h2>
+              <h2 className="text-2xl font-bold text-white">All Jobs</h2>
               <p className="mt-2 text-sm text-slate-400">
-                Select a role to edit details and review applicants.
+                Choose a job to manage its status and review applicants.
               </p>
 
               <div className="mt-6 space-y-4">
-                {jobs.length ? (
-                  jobs.map((job) => (
+                {filteredJobs.length ? (
+                  filteredJobs.map((job) => (
                     <button
                       key={job._id}
                       type="button"
-                      onClick={() => handleSelectJob(job)}
+                      onClick={async () => {
+                        setSelectedJobId(job._id);
+                        setStatusDraft(job.status || "draft");
+                        await fetchApplications(job._id);
+                      }}
                       className={`w-full rounded-2xl border p-4 text-left transition ${
                         selectedJobId === job._id
                           ? "border-cyan-400 bg-cyan-400/10"
@@ -403,17 +404,15 @@ function CompanyJobsPage() {
                       }`}
                     >
                       <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
-                              <BriefcaseBusiness className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-white">{job.title}</h3>
-                              <p className="mt-1 text-sm text-slate-400">
-                                {job.location || "Remote"} · {job.employmentType}
-                              </p>
-                            </div>
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
+                            <BriefcaseBusiness className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-white">{job.title}</h3>
+                            <p className="mt-1 text-sm text-slate-400">
+                              {job.createdBy?.name || "Company"} · {job.location || "Remote"}
+                            </p>
                           </div>
                         </div>
                         <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium capitalize text-slate-200">
@@ -424,8 +423,7 @@ function CompanyJobsPage() {
                   ))
                 ) : (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
-                    No jobs created yet. Go back to the company dashboard to create your first job
-                    post.
+                    No jobs match the current filters.
                   </div>
                 )}
               </div>
@@ -437,9 +435,11 @@ function CompanyJobsPage() {
               <CardContent className="p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Edit Job</h2>
+                    <h2 className="text-2xl font-bold text-white">Job Controls</h2>
                     <p className="mt-2 text-sm text-slate-400">
-                      Keep this opening updated for applicants.
+                      {selectedJob
+                        ? `Managing ${selectedJob.title}`
+                        : "Select a job to manage its state."}
                     </p>
                   </div>
                   <div className="text-sm text-slate-400">
@@ -448,80 +448,48 @@ function CompanyJobsPage() {
                 </div>
 
                 {selectedJob ? (
-                  <form onSubmit={handleSave} className="mt-6 space-y-4">
-                    <input
-                      type="text"
-                      value={form.title}
-                      onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                      placeholder="Job title"
-                      className={inputClassName}
-                    />
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <input
-                        type="text"
-                        value={form.location}
-                        onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-                        placeholder="Location"
-                        className={inputClassName}
-                      />
-                      <select
-                        value={form.employmentType}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, employmentType: e.target.value }))
-                        }
-                        className={inputClassName}
-                      >
-                        <option value="full-time">Full-time</option>
-                        <option value="internship">Internship</option>
-                        <option value="part-time">Part-time</option>
-                        <option value="contract">Contract</option>
-                      </select>
+                  <div className="mt-6 space-y-5">
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h3 className="text-xl font-semibold text-white">{selectedJob.title}</h3>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {selectedJob.createdBy?.name || "Company"} · {selectedJob.createdBy?.email}
+                          </p>
+                          <p className="mt-3 text-sm leading-6 text-slate-300">
+                            {selectedJob.description || "No description available."}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium capitalize text-cyan-300">
+                          {selectedJob.status}
+                        </span>
+                      </div>
                     </div>
-                    <input
-                      type="text"
-                      value={form.skillsRequired}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, skillsRequired: e.target.value }))
-                      }
-                      placeholder="Skills required, separated by commas"
-                      className={inputClassName}
-                    />
-                    <select
-                      value={form.status}
-                      onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                      className={inputClassName}
-                    >
-                      <option value="draft">Draft</option>
-                      <option value="open">Open</option>
-                      <option value="closed">Closed</option>
-                    </select>
-                    <textarea
-                      value={form.description}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, description: e.target.value }))
-                      }
-                      rows={5}
-                      placeholder="Describe the role, responsibilities, and expectations"
-                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
-                    />
 
-                    <div className="flex flex-wrap justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <select
+                        value={statusDraft}
+                        onChange={(e) => setStatusDraft(e.target.value)}
+                        className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="open">Open</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                      <Button onClick={handleStatusSave} disabled={saving}>
+                        {saving ? "Saving..." : "Save Status"}
+                      </Button>
                       <Button
-                        type="button"
                         variant="outline"
-                        onClick={handleDelete}
+                        onClick={handleDeleteJob}
                         disabled={deleting}
                         className="border-rose-400/40 text-rose-200 hover:bg-rose-500/10 hover:text-rose-100"
                       >
                         <Trash2 className="h-4 w-4" />
                         {deleting ? "Deleting..." : "Delete Job"}
                       </Button>
-
-                      <Button type="submit" disabled={saving}>
-                        {saving ? "Saving..." : "Save Changes"}
-                      </Button>
                     </div>
-                  </form>
+                  </div>
                 ) : (
                   <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
                     Select a job from the left to start managing it.
@@ -532,9 +500,9 @@ function CompanyJobsPage() {
 
             <Card className="border border-white/10 bg-white/5 shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-white">Applicants</h2>
+                <h2 className="text-2xl font-bold text-white">Applications</h2>
                 <p className="mt-2 text-sm text-slate-400">
-                  Review applications for the selected job and move candidates through the pipeline.
+                  Review the selected job’s applicant pipeline.
                 </p>
 
                 <div className="mt-6 space-y-4">
@@ -554,11 +522,7 @@ function CompanyJobsPage() {
                                 {application.student?.email}
                               </p>
                               <p className="mt-2 text-xs text-slate-500">
-                                Overall Score: {application.studentProfile?.overallScore ?? 0}% ·
-                                Applied{" "}
-                                {new Date(
-                                  application.appliedAt || application.createdAt
-                                ).toLocaleDateString()}
+                                Overall Score: {application.studentProfile?.overallScore ?? 0}%
                               </p>
                             </div>
                             <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium capitalize text-slate-200">
@@ -566,44 +530,11 @@ function CompanyJobsPage() {
                             </span>
                           </div>
 
-                          {application.studentProfile?.bio ? (
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm leading-6 text-slate-300">
-                              {application.studentProfile.bio}
-                            </div>
-                          ) : null}
-
                           {application.coverLetter ? (
                             <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm leading-6 text-slate-300">
                               {application.coverLetter}
                             </div>
                           ) : null}
-
-                          <div className="grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                                Skills
-                              </p>
-                              <p className="mt-2 text-lg font-semibold text-white">
-                                {application.studentProfile?.skills?.length || 0}
-                              </p>
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                                Courses
-                              </p>
-                              <p className="mt-2 text-lg font-semibold text-white">
-                                {application.studentProfile?.stats?.coursesCompleted || 0}
-                              </p>
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                                Assessments
-                              </p>
-                              <p className="mt-2 text-lg font-semibold text-white">
-                                {application.studentProfile?.stats?.assessmentsTaken || 0}
-                              </p>
-                            </div>
-                          </div>
 
                           {application.studentProfile?.skills?.length ? (
                             <div className="flex flex-wrap gap-2">
@@ -612,7 +543,7 @@ function CompanyJobsPage() {
                                   key={skill._id || `${application._id}-${skill.name}`}
                                   className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300"
                                 >
-                                  {skill.name} {typeof skill.progress === "number" ? `· ${skill.progress}%` : ""}
+                                  {skill.name}
                                 </span>
                               ))}
                             </div>
@@ -667,7 +598,7 @@ function CompanyJobsPage() {
                     ))
                   ) : (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
-                      No applicants for the selected job yet.
+                      No applications for the selected job yet.
                     </div>
                   )}
                 </div>
@@ -680,4 +611,4 @@ function CompanyJobsPage() {
   );
 }
 
-export default CompanyJobsPage;
+export default AdminJobsPage;

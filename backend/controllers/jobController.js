@@ -2,7 +2,13 @@ const mongoose = require('mongoose');
 
 const Job = require('../models/Job');
 const JobApplication = require('../models/JobApplication');
+const SavedJob = require('../models/SavedJob');
 const StudentProfile = require('../models/StudentProfile');
+const User = require('../models/User');
+const {
+  createBulkNotifications,
+  createNotification,
+} = require('../utils/notificationService');
 
 const companyRoles = ['company'];
 const applicantRoles = ['student', 'alumni'];
@@ -23,6 +29,36 @@ const ensureValidId = (id, label) => {
   return null;
 };
 
+const buildJobFilters = (query, user) => {
+  const filters = { ...getJobQueryByRole(user) };
+
+  if (query.search) {
+    filters.$or = [
+      { title: { $regex: query.search, $options: 'i' } },
+      { description: { $regex: query.search, $options: 'i' } },
+      { location: { $regex: query.search, $options: 'i' } },
+    ];
+  }
+
+  if (query.location) {
+    filters.location = { $regex: query.location, $options: 'i' };
+  }
+
+  if (query.employmentType) {
+    filters.employmentType = query.employmentType;
+  }
+
+  if (query.skill) {
+    filters.skillsRequired = { $regex: query.skill, $options: 'i' };
+  }
+
+  if (query.status && (user.role === 'admin' || companyRoles.includes(user.role))) {
+    filters.status = query.status;
+  }
+
+  return filters;
+};
+
 const getJobQueryByRole = (user) => {
   if (user.role === 'admin') {
     return {};
@@ -40,7 +76,7 @@ const getJobQueryByRole = (user) => {
 // @access  Private
 exports.getJobs = async (req, res) => {
   try {
-    const jobs = await Job.find(getJobQueryByRole(req.user))
+    const jobs = await Job.find(buildJobFilters(req.query, req.user))
       .populate('createdBy', 'name email role')
       .sort({ createdAt: -1 });
 
@@ -141,6 +177,24 @@ exports.createJob = async (req, res) => {
       'name email role'
     );
 
+    if (job.status === 'open') {
+      const learners = await User.find({ role: { $in: applicantRoles } })
+        .select('_id')
+        .lean();
+
+      await createBulkNotifications({
+        recipientIds: learners.map((user) => user._id),
+        title: 'New job posted',
+        message: `${job.title} is now open for applications.`,
+        category: 'job',
+        type: 'job_posted',
+        actionUrl: `/jobs/${job._id}`,
+        metadata: {
+          jobId: job._id,
+        },
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: 'Job created successfully',
@@ -167,10 +221,10 @@ exports.createJob = async (req, res) => {
 // @access  Private (company owner only)
 exports.updateJob = async (req, res) => {
   try {
-    if (!companyRoles.includes(req.user.role)) {
+    if (!companyRoles.includes(req.user.role) && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Only company users can update job posts.',
+        message: 'Only company or admin users can update job posts.',
       });
     }
 
@@ -191,12 +245,17 @@ exports.updateJob = async (req, res) => {
       });
     }
 
-    if (job.createdBy.toString() !== req.user._id.toString()) {
+    if (
+      req.user.role !== 'admin' &&
+      job.createdBy.toString() !== req.user._id.toString()
+    ) {
       return res.status(403).json({
         success: false,
         message: 'You can only update your own job posts.',
       });
     }
+
+    const previousStatus = job.status;
 
     const { title, description, location, employmentType, skillsRequired, status } =
       req.body;
@@ -216,6 +275,24 @@ exports.updateJob = async (req, res) => {
       'createdBy',
       'name email role'
     );
+
+    if (previousStatus !== 'open' && job.status === 'open') {
+      const learners = await User.find({ role: { $in: applicantRoles } })
+        .select('_id')
+        .lean();
+
+      await createBulkNotifications({
+        recipientIds: learners.map((user) => user._id),
+        title: 'Job is now open',
+        message: `${job.title} is now available for applications.`,
+        category: 'job',
+        type: 'job_opened',
+        actionUrl: `/jobs/${job._id}`,
+        metadata: {
+          jobId: job._id,
+        },
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -243,10 +320,10 @@ exports.updateJob = async (req, res) => {
 // @access  Private (company owner only)
 exports.deleteJob = async (req, res) => {
   try {
-    if (!companyRoles.includes(req.user.role)) {
+    if (!companyRoles.includes(req.user.role) && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Only company users can delete job posts.',
+        message: 'Only company or admin users can delete job posts.',
       });
     }
 
@@ -267,7 +344,10 @@ exports.deleteJob = async (req, res) => {
       });
     }
 
-    if (job.createdBy.toString() !== req.user._id.toString()) {
+    if (
+      req.user.role !== 'admin' &&
+      job.createdBy.toString() !== req.user._id.toString()
+    ) {
       return res.status(403).json({
         success: false,
         message: 'You can only delete your own job posts.',
@@ -275,6 +355,7 @@ exports.deleteJob = async (req, res) => {
     }
 
     await JobApplication.deleteMany({ job: job._id });
+    await SavedJob.deleteMany({ job: job._id });
     await job.deleteOne();
 
     res.status(200).json({
@@ -322,11 +403,40 @@ exports.applyToJob = async (req, res) => {
       job: job._id,
       student: req.user._id,
       coverLetter: req.body.coverLetter || '',
+      resumeLink: req.body.resumeLink || '',
+      portfolioLink: req.body.portfolioLink || '',
     });
 
     const populatedApplication = await JobApplication.findById(application._id)
-      .populate('job', 'title location employmentType status')
+      .populate('job', 'title description location employmentType status skillsRequired')
       .populate('student', 'name email role');
+
+    await createNotification({
+      recipient: req.user._id,
+      title: 'Job application submitted',
+      message: `Your application for ${job.title} has been sent successfully.`,
+      category: 'job',
+      type: 'job_application_submitted',
+      actionUrl: `/jobs/${job._id}`,
+      metadata: {
+        jobId: job._id,
+        applicationId: application._id,
+      },
+    });
+
+    await createNotification({
+      recipient: job.createdBy,
+      title: 'New job application',
+      message: `${req.user.name} applied for ${job.title}.`,
+      category: 'job',
+      type: 'job_application_received',
+      actionUrl: '/company/jobs',
+      metadata: {
+        jobId: job._id,
+        applicationId: application._id,
+        applicantId: req.user._id,
+      },
+    });
 
     res.status(201).json({
       success: true,
@@ -383,6 +493,141 @@ exports.getMyApplications = async (req, res) => {
   }
 };
 
+// @desc    Get my saved jobs
+// @route   GET /api/jobs/saved/me
+// @access  Private (student/alumni only)
+exports.getSavedJobs = async (req, res) => {
+  try {
+    if (!applicantRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only students or alumni can view saved jobs.',
+      });
+    }
+
+    const savedJobs = await SavedJob.find({ student: req.user._id })
+      .populate({
+        path: 'job',
+        populate: {
+          path: 'createdBy',
+          select: 'name email role',
+        },
+      })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: savedJobs.length,
+      data: { savedJobs },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Save job
+// @route   POST /api/jobs/:id/save
+// @access  Private (student/alumni only)
+exports.saveJob = async (req, res) => {
+  try {
+    if (!applicantRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only students or alumni can save jobs.',
+      });
+    }
+
+    const { id } = req.params;
+    const invalidId = ensureValidId(id, 'Job');
+    if (invalidId) {
+      return res.status(400).json({
+        success: false,
+        message: invalidId,
+      });
+    }
+
+    const job = await Job.findById(id);
+    if (!job || job.status !== 'open') {
+      return res.status(404).json({
+        success: false,
+        message: 'Open job not found',
+      });
+    }
+
+    const savedJob = await SavedJob.create({
+      student: req.user._id,
+      job: id,
+    });
+
+    const populatedSavedJob = await SavedJob.findById(savedJob._id).populate({
+      path: 'job',
+      populate: {
+        path: 'createdBy',
+        select: 'name email role',
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Job saved successfully',
+      data: { savedJob: populatedSavedJob },
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already saved this job.',
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Unsave job
+// @route   DELETE /api/jobs/:id/save
+// @access  Private (student/alumni only)
+exports.unsaveJob = async (req, res) => {
+  try {
+    if (!applicantRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only students or alumni can remove saved jobs.',
+      });
+    }
+
+    const { id } = req.params;
+    const invalidId = ensureValidId(id, 'Job');
+    if (invalidId) {
+      return res.status(400).json({
+        success: false,
+        message: invalidId,
+      });
+    }
+
+    await SavedJob.findOneAndDelete({
+      student: req.user._id,
+      job: id,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Saved job removed successfully',
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
 // @desc    Get applications for a company job
 // @route   GET /api/jobs/:id/applications
 // @access  Private (company owner/admin)
@@ -419,7 +664,7 @@ exports.getApplicationsForJob = async (req, res) => {
 
     const studentIds = applications.map((item) => item.student?._id).filter(Boolean);
     const profiles = await StudentProfile.find({ user: { $in: studentIds } })
-      .select('user overallScore skills stats')
+      .select('user bio overallScore skills stats')
       .lean();
 
     const profileMap = Object.fromEntries(
@@ -495,6 +740,20 @@ exports.updateApplicationStatus = async (req, res) => {
       .populate('student', 'name email role')
       .populate('job', 'title location employmentType status');
 
+    await createNotification({
+      recipient: application.student,
+      title: 'Application status updated',
+      message: `Your application for ${application.job?.title || 'this job'} is now ${application.status}.`,
+      category: 'job',
+      type: 'job_application_status_updated',
+      actionUrl: `/jobs/${application.job?._id || ''}`,
+      metadata: {
+        jobId: application.job?._id,
+        applicationId: application._id,
+        status: application.status,
+      },
+    });
+
     res.status(200).json({
       success: true,
       message: 'Application status updated successfully',
@@ -536,7 +795,25 @@ exports.getCompanyDashboard = async (req, res) => {
       .populate('job', 'title status location employmentType')
       .sort({ appliedAt: -1 });
 
-    const shortlistedCount = applications.filter(
+    const studentIds = applications.map((item) => item.student?._id).filter(Boolean);
+    const profiles = await StudentProfile.find({ user: { $in: studentIds } })
+      .select('user bio overallScore skills stats')
+      .lean();
+
+    const profileMap = Object.fromEntries(
+      profiles.map((profile) => [profile.user.toString(), profile])
+    );
+
+    const enrichedApplications = applications.map((application) => {
+      const studentId = application.student?._id?.toString();
+
+      return {
+        ...application.toObject(),
+        studentProfile: studentId ? profileMap[studentId] || null : null,
+      };
+    });
+
+    const shortlistedCount = enrichedApplications.filter(
       (application) => application.status === 'shortlisted'
     ).length;
 
@@ -544,11 +821,11 @@ exports.getCompanyDashboard = async (req, res) => {
       metrics: {
         totalJobs: jobs.length,
         openJobs: jobs.filter((job) => job.status === 'open').length,
-        totalApplications: applications.length,
+        totalApplications: enrichedApplications.length,
         shortlistedCount,
       },
       recentJobs: jobs.slice(0, 5),
-      recentApplications: applications.slice(0, 8),
+      recentApplications: enrichedApplications.slice(0, 8),
     };
 
     res.status(200).json({

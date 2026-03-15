@@ -1,5 +1,7 @@
 const Assessment = require('../models/Assessment');
 const mongoose = require('mongoose');
+const User = require('../models/User');
+const { createBulkNotifications } = require('../utils/notificationService');
 
 // Strip correctAnswer from questions (for students taking assessment)
 const stripAnswers = (questions) => {
@@ -134,6 +136,22 @@ exports.createAssessment = async (req, res) => {
       'name email'
     );
 
+    if (assessment.status === 'published') {
+      const students = await User.find({ role: 'student' }).select('_id').lean();
+
+      await createBulkNotifications({
+        recipientIds: students.map((user) => user._id),
+        title: 'New assessment available',
+        message: `${assessment.title} is now published and ready to take.`,
+        category: 'assessment',
+        type: 'assessment_published',
+        actionUrl: `/assessments/${assessment._id}`,
+        metadata: {
+          assessmentId: assessment._id,
+        },
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: 'Assessment created',
@@ -189,6 +207,8 @@ exports.updateAssessment = async (req, res) => {
       });
     }
 
+    const previousStatus = assessment.status;
+
     const { title, description, skill, questions, timeLimit, status } =
       req.body;
 
@@ -208,6 +228,22 @@ exports.updateAssessment = async (req, res) => {
       'createdBy',
       'name email'
     );
+
+    if (previousStatus !== 'published' && assessment.status === 'published') {
+      const students = await User.find({ role: 'student' }).select('_id').lean();
+
+      await createBulkNotifications({
+        recipientIds: students.map((user) => user._id),
+        title: 'Assessment published',
+        message: `${assessment.title} is now available in your dashboard.`,
+        category: 'assessment',
+        type: 'assessment_published',
+        actionUrl: `/assessments/${assessment._id}`,
+        metadata: {
+          assessmentId: assessment._id,
+        },
+      });
+    }
 
     res.status(200).json({
       success: true,

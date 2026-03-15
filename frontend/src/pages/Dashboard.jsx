@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Bell } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 import AdminDashboard from "../components/admin-dashboard/AdminDashboard";
+import CollegeDashboard from "../components/college-dashboard/CollegeDashboard";
 import CompanyDashboard from "../components/company-dashboard/CompanyDashboard";
 import FacultyDashboard from "../components/faculty-dashboard/FacultyDashboard";
 import StudentDashboard from "../components/student-dashboard/StudentDashboard";
@@ -60,6 +62,10 @@ function Dashboard() {
     return <CompanyDashboard user={user} onLogout={handleLogout} />;
   }
 
+  if (user.role === "college") {
+    return <CollegeDashboard user={user} onLogout={handleLogout} />;
+  }
+
   if (user.role === "admin") {
     return <AdminDashboard user={user} onLogout={handleLogout} />;
   }
@@ -81,6 +87,12 @@ function Dashboard() {
                   </p>
                 </div>
                 <div className="flex gap-3">
+                  <Button asChild variant="outline">
+                    <Link to="/notifications">
+                      <Bell className="h-4 w-4" />
+                      Notifications
+                    </Link>
+                  </Button>
                   <Button asChild>
                     <Link to="/jobs">Browse Jobs</Link>
                   </Button>
