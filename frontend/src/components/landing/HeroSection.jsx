@@ -17,8 +17,9 @@ function HeroSection() {
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
             <Button
               asChild
+              variant="secondary"
               size="lg"
-              className="hover:bg-slate-100 text-black"
+              className="border border-white/60"
             >
               <Link to="/signup">Get Started</Link>
             </Button>

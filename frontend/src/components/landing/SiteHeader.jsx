@@ -41,7 +41,7 @@ function SiteHeader() {
           <Button asChild variant="outline">
             <Link to="/login">Login</Link>
           </Button>
-          <Button asChild> 
+          <Button asChild variant="outline">
             <Link to="/signup">
               Register
               <BriefcaseBusiness className="h-4 w-4" />
