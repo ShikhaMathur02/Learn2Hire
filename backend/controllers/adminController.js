@@ -7,7 +7,7 @@ const JobApplication = require('../models/JobApplication');
 const StudentProfile = require('../models/StudentProfile');
 const User = require('../models/User');
 
-const validRoles = ['student', 'alumni', 'faculty', 'company', 'admin'];
+const validRoles = ['student', 'alumni', 'faculty', 'company', 'admin', 'college'];
 
 const ensureAdmin = (req, res) => {
   if (req.user.role !== 'admin') {
@@ -54,6 +54,7 @@ exports.getAnalytics = async (req, res) => {
       faculty: 0,
       company: 0,
       admin: 0,
+      college: 0,
     };
 
     roleBreakdown.forEach((item) => {

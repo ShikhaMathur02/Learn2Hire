@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { readApiResponse } from "../../lib/api";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 
@@ -21,6 +22,7 @@ const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "assessments", label: "Assessments", icon: ClipboardList },
+  { id: "learning", label: "Learning", icon: BookOpen, path: "/learn" },
   { id: "jobs", label: "Jobs", icon: BriefcaseBusiness, path: "/jobs" },
   { id: "progress", label: "Progress", icon: BarChart3 },
 ];
@@ -79,6 +81,16 @@ function StudentDashboard({ user, onLogout }) {
   const [profile, setProfile] = useState(null);
   const [assessments, setAssessments] = useState([]);
   const [submissions, setSubmissions] = useState([]);
+  const [suggestedJobs, setSuggestedJobs] = useState([]);
+  const [recommendedMaterials, setRecommendedMaterials] = useState([]);
+  const [learningSummary, setLearningSummary] = useState({
+    totalStarted: 0,
+    totalCompleted: 0,
+    inProgressCount: 0,
+    totalTimeSpentMinutes: 0,
+    averageProgress: 0,
+  });
+  const [learningProgress, setLearningProgress] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -99,22 +111,44 @@ function StudentDashboard({ user, onLogout }) {
           Authorization: `Bearer ${token}`,
         };
 
-        const [profileRes, assessmentsRes, submissionsRes] = await Promise.all([
+        const [
+          profileRes,
+          assessmentsRes,
+          submissionsRes,
+          learningProgressRes,
+          suggestedJobsRes,
+          recommendedMaterialsRes,
+        ] = await Promise.all([
           fetch("/api/profile", { headers }),
           fetch("/api/assessments", { headers }),
           fetch("/api/submissions", { headers }),
+          fetch("/api/learning/progress/me", { headers }),
+          fetch("/api/jobs/suggestions/me", { headers }),
+          fetch("/api/learning/materials/recommended/me", { headers }),
         ]);
 
-        if ([profileRes, assessmentsRes, submissionsRes].some((res) => res.status === 401)) {
+        if (
+          [
+            profileRes,
+            assessmentsRes,
+            submissionsRes,
+            learningProgressRes,
+            suggestedJobsRes,
+            recommendedMaterialsRes,
+          ].some((res) => res.status === 401)
+        ) {
           localStorage.removeItem("token");
           localStorage.removeItem("user");
           navigate("/login");
           return;
         }
 
-        const profileData = await profileRes.json();
-        const assessmentsData = await assessmentsRes.json();
-        const submissionsData = await submissionsRes.json();
+        const profileData = await readApiResponse(profileRes);
+        const assessmentsData = await readApiResponse(assessmentsRes);
+        const submissionsData = await readApiResponse(submissionsRes);
+        const learningProgressData = await readApiResponse(learningProgressRes);
+        const suggestedJobsData = await readApiResponse(suggestedJobsRes);
+        const recommendedMaterialsData = await readApiResponse(recommendedMaterialsRes);
 
         if (!profileRes.ok) {
           throw new Error(profileData.message || "Failed to load profile.");
@@ -128,9 +162,35 @@ function StudentDashboard({ user, onLogout }) {
           throw new Error(submissionsData.message || "Failed to load submissions.");
         }
 
+        if (!learningProgressRes.ok) {
+          throw new Error(learningProgressData.message || "Failed to load learning progress.");
+        }
+
+        if (!suggestedJobsRes.ok) {
+          throw new Error(suggestedJobsData.message || "Failed to load job suggestions.");
+        }
+
+        if (!recommendedMaterialsRes.ok) {
+          throw new Error(
+            recommendedMaterialsData.message || "Failed to load recommended materials."
+          );
+        }
+
         setProfile(profileData.data?.profile ?? null);
         setAssessments(assessmentsData.data?.assessments ?? []);
         setSubmissions(submissionsData.data?.submissions ?? []);
+        setSuggestedJobs(suggestedJobsData.data?.jobs ?? []);
+        setRecommendedMaterials(recommendedMaterialsData.data?.materials ?? []);
+        setLearningSummary(
+          learningProgressData.data?.summary ?? {
+            totalStarted: 0,
+            totalCompleted: 0,
+            inProgressCount: 0,
+            totalTimeSpentMinutes: 0,
+            averageProgress: 0,
+          }
+        );
+        setLearningProgress(learningProgressData.data?.progress ?? []);
       } catch (err) {
         setError(err.message || "Unable to load dashboard data right now.");
       } finally {
@@ -158,6 +218,9 @@ function StudentDashboard({ user, onLogout }) {
 
   const recentResults = submissions.slice(0, 3);
   const availableAssessments = assessments.slice(0, 4);
+  const recentLearningMaterials = learningProgress.slice(0, 3);
+  const topSuggestedJobs = suggestedJobs.slice(0, 3);
+  const topRecommendedMaterials = recommendedMaterials.slice(0, 3);
 
   const renderDashboard = () => (
     <div className="space-y-6">
@@ -180,9 +243,9 @@ function StudentDashboard({ user, onLogout }) {
           icon={ClipboardList}
         />
         <MetricCard
-          title="Recent Results"
-          value={submissions.length}
-          subtitle="Assessment submissions recorded"
+          title="Learning Started"
+          value={learningSummary.totalStarted}
+          subtitle={`${learningSummary.totalCompleted} completed materials`}
           icon={BarChart3}
         />
         <MetricCard
@@ -283,22 +346,113 @@ function StudentDashboard({ user, onLogout }) {
         <Card className="border border-white/10 bg-white/5 shadow-none">
           <CardContent className="p-6">
             <SectionTitle
-              title="Career Opportunities"
-              description="Browse company openings and apply directly from your workspace."
+              title="Job Suggestions"
+              description="Live opportunities matched from your profile and current open jobs."
             />
-            <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
-                  <BriefcaseBusiness className="h-6 w-6" />
+            <div className="mt-6 space-y-4">
+              {topSuggestedJobs.length ? (
+                topSuggestedJobs.map((job) => (
+                  <div
+                    key={job._id}
+                    className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="font-semibold text-white">{job.title}</h3>
+                        <p className="mt-1 text-sm text-slate-400">
+                          {job.createdBy?.name || "Company"} · {job.location || "Remote"}
+                        </p>
+                        <p className="mt-2 text-sm text-slate-500">{job.suggestionReason}</p>
+                      </div>
+                      <Button asChild variant="outline">
+                        <Link to={`/jobs/${job._id}`}>View</Link>
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
+                      <BriefcaseBusiness className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white">No suggestions yet</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        Add more skills in your profile and browse jobs to get more relevant live
+                        suggestions here.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-white">Start exploring roles</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Use the jobs page to browse open roles posted by companies, then submit your
-                    application with a short cover letter.
-                  </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-white/10 bg-white/5 shadow-none">
+          <CardContent className="p-6">
+            <SectionTitle
+              title="Learning Hub"
+              description="Live recommended study materials based on your profile and learning activity."
+              action={
+                <div className="flex flex-wrap gap-3">
+                  <Button asChild variant="outline">
+                    <Link to="/learn">Open learning</Link>
+                  </Button>
+                  <Button asChild>
+                    <Link to="/learn/progress">My progress</Link>
+                  </Button>
                 </div>
+              }
+            />
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                <p className="text-sm text-slate-400">Started</p>
+                <p className="mt-2 text-3xl font-bold text-white">{learningSummary.totalStarted}</p>
               </div>
+              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                <p className="text-sm text-slate-400">Completed</p>
+                <p className="mt-2 text-3xl font-bold text-white">
+                  {learningSummary.totalCompleted}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                <p className="text-sm text-slate-400">Average Progress</p>
+                <p className="mt-2 text-3xl font-bold text-white">
+                  {learningSummary.averageProgress}%
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {topRecommendedMaterials.length ? (
+                topRecommendedMaterials.map((material) => (
+                  <div
+                    key={material._id}
+                    className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="font-semibold text-white">{material.title}</h3>
+                        <p className="mt-1 text-sm text-slate-400">
+                          {material.category?.name || "General"} · {material.level}
+                        </p>
+                        <p className="mt-2 text-sm text-slate-500">
+                          {material.recommendationReason}
+                        </p>
+                      </div>
+                      <Button asChild variant="outline">
+                        <Link to={`/learn/material/${material.slug}`}>Open</Link>
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-slate-400">
+                  Open the learning hub to start getting personalized material recommendations.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -460,7 +614,7 @@ function StudentDashboard({ user, onLogout }) {
       <CardContent className="p-6">
         <SectionTitle
           title="Progress"
-          description="Review your recent submissions and tracked progress."
+            description="Review your learning activity, recent submissions, and tracked progress."
         />
         <div className="mt-6 grid gap-6 xl:grid-cols-2">
           <div>
@@ -511,6 +665,44 @@ function StudentDashboard({ user, onLogout }) {
             </div>
           </div>
         </div>
+
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold text-white">Recent learning activity</h3>
+            <div className="mt-4 space-y-3">
+              {recentLearningMaterials.length ? (
+                recentLearningMaterials.map((item) => (
+                  <div
+                    key={item._id}
+                    className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-medium text-white">
+                          {item.material?.title || "Study material"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">
+                          {item.material?.category?.name || "General"} · Last opened{" "}
+                          {new Date(item.lastViewedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="text-left sm:text-right">
+                        <p className="text-lg font-bold text-cyan-300">
+                          {item.progressPercent || 0}%
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {item.completed ? "Completed" : "In progress"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-slate-400">
+                  Open materials from the learning hub and your progress will appear here.
+                </p>
+              )}
+            </div>
+          </div>
       </CardContent>
     </Card>
   );
@@ -582,6 +774,23 @@ function StudentDashboard({ user, onLogout }) {
               </div>
 
               <div className="flex items-center gap-3">
+                <Button
+                  asChild
+                  variant="outline"
+                  className="hidden border-white/15 text-slate-200 hover:bg-white/10 hover:text-white md:inline-flex"
+                >
+                  <Link to="/learn">
+                    <BookOpen className="h-4 w-4" />
+                    Learning
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="hidden border-white/15 text-slate-200 hover:bg-white/10 hover:text-white md:inline-flex"
+                >
+                  <Link to="/learn/progress">My Progress</Link>
+                </Button>
                 <Button
                   asChild
                   variant="outline"

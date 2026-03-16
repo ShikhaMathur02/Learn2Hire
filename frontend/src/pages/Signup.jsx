@@ -7,6 +7,9 @@ import AuthLayout from "../components/auth/AuthLayout";
 import { Button } from "../components/ui/button";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+const passwordCriteriaMessage =
+  "Use 8+ characters with uppercase, lowercase, number, and special character.";
 
 function Signup() {
   const navigate = useNavigate();
@@ -35,8 +38,8 @@ function Signup() {
 
     if (!password.trim()) {
       nextErrors.password = "Password is required.";
-    } else if (password.length < 6) {
-      nextErrors.password = "Password must be at least 6 characters.";
+    } else if (!strongPasswordPattern.test(password)) {
+      nextErrors.password = passwordCriteriaMessage;
     }
 
     if (!role) {
@@ -81,6 +84,30 @@ function Signup() {
 
   const inputClassName =
     "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:bg-slate-100";
+
+  const handlePasswordChange = (value) => {
+    setPassword(value);
+
+    setErrors((prev) => {
+      if (!value.trim()) {
+        if (!prev.password) return prev;
+        const nextErrors = { ...prev };
+        delete nextErrors.password;
+        return nextErrors;
+      }
+
+      if (strongPasswordPattern.test(value)) {
+        const nextErrors = { ...prev };
+        delete nextErrors.password;
+        return nextErrors;
+      }
+
+      return {
+        ...prev,
+        password: passwordCriteriaMessage,
+      };
+    });
+  };
 
   return (
     <AuthLayout
@@ -131,12 +158,16 @@ function Signup() {
           />
         </AuthField>
 
-        <AuthField label="Password" htmlFor="password" error={errors.password} hint="Minimum 6 characters">
+        <AuthField
+          label="Password"
+          htmlFor="password"
+          error={errors.password}
+        >
           <input
             id="password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => handlePasswordChange(e.target.value)}
             onBlur={validate}
             placeholder="Create a secure password"
             autoComplete="new-password"

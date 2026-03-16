@@ -4,6 +4,7 @@ import { BriefcaseBusiness, Users } from "lucide-react";
 import { Button } from "../ui/button";
 
 const navItems = [
+  { label: "Learning", to: "/learn" },
   { label: "Features", href: "#features" },
   { label: "For You", href: "#roles" },
   { label: "How It Works", href: "#how-it-works" },
@@ -27,13 +28,23 @@ function SiteHeader() {
 
         <nav className="hidden items-center gap-8 md:flex">
           {navItems.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="text-sm font-medium text-slate-600 transition-colors hover:text-[var(--primary)]"
-            >
-              {item.label}
-            </a>
+            item.to ? (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="text-sm font-medium text-slate-600 transition-colors hover:text-[var(--primary)]"
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <a
+                key={item.href}
+                href={item.href}
+                className="text-sm font-medium text-slate-600 transition-colors hover:text-[var(--primary)]"
+              >
+                {item.label}
+              </a>
+            )
           ))}
         </nav>
 

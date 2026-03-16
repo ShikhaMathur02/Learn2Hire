@@ -7,6 +7,10 @@ import Dashboard from './pages/Dashboard';
 import CreateAssessment from './pages/CreateAssessment';
 import JobDetailsPage from './pages/JobDetailsPage';
 import LandingPage from './pages/LandingPage';
+import LearningHomePage from './pages/LearningHomePage';
+import LearningManagePage from './pages/LearningManagePage';
+import MaterialDetailsPage from './pages/MaterialDetailsPage';
+import MyLearningProgressPage from './pages/MyLearningProgressPage';
 import NotificationsPage from './pages/NotificationsPage';
 import AssessmentsList from './pages/AssessmentsList';
 import JobsPage from './pages/JobsPage';
@@ -45,11 +49,30 @@ function App() {
           </PublicRoute>
         }
       />
+      <Route path="/learn" element={<LearningHomePage />} />
+      <Route path="/learn/category/:categorySlug" element={<LearningHomePage />} />
+      <Route path="/learn/material/:slug" element={<MaterialDetailsPage />} />
+      <Route
+        path="/learn/progress"
+        element={
+          <ProtectedRoute>
+            <MyLearningProgressPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/dashboard"
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/learn/manage"
+        element={
+          <ProtectedRoute>
+            <LearningManagePage />
           </ProtectedRoute>
         }
       />

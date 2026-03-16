@@ -483,6 +483,16 @@ function FacultyDashboard({ user, onLogout }) {
                   variant="outline"
                   className="hidden border-white/15 text-slate-200 hover:bg-white/10 hover:text-white md:inline-flex"
                 >
+                  <Link to="/learn/manage">
+                    <BookOpenCheck className="h-4 w-4" />
+                    Manage Learning
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="hidden border-white/15 text-slate-200 hover:bg-white/10 hover:text-white md:inline-flex"
+                >
                   <Link to="/notifications">
                     <Bell className="h-4 w-4" />
                     Notifications

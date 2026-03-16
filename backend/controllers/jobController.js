@@ -5,6 +5,7 @@ const JobApplication = require('../models/JobApplication');
 const SavedJob = require('../models/SavedJob');
 const StudentProfile = require('../models/StudentProfile');
 const User = require('../models/User');
+const { getLearnerInsights } = require('../utils/learnerInsights');
 const {
   createBulkNotifications,
   createNotification,
@@ -71,6 +72,19 @@ const getJobQueryByRole = (user) => {
   return { status: 'open' };
 };
 
+const normalizeForMatch = (value) => String(value || '').trim().toLowerCase();
+
+const getMatchedSkills = (skillsRequired, learnerSkills) => {
+  const normalizedRequired = normalizeSkills(skillsRequired).map(normalizeForMatch);
+
+  return learnerSkills.filter((learnerSkill) =>
+    normalizedRequired.some(
+      (requiredSkill) =>
+        requiredSkill.includes(learnerSkill) || learnerSkill.includes(requiredSkill)
+    )
+  );
+};
+
 // @desc    Get jobs based on current user role
 // @route   GET /api/jobs
 // @access  Private
@@ -84,6 +98,73 @@ exports.getJobs = async (req, res) => {
       success: true,
       count: jobs.length,
       data: { jobs },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Get personalized job suggestions
+// @route   GET /api/jobs/suggestions/me
+// @access  Private (student/alumni only)
+exports.getSuggestedJobs = async (req, res) => {
+  try {
+    if (!applicantRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only students or alumni can view job suggestions.',
+      });
+    }
+
+    const [profile, applications, savedJobs, jobs] = await Promise.all([
+      StudentProfile.findOne({ user: req.user._id }).select('skills').lean(),
+      JobApplication.find({ student: req.user._id }).select('job').lean(),
+      SavedJob.find({ student: req.user._id }).select('job').lean(),
+      Job.find({ status: 'open' }).populate('createdBy', 'name email role').sort({ createdAt: -1 }),
+    ]);
+
+    const insights = profile ? null : await getLearnerInsights(req.user._id);
+
+    const learnerSkills = ((profile?.skills || insights?.skills || []))
+      .map((skill) => normalizeForMatch(skill.name))
+      .filter(Boolean);
+
+    const appliedJobIds = new Set(applications.map((item) => item.job?.toString()).filter(Boolean));
+    const savedJobIds = new Set(savedJobs.map((item) => item.job?.toString()).filter(Boolean));
+
+    const suggestions = jobs
+      .map((job) => {
+        const matchedSkills = getMatchedSkills(job.skillsRequired, learnerSkills);
+        const score =
+          matchedSkills.length * 10 +
+          (savedJobIds.has(job._id.toString()) ? 2 : 0) +
+          (job.employmentType === 'internship' ? 1 : 0);
+
+        return {
+          ...job.toObject(),
+          matchedSkills,
+          isSaved: savedJobIds.has(job._id.toString()),
+          suggestionScore: score,
+          suggestionReason: matchedSkills.length
+            ? `Matches your skills: ${matchedSkills.join(', ')}`
+            : learnerSkills.length
+              ? 'Recommended from current open jobs based on your learner activity.'
+              : 'Latest open opportunity available for your account.',
+        };
+      })
+      .filter((job) => !appliedJobIds.has(job._id.toString()))
+      .sort((a, b) => b.suggestionScore - a.suggestionScore || new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 6);
+
+    res.status(200).json({
+      success: true,
+      count: suggestions.length,
+      data: {
+        jobs: suggestions,
+      },
     });
   } catch (err) {
     res.status(500).json({

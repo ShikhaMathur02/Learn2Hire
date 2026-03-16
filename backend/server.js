@@ -9,6 +9,7 @@ const submissionRoutes = require('./routes/submissionRoutes');
 const jobRoutes = require('./routes/jobRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const learningRoutes = require('./routes/learningRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -30,6 +31,8 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/admin', adminRoutes);
 // Notification routes (protected)
 app.use('/api/notifications', notificationRoutes);
+// Learning routes (public + protected manage routes)
+app.use('/api/learning', learningRoutes);
 
 // Simple route: when someone visits http://localhost:5000 they see this
 app.get('/', (req, res) => {
