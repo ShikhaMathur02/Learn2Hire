@@ -34,7 +34,7 @@ function MetricCard({ title, value, subtitle, icon: Icon }) {
   );
 }
 
-const roleOptions = ["student", "alumni", "faculty", "company", "admin"];
+const roleOptions = ["student", "alumni", "faculty", "company", "admin", "college"];
 
 function AdminDashboard({ user, onLogout }) {
   const navigate = useNavigate();
@@ -53,6 +53,7 @@ function AdminDashboard({ user, onLogout }) {
       faculty: 0,
       company: 0,
       admin: 0,
+      college: 0,
     },
     recentUsers: [],
   });
@@ -124,6 +125,7 @@ function AdminDashboard({ user, onLogout }) {
             faculty: 0,
             company: 0,
             admin: 0,
+            college: 0,
           },
           recentUsers: [],
         }
@@ -214,6 +216,12 @@ function AdminDashboard({ user, onLogout }) {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              <Button asChild>
+                <Link to="/learn/manage">
+                  <ClipboardCheck className="h-4 w-4" />
+                  Manage Learning
+                </Link>
+              </Button>
               <Button asChild variant="outline">
                 <Link to="/notifications">
                   <Bell className="h-4 w-4" />

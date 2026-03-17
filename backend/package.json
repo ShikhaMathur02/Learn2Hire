@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "seed:subjects": "node scripts/seedLearningSubjects.js",
+    "seed:materials": "node scripts/seedStudyMaterials.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

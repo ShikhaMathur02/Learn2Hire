@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learn2hire-backend
+  labels:
+    app: learn2hire-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: learn2hire-backend
+  template:
+    metadata:
+      labels:
+        app: learn2hire-backend
+    spec:
+      containers:
+        - name: backend
+          image: learn2hire-backend:v1
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5000
+          env:
+            - name: PORT
+              value: "5000"
+            - name: MONGO_URI
+              value: "mongodb://host.minikube.internal:27017/learn2hire"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learn2hire-backend-service
+spec:
+  type: NodePort
+  selector:
+    app: learn2hire-backend
+  ports:
+    - port: 5000
+      targetPort: 5000
+      nodePort: 30007

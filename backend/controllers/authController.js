@@ -9,6 +9,18 @@ const generateToken = (id) => {
   });
 };
 
+const isStrongPassword = (password) => {
+  const value = String(password || '');
+
+  return (
+    value.length >= 8 &&
+    /[A-Z]/.test(value) &&
+    /[a-z]/.test(value) &&
+    /\d/.test(value) &&
+    /[^A-Za-z0-9]/.test(value)
+  );
+};
+
 // @desc    Signup (register) new user
 // @route   POST /api/auth/signup
 // @access  Public
@@ -20,6 +32,14 @@ exports.signup = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Please provide name, email, password and role',
+      });
+    }
+
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.',
       });
     }
 

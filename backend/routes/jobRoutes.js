@@ -10,6 +10,7 @@ const {
   getJobs,
   getMyApplications,
   getSavedJobs,
+  getSuggestedJobs,
   saveJob,
   unsaveJob,
   updateApplicationStatus,
@@ -24,6 +25,7 @@ router.use(protect);
 router.get('/company/dashboard', getCompanyDashboard);
 router.get('/applications/me', getMyApplications);
 router.get('/saved/me', getSavedJobs);
+router.get('/suggestions/me', getSuggestedJobs);
 router.patch('/applications/:applicationId/status', updateApplicationStatus);
 router.get('/:id/applications', getApplicationsForJob);
 router.post('/:id/apply', applyToJob);

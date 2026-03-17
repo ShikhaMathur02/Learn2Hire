@@ -93,6 +93,9 @@ function Dashboard() {
                       Notifications
                     </Link>
                   </Button>
+                  <Button asChild variant="outline">
+                    <Link to="/learn">Browse Learning</Link>
+                  </Button>
                   <Button asChild>
                     <Link to="/jobs">Browse Jobs</Link>
                   </Button>
@@ -107,6 +110,14 @@ function Dashboard() {
                 <p className="mt-2 text-slate-600">
                   Your alumni account now has access to the jobs workspace. Open the jobs page to
                   review company openings and apply directly.
+                </p>
+              </div>
+
+              <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                <h2 className="text-xl font-semibold text-slate-900">Learning Hub</h2>
+                <p className="mt-2 text-slate-600">
+                  Your alumni account can open the public learning hub to read study materials and
+                  placement preparation content.
                 </p>
               </div>
             </CardContent>
