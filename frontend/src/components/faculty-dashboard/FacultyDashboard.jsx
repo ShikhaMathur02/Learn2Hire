@@ -436,9 +436,18 @@ function FacultyDashboard({ user, onLogout }) {
             <nav className="space-y-2">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeSection === item.id;
+                const isActive = !item.path && activeSection === item.id;
 
-                return (
+                return item.path ? (
+                  <Link
+                    key={item.id}
+                    to={item.path}
+                    className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                ) : (
                   <button
                     key={item.id}
                     type="button"
