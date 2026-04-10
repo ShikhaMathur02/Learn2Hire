@@ -5,6 +5,7 @@ const LearningProgress = require('../models/LearningProgress');
 const StudentProfile = require('../models/StudentProfile');
 const StudyMaterial = require('../models/StudyMaterial');
 const { getLearnerInsights } = require('../utils/learnerInsights');
+const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
 
 const editorRoles = ['faculty', 'admin', 'college'];
 const learnerRoles = ['student'];
@@ -25,7 +26,10 @@ const normalizeTags = (tags) => {
 };
 
 const ensureEditor = (req, res) => {
-  if (!editorRoles.includes(req.user.role)) {
+  const role = String(req.user?.role || '')
+    .trim()
+    .toLowerCase();
+  if (!editorRoles.includes(role)) {
     res.status(403).json({
       success: false,
       message: 'Only faculty, college, or admin users can manage learning materials.',
@@ -37,7 +41,10 @@ const ensureEditor = (req, res) => {
 };
 
 const ensureLearner = (req, res) => {
-  if (!learnerRoles.includes(req.user.role)) {
+  const role = String(req.user?.role || '')
+    .trim()
+    .toLowerCase();
+  if (!learnerRoles.includes(role)) {
     res.status(403).json({
       success: false,
       message: 'Only student users can save learning progress.',
@@ -49,6 +56,66 @@ const ensureLearner = (req, res) => {
 };
 
 const normalizeForMatch = (value) => String(value || '').trim().toLowerCase();
+
+const normalizeCohortValue = (value) => String(value || '').trim().toLowerCase();
+
+const resolveAudienceContext = async (req) => {
+  if (!req.user) {
+    return { kind: 'guest', cohort: null };
+  }
+  const userRole = String(req.user.role || '')
+    .trim()
+    .toLowerCase();
+  if (editorRoles.includes(userRole)) {
+    return { kind: 'editor', cohort: null };
+  }
+  if (userRole === 'student') {
+    const profile = await StudentProfile.findOne({ user: req.user._id })
+      .select('course branch year')
+      .lean();
+    const course = normalizeCohortValue(profile?.course);
+    const branch = normalizeCohortValue(profile?.branch);
+    const year = normalizeCohortValue(profile?.year);
+    const cohort = course && branch && year ? { course, branch, year } : null;
+    return { kind: 'student', cohort };
+  }
+  return { kind: 'guest', cohort: null };
+};
+
+const materialVisibleToContext = (material, ctx) => {
+  const audience = material.audience || 'global';
+  if (audience !== 'cohort') {
+    return true;
+  }
+  if (ctx.kind === 'editor') {
+    return true;
+  }
+  if (!ctx.cohort) {
+    return false;
+  }
+  return (
+    normalizeCohortValue(material.targetCourse) === ctx.cohort.course &&
+    normalizeCohortValue(material.targetBranch) === ctx.cohort.branch &&
+    normalizeCohortValue(material.targetYear) === ctx.cohort.year
+  );
+};
+
+const ensureUniqueMaterialSlug = async (baseSlug, excludeId = null) => {
+  let slug = baseSlug;
+  let n = 0;
+  const existsOther = async (s) => {
+    const q = { slug: s };
+    if (excludeId) {
+      q._id = { $ne: excludeId };
+    }
+    return StudyMaterial.exists(q);
+  };
+  while (await existsOther(slug)) {
+    n += 1;
+    slug = `${baseSlug}-${n}`;
+  }
+  return slug;
+};
 
 const getSkillLevelFromProgress = (progress) => {
   if (progress >= 85) return 'expert';
@@ -169,29 +236,36 @@ exports.getPublicCategories = async (req, res) => {
 // @access  Public
 exports.getPublicSubjects = async (req, res) => {
   try {
-    const categories = await LearningCategory.find({ isPublished: true })
+    const categoryIdsWithPublishedMaterials = await StudyMaterial.distinct('category', {
+      isPublished: true,
+    });
+
+    const categories = await LearningCategory.find({
+      $or: [
+        { isPublished: true },
+        { _id: { $in: categoryIdsWithPublishedMaterials } },
+      ],
+    })
       .sort({ name: 1 })
       .lean();
 
     const categoryIds = categories.map((category) => category._id);
-    const counts = await StudyMaterial.aggregate([
-      {
-        $match: {
-          isPublished: true,
-          category: { $in: categoryIds },
-        },
-      },
-      {
-        $group: {
-          _id: '$category',
-          materialCount: { $sum: 1 },
-        },
-      },
-    ]);
+    const ctx = await resolveAudienceContext(req);
 
-    const countMap = Object.fromEntries(
-      counts.map((item) => [item._id.toString(), item.materialCount])
-    );
+    const materials = await StudyMaterial.find({
+      isPublished: true,
+      category: { $in: categoryIds },
+    })
+      .select('category audience targetCourse targetBranch targetYear')
+      .lean();
+
+    const visible = materials.filter((m) => materialVisibleToContext(m, ctx));
+    const countMap = {};
+    for (const m of visible) {
+      const key = m.category?.toString();
+      if (!key) continue;
+      countMap[key] = (countMap[key] || 0) + 1;
+    }
 
     const subjects = categories.map((category) => ({
       ...category,
@@ -341,17 +415,31 @@ exports.getPublicMaterials = async (req, res) => {
     if (category) {
       const matchingCategories = await LearningCategory.find({
         slug: category,
-        isPublished: true,
       }).select('_id');
       categoryIds = matchingCategories.map((item) => item._id);
+      if (!categoryIds.length) {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          data: { materials: [] },
+        });
+      }
     } else {
-      const publishedCategories = await LearningCategory.find({ isPublished: true }).select('_id');
-      categoryIds = publishedCategories.map((item) => item._id);
+      const categoryIdsWithPublishedMaterials = await StudyMaterial.distinct('category', {
+        isPublished: true,
+      });
+      const listedCategories = await LearningCategory.find({
+        $or: [
+          { isPublished: true },
+          { _id: { $in: categoryIdsWithPublishedMaterials } },
+        ],
+      }).select('_id');
+      categoryIds = listedCategories.map((item) => item._id);
     }
 
     const query = { isPublished: true };
 
-    if (categoryIds) {
+    if (categoryIds && categoryIds.length) {
       query.category = { $in: categoryIds };
     }
 
@@ -375,10 +463,13 @@ exports.getPublicMaterials = async (req, res) => {
       ];
     }
 
-    const materials = await StudyMaterial.find(query)
-      .populate('category', 'name slug')
+    const rawMaterials = await StudyMaterial.find(query)
+      .populate('category', 'name slug description icon')
       .populate('createdBy', 'name role')
       .sort({ createdAt: -1 });
+
+    const ctx = await resolveAudienceContext(req);
+    const materials = rawMaterials.filter((m) => materialVisibleToContext(m, ctx));
 
     res.status(200).json({
       success: true,
@@ -412,6 +503,14 @@ exports.getPublicMaterialBySlug = async (req, res) => {
       });
     }
 
+    const ctx = await resolveAudienceContext(req);
+    if (!materialVisibleToContext(material, ctx)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Study material not found',
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: { material },
@@ -431,7 +530,7 @@ exports.getRecommendedMaterials = async (req, res) => {
   try {
     if (!ensureLearner(req, res)) return;
 
-    const [profile, progressList, materials] = await Promise.all([
+    const [profile, progressList, rawMaterials] = await Promise.all([
       StudentProfile.findOne({ user: req.user._id }).select('skills').lean(),
       LearningProgress.find({ user: req.user._id }).select('material progressPercent completed').lean(),
       StudyMaterial.find({ isPublished: true })
@@ -439,6 +538,9 @@ exports.getRecommendedMaterials = async (req, res) => {
         .populate('createdBy', 'name role')
         .sort({ createdAt: -1 }),
     ]);
+
+    const audienceCtx = await resolveAudienceContext(req);
+    const materials = rawMaterials.filter((m) => materialVisibleToContext(m, audienceCtx));
 
     const insights = profile ? null : await getLearnerInsights(req.user._id);
 
@@ -514,6 +616,8 @@ exports.getMyLearningProgress = async (req, res) => {
   try {
     if (!ensureLearner(req, res)) return;
 
+    const audienceCtx = await resolveAudienceContext(req);
+
     const progress = await LearningProgress.find({ user: req.user._id })
       .populate({
         path: 'material',
@@ -524,7 +628,9 @@ exports.getMyLearningProgress = async (req, res) => {
       })
       .sort({ lastViewedAt: -1 });
 
-    const validProgress = progress.filter((item) => item.material);
+    const validProgress = progress.filter(
+      (item) => item.material && materialVisibleToContext(item.material, audienceCtx)
+    );
     const totalStarted = validProgress.length;
     const totalCompleted = validProgress.filter((item) => item.completed).length;
     const inProgressCount = validProgress.filter(
@@ -571,9 +677,17 @@ exports.getMaterialProgressBySlug = async (req, res) => {
     const material = await StudyMaterial.findOne({
       slug: req.params.slug,
       isPublished: true,
-    }).select('_id');
+    }).select('_id audience targetCourse targetBranch targetYear');
 
     if (!material) {
+      return res.status(404).json({
+        success: false,
+        message: 'Study material not found',
+      });
+    }
+
+    const audienceCtx = await resolveAudienceContext(req);
+    if (!materialVisibleToContext(material, audienceCtx)) {
       return res.status(404).json({
         success: false,
         message: 'Study material not found',
@@ -610,10 +724,18 @@ exports.saveMaterialProgressBySlug = async (req, res) => {
       slug: req.params.slug,
       isPublished: true,
     })
-      .select('_id estimatedReadMinutes category')
+      .select('_id estimatedReadMinutes category audience targetCourse targetBranch targetYear')
       .populate('category', 'name');
 
     if (!material) {
+      return res.status(404).json({
+        success: false,
+        message: 'Study material not found',
+      });
+    }
+
+    const audienceCtx = await resolveAudienceContext(req);
+    if (!materialVisibleToContext(material, audienceCtx)) {
       return res.status(404).json({
         success: false,
         message: 'Study material not found',
@@ -725,6 +847,10 @@ exports.createMaterial = async (req, res) => {
       estimatedReadMinutes,
       categoryId,
       isPublished,
+      audience,
+      targetCourse,
+      targetBranch,
+      targetYear,
     } = req.body;
 
     if (!title || !categoryId) {
@@ -749,9 +875,31 @@ exports.createMaterial = async (req, res) => {
       });
     }
 
+    const audienceMode = audience === 'cohort' ? 'cohort' : 'global';
+    let tc = '';
+    let tb = '';
+    let ty = '';
+    if (audienceMode === 'cohort') {
+      tc = normalizeCohortValue(targetCourse);
+      tb = normalizeCohortValue(targetBranch);
+      ty = normalizeCohortValue(targetYear);
+      if (!tc || !tb || !ty) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cohort materials require course, branch, and year.',
+        });
+      }
+    }
+
+    const slugBase =
+      audienceMode === 'cohort'
+        ? slugify(`${title}-${tc}-${tb}-${ty}`)
+        : slugify(title);
+    const slug = await ensureUniqueMaterialSlug(slugBase);
+
     const material = await StudyMaterial.create({
       title,
-      slug: slugify(title),
+      slug,
       summary: summary || '',
       content: content || '',
       materialType: materialType || 'article',
@@ -762,6 +910,10 @@ exports.createMaterial = async (req, res) => {
       category: categoryId,
       createdBy: req.user._id,
       isPublished: isPublished !== undefined ? Boolean(isPublished) : true,
+      audience: audienceMode,
+      targetCourse: audienceMode === 'cohort' ? tc : '',
+      targetBranch: audienceMode === 'cohort' ? tb : '',
+      targetYear: audienceMode === 'cohort' ? ty : '',
     });
 
     const populated = await StudyMaterial.findById(material._id)
@@ -830,11 +982,63 @@ exports.updateMaterial = async (req, res) => {
       estimatedReadMinutes,
       categoryId,
       isPublished,
+      audience,
+      targetCourse,
+      targetBranch,
+      targetYear,
     } = req.body;
+
+    if (audience !== undefined) {
+      material.audience = audience === 'cohort' ? 'cohort' : 'global';
+    }
+    if (targetCourse !== undefined) {
+      material.targetCourse = normalizeCohortValue(targetCourse);
+    }
+    if (targetBranch !== undefined) {
+      material.targetBranch = normalizeCohortValue(targetBranch);
+    }
+    if (targetYear !== undefined) {
+      material.targetYear = normalizeCohortValue(targetYear);
+    }
+
+    if (material.audience === 'cohort') {
+      const tc = normalizeCohortValue(material.targetCourse);
+      const tb = normalizeCohortValue(material.targetBranch);
+      const ty = normalizeCohortValue(material.targetYear);
+      if (!tc || !tb || !ty) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cohort materials require course, branch, and year.',
+        });
+      }
+      material.targetCourse = tc;
+      material.targetBranch = tb;
+      material.targetYear = ty;
+    } else {
+      material.targetCourse = '';
+      material.targetBranch = '';
+      material.targetYear = '';
+    }
 
     if (title !== undefined) {
       material.title = title;
-      material.slug = slugify(title);
+    }
+
+    const slugShouldRefresh =
+      title !== undefined ||
+      audience !== undefined ||
+      targetCourse !== undefined ||
+      targetBranch !== undefined ||
+      targetYear !== undefined;
+
+    if (slugShouldRefresh) {
+      const slugBase =
+        material.audience === 'cohort'
+          ? slugify(
+              `${material.title}-${material.targetCourse}-${material.targetBranch}-${material.targetYear}`
+            )
+          : slugify(material.title);
+      material.slug = await ensureUniqueMaterialSlug(slugBase, material._id);
     }
     if (summary !== undefined) material.summary = summary;
     if (content !== undefined) material.content = content;
@@ -927,6 +1131,172 @@ exports.deleteMaterial = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Study material deleted successfully',
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Create study material from image upload
+// @route   POST /api/learning/manage/materials/from-image
+// @access  Private
+exports.createMaterialFromImageUpload = async (req, res) => {
+  try {
+    if (!ensureEditor(req, res)) return;
+    if (!req.file?.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload an image file.',
+      });
+    }
+
+    const title = asString(req.body.title);
+    const categoryId = asString(req.body.categoryId);
+    if (!title || !categoryId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide title and category',
+      });
+    }
+    if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category ID',
+      });
+    }
+
+    const category = await LearningCategory.findById(categoryId);
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found',
+      });
+    }
+
+    const mime = req.file.mimetype || 'image/png';
+    const dataUrl = `data:${mime};base64,${req.file.buffer.toString('base64')}`;
+    const slug = await ensureUniqueMaterialSlug(slugify(title));
+
+    const material = await StudyMaterial.create({
+      title,
+      slug,
+      summary: asString(req.body.summary),
+      content: asString(req.body.content) || asString(req.body.summary),
+      materialType: asString(req.body.materialType) || 'slides',
+      resourceUrl: dataUrl,
+      level: asString(req.body.level) || 'beginner',
+      tags: ['image-upload'],
+      estimatedReadMinutes: Number(req.body.estimatedReadMinutes) || 5,
+      category: categoryId,
+      createdBy: req.user._id,
+      isPublished:
+        req.body.isPublished === undefined ? true : Boolean(req.body.isPublished),
+    });
+
+    const populated = await StudyMaterial.findById(material._id)
+      .populate('category', 'name slug')
+      .populate('createdBy', 'name role');
+
+    res.status(201).json({
+      success: true,
+      message: 'Study material created from image',
+      data: { material: populated },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Bulk import study materials from Excel sheet
+// @route   POST /api/learning/manage/materials/import
+// @access  Private
+exports.importMaterialsFromSheet = async (req, res) => {
+  try {
+    if (!ensureEditor(req, res)) return;
+    if (!req.file?.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload an Excel file.',
+      });
+    }
+
+    const rows = parseWorkbookRows(req.file.buffer);
+    if (!rows.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sheet is empty.',
+      });
+    }
+
+    const categoryCache = new Map();
+    const results = [];
+
+    for (const row of rows) {
+      const title = asString(row.title);
+      const summary = asString(row.summary);
+      const content = asString(row.content);
+      const categorySlug = asString(row.categoryslug);
+      const categoryIdRaw = asString(row.categoryid);
+
+      if (!title || (!categorySlug && !categoryIdRaw)) {
+        results.push({ title, ok: false, message: 'Missing title/category' });
+        continue;
+      }
+
+      let categoryId = '';
+      if (categoryIdRaw && mongoose.Types.ObjectId.isValid(categoryIdRaw)) {
+        categoryId = categoryIdRaw;
+      } else if (categorySlug) {
+        if (categoryCache.has(categorySlug)) {
+          categoryId = categoryCache.get(categorySlug);
+        } else {
+          const found = await LearningCategory.findOne({ slug: categorySlug })
+            .select('_id')
+            .lean();
+          if (found?._id) {
+            categoryId = String(found._id);
+            categoryCache.set(categorySlug, categoryId);
+          }
+        }
+      }
+
+      if (!categoryId) {
+        results.push({ title, ok: false, message: 'Category not found' });
+        continue;
+      }
+
+      const slug = await ensureUniqueMaterialSlug(slugify(title));
+      await StudyMaterial.create({
+        title,
+        slug,
+        summary,
+        content: content || summary,
+        materialType: asString(row.materialtype) || 'article',
+        resourceUrl: asString(row.resourceurl),
+        level: asString(row.level) || 'beginner',
+        tags: normalizeTags(asString(row.tags).split(',')),
+        estimatedReadMinutes: Number(row.estimatedreadminutes) || 5,
+        category: categoryId,
+        createdBy: req.user._id,
+        isPublished: row.ispublished === '' ? true : Boolean(row.ispublished),
+      });
+
+      results.push({ title, ok: true, message: 'Created' });
+    }
+
+    const created = results.filter((r) => r.ok).length;
+    const failed = results.length - created;
+
+    res.status(200).json({
+      success: true,
+      message: `Material import complete. Created: ${created}, Failed: ${failed}`,
+      data: { created, failed, results },
     });
   } catch (err) {
     res.status(500).json({

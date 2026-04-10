@@ -24,6 +24,17 @@ const userSchema = new mongoose.Schema(
       },
       required: [true, 'Please provide a role'],
     },
+    // Faculty self-registration: pending until a college (or admin) approves. Omitted / approved for other roles.
+    facultyApprovalStatus: {
+      type: String,
+      enum: ['approved', 'pending', 'rejected'],
+    },
+    // College user who registered this account (students/faculty added by the college).
+    managedByCollege: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,

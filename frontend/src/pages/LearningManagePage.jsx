@@ -1,580 +1,735 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import { BookOpen, LoaderCircle, PlusCircle, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from "react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { ArrowLeft, BookOpenCheck, ExternalLink, LoaderCircle } from "lucide-react";
 
-import { Button } from '../components/ui/button';
-import { Card, CardContent } from '../components/ui/card';
-import { readApiResponse } from '../lib/api';
+import { Button } from "../components/ui/button";
+import { Card, CardContent } from "../components/ui/card";
+import { readApiResponse } from "../lib/api";
 
-const allowedRoles = ['faculty', 'admin', 'college'];
-
-const initialCategoryForm = {
-  name: '',
-  description: '',
-  icon: '',
-  isPublished: true,
-};
-
-const initialMaterialForm = {
-  title: '',
-  summary: '',
-  content: '',
-  materialType: 'article',
-  resourceUrl: '',
-  level: 'beginner',
-  tags: '',
-  estimatedReadMinutes: 5,
-  categoryId: '',
-  isPublished: true,
-};
+const EDITOR_ROLES = new Set(["faculty", "admin", "college"]);
 
 function LearningManagePage() {
-  const token = localStorage.getItem('token');
-  const savedUser = localStorage.getItem('user');
-  const user = savedUser ? JSON.parse(savedUser) : null;
+  const navigate = useNavigate();
+  const token = localStorage.getItem("token");
 
+  const [editorUser, setEditorUser] = useState(null);
+  const [bootstrapped, setBootstrapped] = useState(false);
   const [categories, setCategories] = useState([]);
-  const [materials, setMaterials] = useState([]);
-  const [categoryForm, setCategoryForm] = useState(initialCategoryForm);
-  const [materialForm, setMaterialForm] = useState(initialMaterialForm);
-  const [loading, setLoading] = useState(true);
-  const [submittingCategory, setSubmittingCategory] = useState(false);
-  const [submittingMaterial, setSubmittingMaterial] = useState(false);
-  const [workingId, setWorkingId] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [manageMaterials, setManageMaterials] = useState([]);
+  const [loadingMeta, setLoadingMeta] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const headers = useMemo(
-    () => ({
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    }),
-    [token]
-  );
+  const [title, setTitle] = useState("");
+  const [summary, setSummary] = useState("");
+  const [content, setContent] = useState("");
+  const [resourceUrl, setResourceUrl] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [level, setLevel] = useState("beginner");
+  const [materialType, setMaterialType] = useState("article");
+  const [tags, setTags] = useState("");
+  const [estimatedReadMinutes, setEstimatedReadMinutes] = useState(10);
+  const [isPublished, setIsPublished] = useState(true);
+  const [audience, setAudience] = useState("global");
+  const [targetCourse, setTargetCourse] = useState("");
+  const [targetBranch, setTargetBranch] = useState("");
+  const [targetYear, setTargetYear] = useState("");
 
-  const fetchManageData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [newSubjectDescription, setNewSubjectDescription] = useState("");
+  const [newSubjectIcon, setNewSubjectIcon] = useState("");
+  const [creatingSubject, setCreatingSubject] = useState(false);
 
-      const [categoriesResponse, materialsResponse] = await Promise.all([
-        fetch('/api/learning/manage/categories', { headers }),
-        fetch('/api/learning/manage/materials', { headers }),
-      ]);
-
-      const categoriesData = await readApiResponse(categoriesResponse);
-      const materialsData = await readApiResponse(materialsResponse);
-
-      const nextCategories = categoriesData.data?.categories || [];
-      const nextMaterials = materialsData.data?.materials || [];
-
-      setCategories(nextCategories);
-      setMaterials(nextMaterials);
-      setMaterialForm((prev) => ({
-        ...prev,
-        categoryId: prev.categoryId || nextCategories[0]?._id || '',
-      }));
-    } catch (err) {
-      setError(err.message || 'Failed to load learning management data.');
-    } finally {
-      setLoading(false);
+  const loadEditorCatalog = useCallback(async () => {
+    const [catRes, matRes] = await Promise.all([
+      fetch("/api/learning/manage/categories", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetch("/api/learning/manage/materials", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    ]);
+    const catData = await readApiResponse(catRes);
+    const matData = await readApiResponse(matRes);
+    if (catRes.status === 401 || matRes.status === 401) {
+      navigate("/login");
+      return;
     }
-  }, [headers]);
+    if (!catRes.ok) {
+      throw new Error(catData.message || "Failed to load categories.");
+    }
+    if (!matRes.ok) {
+      throw new Error(matData.message || "Failed to load published materials.");
+    }
+    const list = catData.data?.categories || [];
+    setCategories(list);
+    setCategoryId((prev) => {
+      if (prev && list.some((c) => c._id === prev)) return prev;
+      return list[0]?._id ?? "";
+    });
+    setManageMaterials(matData.data?.materials || []);
+  }, [navigate, token]);
 
   useEffect(() => {
-    if (token && allowedRoles.includes(user?.role)) {
-      fetchManageData();
+    if (!token) {
+      navigate("/login");
+      return;
     }
-  }, [fetchManageData, token, user?.role]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const meRes = await fetch("/api/auth/me", {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const meData = await readApiResponse(meRes);
+        if (cancelled) return;
+        if (meRes.status === 401) {
+          navigate("/login");
+          return;
+        }
+        if (meRes.ok && meData.data?.user) {
+          const u = meData.data.user;
+          const next = {
+            id: u.id,
+            _id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+          };
+          localStorage.setItem("user", JSON.stringify(next));
+          setEditorUser(next);
+        } else {
+          const raw = localStorage.getItem("user");
+          try {
+            setEditorUser(raw ? JSON.parse(raw) : null);
+          } catch {
+            setEditorUser(null);
+          }
+        }
+      } catch {
+        const raw = localStorage.getItem("user");
+        try {
+          setEditorUser(raw ? JSON.parse(raw) : null);
+        } catch {
+          setEditorUser(null);
+        }
+      } finally {
+        if (!cancelled) setBootstrapped(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, navigate]);
 
-  if (!token) {
+  const role = editorUser?.role ? String(editorUser.role).toLowerCase() : "";
+  const canEdit = Boolean(editorUser && EDITOR_ROLES.has(role));
+
+  useEffect(() => {
+    if (!bootstrapped || !token) return;
+    if (!canEdit) {
+      setLoadingMeta(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingMeta(true);
+      setError("");
+      try {
+        await loadEditorCatalog();
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Could not load learning data.");
+      } finally {
+        if (!cancelled) setLoadingMeta(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapped, canEdit, loadEditorCatalog, navigate, token]);
+
+  if (!bootstrapped) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
+        <LoaderCircle className="h-8 w-8 animate-spin text-cyan-400" />
+      </div>
+    );
+  }
+
+  if (!editorUser) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!allowedRoles.includes(user?.role)) {
+  if (!canEdit) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const handleCategorySubmit = async (event) => {
+  const handleCreateSubject = async (event) => {
     event.preventDefault();
-
+    const name = newSubjectName.trim();
+    if (!name) {
+      setError("Enter a subject name.");
+      return;
+    }
+    setCreatingSubject(true);
+    setError("");
+    setSuccess("");
     try {
-      setSubmittingCategory(true);
-      setError('');
-      setSuccess('');
-
-      const response = await fetch('/api/learning/manage/categories', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(categoryForm),
+      const res = await fetch("/api/learning/manage/categories", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name,
+          description: newSubjectDescription.trim(),
+          icon: newSubjectIcon.trim(),
+          isPublished: true,
+        }),
       });
-
-      await readApiResponse(response);
-
-      setCategoryForm(initialCategoryForm);
-      setSuccess('Category created successfully.');
-      fetchManageData();
+      const data = await readApiResponse(res);
+      if (res.status === 401) {
+        navigate("/login");
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(data.message || "Could not create subject.");
+      }
+      setNewSubjectName("");
+      setNewSubjectDescription("");
+      setNewSubjectIcon("");
+      setSuccess(
+        "Subject created. It appears in “Subjects to Start With” on the learning hub once you add at least one published material."
+      );
+      await loadEditorCatalog();
+      const created = data.data?.category;
+      if (created?._id) {
+        setCategoryId(created._id);
+      }
     } catch (err) {
-      setError(err.message || 'Failed to create category.');
+      setError(err.message || "Could not create subject.");
     } finally {
-      setSubmittingCategory(false);
+      setCreatingSubject(false);
     }
   };
 
-  const handleMaterialSubmit = async (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
 
     try {
-      setSubmittingMaterial(true);
-      setError('');
-      setSuccess('');
+      const tagList = tags
+        .split(/[,]+/)
+        .map((t) => t.trim())
+        .filter(Boolean);
 
-      const response = await fetch('/api/learning/manage/materials', {
-        method: 'POST',
-        headers,
+      const body = {
+        title: title.trim(),
+        summary: summary.trim(),
+        content: content.trim(),
+        categoryId,
+        level,
+        materialType,
+        tags: tagList,
+        estimatedReadMinutes: Number(estimatedReadMinutes) || 5,
+        isPublished,
+        audience,
+        targetCourse: audience === "cohort" ? targetCourse.trim() : "",
+        targetBranch: audience === "cohort" ? targetBranch.trim() : "",
+        targetYear: audience === "cohort" ? targetYear.trim() : "",
+      };
+
+      if (!body.title || !body.categoryId) {
+        throw new Error("Title and subject category are required.");
+      }
+
+      const needsResource = ["pdf", "video", "link"].includes(materialType);
+      const urlTrim = resourceUrl.trim();
+      if (needsResource && !urlTrim) {
+        throw new Error("Add a resource URL for PDF, video, or link materials.");
+      }
+
+      const res = await fetch("/api/learning/manage/materials", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
-          ...materialForm,
-          tags: materialForm.tags
-            .split(',')
-            .map((tag) => tag.trim())
-            .filter(Boolean),
+          ...body,
+          resourceUrl: urlTrim,
         }),
       });
 
-      await readApiResponse(response);
+      const data = await readApiResponse(res);
+      if (res.status === 401) {
+        navigate("/login");
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to create material.");
+      }
 
-      setMaterialForm((prev) => ({
-        ...initialMaterialForm,
-        categoryId: prev.categoryId || categories[0]?._id || '',
-      }));
-      setSuccess('Study material created successfully.');
-      fetchManageData();
+      const slug = data.data?.material?.slug;
+      setSuccess(
+        slug
+          ? `Material published. Students can open it from the learning hub (topic: ${slug}).`
+          : "Material created successfully."
+      );
+      setTitle("");
+      setSummary("");
+      setContent("");
+      setResourceUrl("");
+      setTags("");
+
+      try {
+        const listRes = await fetch("/api/learning/manage/materials", {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const listData = await readApiResponse(listRes);
+        if (listRes.ok) {
+          setManageMaterials(listData.data?.materials || []);
+        }
+      } catch {
+        /* list refresh is optional */
+      }
     } catch (err) {
-      setError(err.message || 'Failed to create material.');
+      setError(err.message || "Something went wrong.");
     } finally {
-      setSubmittingMaterial(false);
+      setSubmitting(false);
     }
   };
 
-  const handleDeleteCategory = async (categoryId) => {
-    try {
-      setWorkingId(categoryId);
-      setError('');
-      setSuccess('');
-
-      const response = await fetch(`/api/learning/manage/categories/${categoryId}`, {
-        method: 'DELETE',
-        headers,
-      });
-
-      await readApiResponse(response);
-      setSuccess('Category deleted successfully.');
-      fetchManageData();
-    } catch (err) {
-      setError(err.message || 'Failed to delete category.');
-    } finally {
-      setWorkingId('');
-    }
-  };
-
-  const handleDeleteMaterial = async (materialId) => {
-    try {
-      setWorkingId(materialId);
-      setError('');
-      setSuccess('');
-
-      const response = await fetch(`/api/learning/manage/materials/${materialId}`, {
-        method: 'DELETE',
-        headers,
-      });
-
-      await readApiResponse(response);
-      setSuccess('Study material deleted successfully.');
-      fetchManageData();
-    } catch (err) {
-      setError(err.message || 'Failed to delete material.');
-    } finally {
-      setWorkingId('');
-    }
-  };
-
-  const handleToggleMaterial = async (material) => {
-    try {
-      setWorkingId(material._id);
-      setError('');
-      setSuccess('');
-
-      const response = await fetch(`/api/learning/manage/materials/${material._id}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
-          isPublished: !material.isPublished,
-        }),
-      });
-
-      await readApiResponse(response);
-      setSuccess('Study material updated successfully.');
-      fetchManageData();
-    } catch (err) {
-      setError(err.message || 'Failed to update material.');
-    } finally {
-      setWorkingId('');
-    }
-  };
+  const inputClass =
+    "mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur xl:p-8">
-          <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-cyan-300">Learning Management</p>
-              <h1 className="mt-2 text-3xl font-bold">Manage categories and study materials</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                Create public learning resources for anyone visiting Learn2Hire.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <Button asChild variant="outline">
-                <Link to="/learn">Open Public Learning Hub</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/dashboard">Back to Dashboard</Link>
-              </Button>
-            </div>
+    <div className="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 sm:py-8">
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-cyan-300">Faculty · Learning</p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-white">Add study material</h1>
+            <p className="mt-2 max-w-xl text-sm text-slate-400">
+              Publish to the whole catalog, or restrict to a cohort by matching each student&apos;s course,
+              branch, and year on their profile.
+            </p>
           </div>
-
-          {error ? (
-            <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
-              {error}
-            </div>
-          ) : null}
-
-          {success ? (
-            <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-              {success}
-            </div>
-          ) : null}
-
-          {loading ? (
-            <div className="mt-8 flex h-64 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-slate-300">
-              <div className="flex items-center gap-3">
-                <LoaderCircle className="h-5 w-5 animate-spin" />
-                Loading learning management...
-              </div>
-            </div>
-          ) : (
-            <div className="mt-8 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-              <div className="space-y-6">
-                <Card className="border border-white/10 bg-white/5 shadow-none">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <PlusCircle className="h-6 w-6 text-cyan-300" />
-                      <div>
-                        <h2 className="text-2xl font-bold text-white">Create Category</h2>
-                        <p className="mt-1 text-sm text-slate-400">
-                          Group materials into topics like JavaScript, aptitude, or interviews.
-                        </p>
-                      </div>
-                    </div>
-
-                    <form onSubmit={handleCategorySubmit} className="mt-6 space-y-4">
-                      <input
-                        value={categoryForm.name}
-                        onChange={(event) =>
-                          setCategoryForm((prev) => ({ ...prev, name: event.target.value }))
-                        }
-                        placeholder="Category name"
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                      />
-                      <textarea
-                        value={categoryForm.description}
-                        onChange={(event) =>
-                          setCategoryForm((prev) => ({
-                            ...prev,
-                            description: event.target.value,
-                          }))
-                        }
-                        rows={3}
-                        placeholder="Short category description"
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                      />
-                      <input
-                        value={categoryForm.icon}
-                        onChange={(event) =>
-                          setCategoryForm((prev) => ({ ...prev, icon: event.target.value }))
-                        }
-                        placeholder="Optional icon name"
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                      />
-                      <label className="flex items-center gap-3 text-sm text-slate-300">
-                        <input
-                          type="checkbox"
-                          checked={categoryForm.isPublished}
-                          onChange={(event) =>
-                            setCategoryForm((prev) => ({
-                              ...prev,
-                              isPublished: event.target.checked,
-                            }))
-                          }
-                        />
-                        Publish category immediately
-                      </label>
-                      <Button type="submit" disabled={submittingCategory}>
-                        {submittingCategory ? 'Creating...' : 'Create Category'}
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-white/10 bg-white/5 shadow-none">
-                  <CardContent className="p-6">
-                    <h2 className="text-2xl font-bold text-white">All Categories</h2>
-                    <div className="mt-6 space-y-4">
-                      {categories.length ? (
-                        categories.map((category) => (
-                          <div
-                            key={category._id}
-                            className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
-                          >
-                            <div className="flex items-start justify-between gap-4">
-                              <div>
-                                <h3 className="font-semibold text-white">{category.name}</h3>
-                                <p className="mt-1 text-sm text-slate-400">
-                                  {category.description || 'No description yet.'}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-300">
-                                  {category.isPublished ? 'Published' : 'Draft'}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteCategory(category._id)}
-                                  disabled={workingId === category._id}
-                                  className="text-rose-300 transition hover:text-rose-200 disabled:opacity-60"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
-                          No categories created yet.
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="space-y-6">
-                <Card className="border border-white/10 bg-white/5 shadow-none">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <BookOpen className="h-6 w-6 text-cyan-300" />
-                      <div>
-                        <h2 className="text-2xl font-bold text-white">Create Study Material</h2>
-                        <p className="mt-1 text-sm text-slate-400">
-                          Add articles, links, videos, or PDFs for the public learning hub.
-                        </p>
-                      </div>
-                    </div>
-
-                    <form onSubmit={handleMaterialSubmit} className="mt-6 space-y-4">
-                      <input
-                        value={materialForm.title}
-                        onChange={(event) =>
-                          setMaterialForm((prev) => ({ ...prev, title: event.target.value }))
-                        }
-                        placeholder="Material title"
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                      />
-                      <textarea
-                        value={materialForm.summary}
-                        onChange={(event) =>
-                          setMaterialForm((prev) => ({ ...prev, summary: event.target.value }))
-                        }
-                        rows={3}
-                        placeholder="Short summary"
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                      />
-                      <textarea
-                        value={materialForm.content}
-                        onChange={(event) =>
-                          setMaterialForm((prev) => ({ ...prev, content: event.target.value }))
-                        }
-                        rows={6}
-                        placeholder="Main article content"
-                        className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                      />
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <select
-                          value={materialForm.categoryId}
-                          onChange={(event) =>
-                            setMaterialForm((prev) => ({
-                              ...prev,
-                              categoryId: event.target.value,
-                            }))
-                          }
-                          className="h-12 rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none focus:border-cyan-400"
-                        >
-                          <option value="">Select category</option>
-                          {categories.map((category) => (
-                            <option key={category._id} value={category._id}>
-                              {category.name}
-                            </option>
-                          ))}
-                        </select>
-
-                        <select
-                          value={materialForm.materialType}
-                          onChange={(event) =>
-                            setMaterialForm((prev) => ({
-                              ...prev,
-                              materialType: event.target.value,
-                            }))
-                          }
-                          className="h-12 rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none focus:border-cyan-400"
-                        >
-                          <option value="article">Article</option>
-                          <option value="video">Video</option>
-                          <option value="pdf">PDF</option>
-                          <option value="link">Link</option>
-                        </select>
-
-                        <select
-                          value={materialForm.level}
-                          onChange={(event) =>
-                            setMaterialForm((prev) => ({ ...prev, level: event.target.value }))
-                          }
-                          className="h-12 rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none focus:border-cyan-400"
-                        >
-                          <option value="beginner">Beginner</option>
-                          <option value="intermediate">Intermediate</option>
-                          <option value="advanced">Advanced</option>
-                        </select>
-
-                        <input
-                          type="number"
-                          min="1"
-                          value={materialForm.estimatedReadMinutes}
-                          onChange={(event) =>
-                            setMaterialForm((prev) => ({
-                              ...prev,
-                              estimatedReadMinutes: Number(event.target.value),
-                            }))
-                          }
-                          placeholder="Estimated minutes"
-                          className="h-12 rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                        />
-                      </div>
-
-                      <input
-                        value={materialForm.resourceUrl}
-                        onChange={(event) =>
-                          setMaterialForm((prev) => ({
-                            ...prev,
-                            resourceUrl: event.target.value,
-                          }))
-                        }
-                        placeholder="Optional external resource URL"
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                      />
-
-                      <input
-                        value={materialForm.tags}
-                        onChange={(event) =>
-                          setMaterialForm((prev) => ({ ...prev, tags: event.target.value }))
-                        }
-                        placeholder="Tags separated by commas"
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                      />
-
-                      <label className="flex items-center gap-3 text-sm text-slate-300">
-                        <input
-                          type="checkbox"
-                          checked={materialForm.isPublished}
-                          onChange={(event) =>
-                            setMaterialForm((prev) => ({
-                              ...prev,
-                              isPublished: event.target.checked,
-                            }))
-                          }
-                        />
-                        Publish material immediately
-                      </label>
-
-                      <Button type="submit" disabled={submittingMaterial || !categories.length}>
-                        {submittingMaterial ? 'Creating...' : 'Create Material'}
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-white/10 bg-white/5 shadow-none">
-                  <CardContent className="p-6">
-                    <h2 className="text-2xl font-bold text-white">Existing Materials</h2>
-                    <div className="mt-6 space-y-4">
-                      {materials.length ? (
-                        materials.map((material) => (
-                          <div
-                            key={material._id}
-                            className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
-                          >
-                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                              <div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium uppercase text-cyan-300">
-                                    {material.materialType}
-                                  </span>
-                                  <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-medium capitalize text-emerald-300">
-                                    {material.level}
-                                  </span>
-                                </div>
-                                <h3 className="mt-3 font-semibold text-white">{material.title}</h3>
-                                <p className="mt-1 text-sm text-slate-400">{material.summary}</p>
-                                <p className="mt-3 text-xs text-slate-500">
-                                  {material.category?.name || 'General'} · {material.estimatedReadMinutes} min
-                                </p>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-3">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleMaterial(material)}
-                                  disabled={workingId === material._id}
-                                  className="rounded-full border border-white/10 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-60"
-                                >
-                                  {material.isPublished ? 'Unpublish' : 'Publish'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteMaterial(material._id)}
-                                  disabled={workingId === material._id}
-                                  className="rounded-full border border-rose-400/20 px-3 py-2 text-xs font-medium text-rose-300 transition hover:bg-rose-500/10 disabled:opacity-60"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
-                          No study materials created yet.
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              asChild
+              variant="outline"
+              className="!border-white/20 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
+            >
+              <Link to="/dashboard" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to dashboard
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="!border-white/20 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
+            >
+              <Link to="/dashboard/learning#learning-explore-content" className="gap-2">
+                Student learning hub
+              </Link>
+            </Button>
+          </div>
         </div>
+
+        <Card className="mb-8 border border-emerald-500/20 bg-emerald-500/5 shadow-none">
+          <CardContent className="p-6 sm:p-8">
+            <h2 className="text-lg font-semibold text-white">Create a new subject</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Adds a card under <span className="text-slate-200">Subjects to Start With</span> on{" "}
+              <Link to="/dashboard/learning#learning-explore-content" className="text-cyan-400 underline">
+                /dashboard/learning
+              </Link>
+              . Publish at least one material in this subject so it shows for students (unpublished-only
+              categories still appear once they have content).
+            </p>
+            <form className="mt-6 space-y-4" onSubmit={handleCreateSubject}>
+              <div>
+                <label className="text-sm font-medium text-slate-300" htmlFor="ns-name">
+                  Subject name
+                </label>
+                <input
+                  id="ns-name"
+                  className={inputClass}
+                  value={newSubjectName}
+                  onChange={(e) => setNewSubjectName(e.target.value)}
+                  placeholder="e.g. Cloud Computing"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-300" htmlFor="ns-desc">
+                  Short description
+                </label>
+                <input
+                  id="ns-desc"
+                  className={inputClass}
+                  value={newSubjectDescription}
+                  onChange={(e) => setNewSubjectDescription(e.target.value)}
+                  placeholder="One line for the subject card"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-300" htmlFor="ns-icon">
+                  Cover image URL (optional)
+                </label>
+                <input
+                  id="ns-icon"
+                  type="url"
+                  className={inputClass}
+                  value={newSubjectIcon}
+                  onChange={(e) => setNewSubjectIcon(e.target.value)}
+                  placeholder="https://… (shown on the subject card)"
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={creatingSubject}
+                className="rounded-2xl bg-emerald-600 hover:bg-emerald-500"
+              >
+                {creatingSubject ? (
+                  <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    Creating…
+                  </>
+                ) : (
+                  "Add subject to catalog"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {loadingMeta ? null : manageMaterials.length > 0 ? (
+          <Card className="mb-8 border border-white/10 bg-white/5 shadow-none">
+            <CardContent className="p-6 sm:p-8">
+              <h2 className="text-lg font-semibold text-white">Your study materials</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Recently published items. Open a topic to preview how students see it.
+              </p>
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+                <table className="w-full min-w-[640px] text-left text-sm text-slate-300">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-slate-900/50 text-xs uppercase tracking-wide text-slate-500">
+                      <th className="px-4 py-3 font-medium">Title</th>
+                      <th className="px-4 py-3 font-medium">Subject</th>
+                      <th className="px-4 py-3 font-medium">Type</th>
+                      <th className="px-4 py-3 font-medium">Audience</th>
+                      <th className="px-4 py-3 font-medium text-right">Open</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {manageMaterials.map((m) => (
+                      <tr key={m._id} className="border-b border-white/5 last:border-0">
+                        <td className="max-w-[220px] px-4 py-3 font-medium text-white">
+                          {m.title}
+                        </td>
+                        <td className="px-4 py-3 text-slate-400">
+                          {m.category?.name || "—"}
+                        </td>
+                        <td className="px-4 py-3 capitalize text-slate-400">{m.materialType}</td>
+                        <td className="px-4 py-3 text-slate-400">
+                          {m.audience === "cohort" ? "Class" : "Global"}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            to={`/dashboard/learning/topic/${m.slug}`}
+                            className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            View
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <p className="mb-6 text-sm text-slate-500">
+            No materials in the library yet — publish your first one below.
+          </p>
+        )}
+
+        <Card className="border border-white/10 bg-white/5 shadow-none">
+          <CardContent className="p-6 sm:p-8">
+            {loadingMeta ? (
+              <div className="flex items-center gap-3 text-slate-400">
+                <LoaderCircle className="h-6 w-6 animate-spin" />
+                Loading subjects…
+              </div>
+            ) : categories.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                No learning categories found. Seed the database or create a category first.
+              </p>
+            ) : (
+              <form className="space-y-6" onSubmit={handleSubmit}>
+                <div>
+                  <label className="text-sm font-medium text-slate-300" htmlFor="lm-title">
+                    Title
+                  </label>
+                  <input
+                    id="lm-title"
+                    className={inputClass}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Week 3 — DBMS revision notes"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-slate-300" htmlFor="lm-cat">
+                    Subject category
+                  </label>
+                  <select
+                    id="lm-cat"
+                    className={inputClass}
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    required
+                  >
+                    {categories.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium text-slate-300" htmlFor="lm-level">
+                      Level
+                    </label>
+                    <select
+                      id="lm-level"
+                      className={inputClass}
+                      value={level}
+                      onChange={(e) => setLevel(e.target.value)}
+                    >
+                      <option value="beginner">Beginner</option>
+                      <option value="intermediate">Intermediate</option>
+                      <option value="advanced">Advanced</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-300" htmlFor="lm-type">
+                      Type
+                    </label>
+                    <select
+                      id="lm-type"
+                      className={inputClass}
+                      value={materialType}
+                      onChange={(e) => setMaterialType(e.target.value)}
+                    >
+                      <option value="article">Article</option>
+                      <option value="pdf">PDF</option>
+                      <option value="video">Video</option>
+                      <option value="link">Link</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-slate-300" htmlFor="lm-summary">
+                    Summary
+                  </label>
+                  <textarea
+                    id="lm-summary"
+                    className={`${inputClass} min-h-[88px]`}
+                    value={summary}
+                    onChange={(e) => setSummary(e.target.value)}
+                    placeholder="Short preview shown in lists"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-slate-300" htmlFor="lm-content">
+                    Full content
+                  </label>
+                  <textarea
+                    id="lm-content"
+                    className={`${inputClass} min-h-[200px] font-mono text-xs`}
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Main article body (Markdown-style headings supported in UI)"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-slate-300" htmlFor="lm-resource">
+                    Resource URL
+                  </label>
+                  <input
+                    id="lm-resource"
+                    type="url"
+                    className={inputClass}
+                    value={resourceUrl}
+                    onChange={(e) => setResourceUrl(e.target.value)}
+                    placeholder="https://… (YouTube, PDF, or external article)"
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Required for PDF, video, and link types. Optional for pure articles.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-indigo-500/25 bg-indigo-500/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <BookOpenCheck className="mt-0.5 h-5 w-5 shrink-0 text-indigo-300" />
+                    <div>
+                      <p className="text-sm font-semibold text-white">Who can see this?</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Cohort materials match{" "}
+                        <span className="text-slate-200">course, branch, and year</span> on each
+                        student&apos;s profile (normalized the same way for teachers and students).
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-4">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+                          <input
+                            type="radio"
+                            name="audience"
+                            checked={audience === "global"}
+                            onChange={() => setAudience("global")}
+                          />
+                          Whole catalog (all students)
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+                          <input
+                            type="radio"
+                            name="audience"
+                            checked={audience === "cohort"}
+                            onChange={() => setAudience("cohort")}
+                          />
+                          Specific course, branch & year
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {audience === "cohort" ? (
+                    <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                      <div>
+                        <label className="text-xs font-medium text-slate-400" htmlFor="lm-course">
+                          Course
+                        </label>
+                        <input
+                          id="lm-course"
+                          className={inputClass}
+                          value={targetCourse}
+                          onChange={(e) => setTargetCourse(e.target.value)}
+                          placeholder="e.g. B.Tech"
+                          required={audience === "cohort"}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-400" htmlFor="lm-branch">
+                          Branch
+                        </label>
+                        <input
+                          id="lm-branch"
+                          className={inputClass}
+                          value={targetBranch}
+                          onChange={(e) => setTargetBranch(e.target.value)}
+                          placeholder="e.g. CSE"
+                          required={audience === "cohort"}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-400" htmlFor="lm-year">
+                          Year
+                        </label>
+                        <input
+                          id="lm-year"
+                          className={inputClass}
+                          value={targetYear}
+                          onChange={(e) => setTargetYear(e.target.value)}
+                          placeholder="e.g. 2 or 2024-28"
+                          required={audience === "cohort"}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium text-slate-300" htmlFor="lm-tags">
+                      Tags (comma-separated)
+                    </label>
+                    <input
+                      id="lm-tags"
+                      className={inputClass}
+                      value={tags}
+                      onChange={(e) => setTags(e.target.value)}
+                      placeholder="dbms, revision"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-300" htmlFor="lm-min">
+                      Est. read (minutes)
+                    </label>
+                    <input
+                      id="lm-min"
+                      type="number"
+                      min={1}
+                      className={inputClass}
+                      value={estimatedReadMinutes}
+                      onChange={(e) => setEstimatedReadMinutes(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={isPublished}
+                    onChange={(e) => setIsPublished(e.target.checked)}
+                  />
+                  Published
+                </label>
+
+                {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+                {success ? <p className="text-sm text-emerald-400">{success}</p> : null}
+
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full rounded-2xl bg-indigo-600 py-6 text-base hover:bg-indigo-500 sm:w-auto"
+                >
+                  {submitting ? (
+                    <>
+                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                      Publishing…
+                    </>
+                  ) : (
+                    "Publish material"
+                  )}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

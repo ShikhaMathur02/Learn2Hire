@@ -5,6 +5,8 @@ import { BookOpen, CheckCircle2, Clock3, LoaderCircle, PlayCircle } from 'lucide
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { readApiResponse } from '../lib/api';
+import progressBannerImg from '../assets/illustrations/progress-banner.png';
+import emptyStateImg from '../assets/illustrations/empty-state.png';
 
 function MyLearningProgressPage() {
   const token = localStorage.getItem('token');
@@ -86,15 +88,25 @@ function MyLearningProgressPage() {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_18%,#ffffff_38%,#f8fafc_100%)] text-slate-900">
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="overflow-hidden rounded-[36px] border border-indigo-200/40 bg-[radial-gradient(circle_at_top_left,#4338ca_0%,#1e1b4b_45%,#020617_100%)] px-6 py-10 text-white shadow-[0_35px_100px_rgba(49,46,129,0.24)] sm:px-10">
+      <main className="mx-auto max-w-7xl px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+        <section className="relative overflow-hidden rounded-[36px] border border-indigo-200/40 shadow-[0_35px_100px_rgba(49,46,129,0.24)]">
+          <img
+            src={progressBannerImg}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,#4338ca_0%,#1e1b4b_55%,#020617_100%)] opacity-92" />
+          <div className="relative px-6 py-7 text-white sm:px-10 sm:py-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-sm font-medium text-cyan-200">My Learning Progress</p>
-              <h1 className="mt-3 text-4xl font-bold tracking-tight">
+              {user?.name ? (
+                <p className="mt-2 text-base font-semibold text-white drop-shadow-sm">{user.name}</p>
+              ) : null}
+              <h1 className="mt-3 text-4xl font-bold tracking-tight text-white drop-shadow-sm">
                 Track every material you have started and completed.
               </h1>
-              <p className="mt-4 max-w-2xl text-slate-200">
+              <p className="mt-4 max-w-2xl text-slate-100">
                 Learn2Hire saves your reading activity when you open study materials while logged in
                 as a student.
               </p>
@@ -102,20 +114,21 @@ function MyLearningProgressPage() {
 
             <div className="flex flex-wrap gap-3">
               <Button asChild className="bg-white text-slate-900 hover:bg-slate-100">
-                <Link to="/learn">Open Learning Hub</Link>
+                <Link to="/dashboard/learning#learning-explore-content">Open Learning Hub</Link>
               </Button>
               <Button
                 asChild
                 variant="outline"
-                className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                className="!border-white/20 bg-white/5 !text-white hover:bg-white/10 hover:!text-white"
               >
                 <Link to="/dashboard">Back to Dashboard</Link>
               </Button>
             </div>
           </div>
+          </div>
         </section>
 
-        <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Card className="rounded-[28px] border-slate-200/80 bg-white/95 shadow-[0_22px_60px_rgba(15,23,42,0.08)]">
             <CardContent className="p-6">
               <p className="text-sm text-slate-500">Started</p>
@@ -144,7 +157,7 @@ function MyLearningProgressPage() {
           </Card>
         </section>
 
-        <section className="mt-8 rounded-[32px] border border-slate-200/80 bg-white/95 p-6 shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
+        <section className="mt-6 rounded-[32px] border border-slate-200/80 bg-white/95 p-5 text-slate-900 shadow-[0_25px_70px_rgba(15,23,42,0.08)] sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold text-slate-900">Saved Learning Activity</h2>
@@ -191,7 +204,7 @@ function MyLearningProgressPage() {
           </div>
 
           {loading ? (
-            <div className="flex h-48 items-center justify-center text-slate-500">
+            <div className="flex h-40 items-center justify-center text-slate-500">
               <div className="flex items-center gap-3">
                 <LoaderCircle className="h-5 w-5 animate-spin" />
                 Loading your learning progress...
@@ -206,25 +219,25 @@ function MyLearningProgressPage() {
               {filteredProgress.map((item) => (
                 <Link
                   key={item._id}
-                  to={`/learn/material/${item.material?.slug}`}
-                  className="block rounded-3xl border border-slate-200 p-5 transition hover:border-indigo-200 hover:bg-indigo-50/40"
+                  to={`/dashboard/learning/topic/${item.material?.slug}`}
+                  className="block rounded-3xl border border-slate-200 bg-white p-5 text-slate-900 no-underline shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
+                        <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-800">
                           {item.material?.category?.name || 'General'}
                         </span>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase text-slate-600">
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase text-slate-700">
                           {item.material?.materialType || 'MATERIAL'}
                         </span>
                       </div>
 
-                      <h3 className="mt-4 text-xl font-semibold text-slate-900">
-                        {item.material?.title || 'Study material'}
+                      <h3 className="mt-4 text-xl font-semibold text-slate-950">
+                        {item.material?.title || item.material?.name || 'Study material'}
                       </h3>
 
-                      <p className="mt-2 text-sm text-slate-600">
+                      <p className="mt-2 text-sm text-slate-700">
                         {item.material?.summary || 'Continue this learning material.'}
                       </p>
 
@@ -273,9 +286,12 @@ function MyLearningProgressPage() {
               ))}
             </div>
           ) : (
-            <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
-              No saved learning progress yet. Open a material from the learning hub and your
-              activity will start appearing here.
+            <div className="mt-6 overflow-hidden rounded-3xl border border-dashed border-slate-300">
+              <img src={emptyStateImg} alt="" className="h-52 w-full object-cover opacity-70" />
+              <div className="bg-slate-50 p-6 text-center text-sm text-slate-500">
+                No saved learning progress yet. Open a material from the learning hub and your
+                activity will start appearing here.
+              </div>
             </div>
           )}
         </section>

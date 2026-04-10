@@ -17,6 +17,12 @@ import { Card, CardContent } from "../ui/card";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  {
+    id: "learning",
+    label: "Manage learning",
+    icon: BookOpenCheck,
+    path: "/dashboard/learning/manage",
+  },
   { id: "profile", label: "Profile", icon: UserRound },
   { id: "assessments", label: "Assessments", icon: ClipboardList },
   { id: "progress", label: "Progress", icon: BarChart3 },
@@ -197,14 +203,24 @@ function FacultyDashboard({ user, onLogout }) {
   });
 
   const renderDashboard = () => (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <SectionTitle
         title="Faculty Dashboard"
         description="Monitor created assessments, submission activity, and class performance from one place."
         action={
-          <Button onClick={() => navigate("/assessments/create")}>
-            Create Assessment
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              asChild
+              variant="outline"
+              className="!border-white/20 !bg-white/5 !text-white hover:!bg-white/10 hover:!text-white"
+            >
+              <Link to="/dashboard/learning/manage">
+                <BookOpenCheck className="h-4 w-4" />
+                Manage learning
+              </Link>
+            </Button>
+            <Button onClick={() => navigate("/assessments/create")}>Create Assessment</Button>
+          </div>
         }
       />
 
@@ -422,8 +438,8 @@ function FacultyDashboard({ user, onLogout }) {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside className="border-b border-white/10 bg-slate-950/50 backdrop-blur lg:min-h-screen lg:w-72 lg:border-b-0 lg:border-r">
-          <div className="flex h-full flex-col p-6">
-            <div className="mb-8 flex items-center gap-3">
+          <div className="flex h-full flex-col p-5 sm:p-6">
+            <div className="mb-6 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
                 <Sparkles className="h-5 w-5" />
               </div>
@@ -465,11 +481,11 @@ function FacultyDashboard({ user, onLogout }) {
               })}
             </nav>
 
-            <div className="mt-auto pt-8">
+            <div className="mt-auto pt-6">
               <Button
                 variant="outline"
                 onClick={onLogout}
-                className="w-full justify-center border-white/15 text-slate-200 hover:bg-white/10 hover:text-white"
+                className="w-full justify-center !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
               >
                 <LogOut className="h-4 w-4" />
                 Logout
@@ -478,8 +494,8 @@ function FacultyDashboard({ user, onLogout }) {
           </div>
         </aside>
 
-        <div className="flex-1 p-4 sm:p-6 lg:p-8">
-          <header className="mb-6 rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_24px_60px_rgba(2,6,23,0.25)] backdrop-blur-xl">
+        <div className="flex-1 p-4 sm:p-5 lg:p-6">
+          <header className="mb-4 rounded-[28px] border border-white/10 bg-white/5 p-4 shadow-[0_24px_60px_rgba(2,6,23,0.25)] backdrop-blur-xl sm:p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-medium text-cyan-300">Learn2Hire</p>
@@ -490,17 +506,17 @@ function FacultyDashboard({ user, onLogout }) {
                 <Button
                   asChild
                   variant="outline"
-                  className="hidden border-white/15 text-slate-200 hover:bg-white/10 hover:text-white md:inline-flex"
+                  className="inline-flex !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
                 >
-                  <Link to="/learn/manage">
+                  <Link to="/dashboard/learning/manage">
                     <BookOpenCheck className="h-4 w-4" />
-                    Manage Learning
+                    Manage learning
                   </Link>
                 </Button>
                 <Button
                   asChild
                   variant="outline"
-                  className="hidden border-white/15 text-slate-200 hover:bg-white/10 hover:text-white md:inline-flex"
+                  className="hidden !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white md:inline-flex"
                 >
                   <Link to="/notifications">
                     <Bell className="h-4 w-4" />
@@ -517,7 +533,7 @@ function FacultyDashboard({ user, onLogout }) {
                 <Button
                   variant="outline"
                   onClick={onLogout}
-                  className="hidden border-white/15 text-slate-200 hover:bg-white/10 hover:text-white md:inline-flex"
+                  className="hidden !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white md:inline-flex"
                 >
                   Logout
                 </Button>
@@ -526,7 +542,7 @@ function FacultyDashboard({ user, onLogout }) {
           </header>
 
           {loading ? (
-            <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
+            <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
               <div className="flex items-center gap-3 text-slate-300">
                 <LoaderCircle className="h-5 w-5 animate-spin" />
                 Loading your faculty dashboard...

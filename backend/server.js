@@ -9,9 +9,19 @@ const submissionRoutes = require('./routes/submissionRoutes');
 const jobRoutes = require('./routes/jobRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const learningRoutes = require('./routes/learningRoutes');
+const subjectRoutes = require('./routes/subjectRoutes');
+const collegeRoutes = require('./routes/collegeRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// JSON APIs should not use ETag/304 — browsers cache empty 304 bodies and fetch() treats 304 as !ok.
+app.set('etag', false);
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  next();
+});
 
 // Parse JSON body (required for signup/login, profile, assessment, submission APIs)
 app.use(express.json());
@@ -30,6 +40,12 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/admin', adminRoutes);
 // Notification routes (protected)
 app.use('/api/notifications', notificationRoutes);
+// Learning routes (public + protected manage routes)
+app.use('/api/learning', learningRoutes);
+// Subject master data routes (protected)
+app.use('/api/subjects', subjectRoutes);
+// College: roster, faculty approvals (protected)
+app.use('/api/college', collegeRoutes);
 
 // Simple route: when someone visits http://localhost:5000 they see this
 app.get('/', (req, res) => {

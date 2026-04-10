@@ -38,6 +38,25 @@ const protect = async (req, res, next) => {
       });
     }
 
+    const role = String(user.role || '')
+      .trim()
+      .toLowerCase();
+    if (role === 'faculty') {
+      const st = user.facultyApprovalStatus;
+      if (st === 'pending' || st === 'rejected') {
+        const url = String(req.originalUrl || '');
+        if (!url.startsWith('/api/auth/me')) {
+          return res.status(403).json({
+            success: false,
+            message:
+              st === 'pending'
+                ? 'Your faculty account is awaiting approval from your college.'
+                : 'Your faculty account was not approved. Contact your college for help.',
+          });
+        }
+      }
+    }
+
     req.user = user;
     next();
   } catch (err) {
@@ -48,4 +67,51 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+/**
+ * If Authorization: Bearer <token> is present and valid, sets req.user.
+ * Otherwise continues without error (for public routes that filter by role/cohort).
+ */
+const optionalProtect = async (req, res, next) => {
+  let token;
+
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'learn2hire-secret'
+    );
+
+    const user = await User.findById(decoded.id);
+    if (user) {
+      const role = String(user.role || '')
+        .trim()
+        .toLowerCase();
+      if (role === 'faculty') {
+        const st = user.facultyApprovalStatus;
+        if (st === 'pending' || st === 'rejected') {
+          req.user = undefined;
+        } else {
+          req.user = user;
+        }
+      } else {
+        req.user = user;
+      }
+    }
+  } catch (err) {
+    // Invalid or expired token — treat as anonymous for these routes
+  }
+
+  next();
+};
+
+module.exports = { protect, optionalProtect };

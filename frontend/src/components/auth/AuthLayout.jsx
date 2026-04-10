@@ -8,17 +8,17 @@ const defaultHighlights = [
 
 function AuthLayout({ badge, title, subtitle, footer, children }) {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 py-10 text-slate-900 sm:px-6 lg:px-8">
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 py-6 text-slate-900 sm:px-6 lg:px-8 sm:py-8">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-10 top-10 h-48 w-48 rounded-full bg-fuchsia-500/20 blur-3xl" />
         <div className="absolute bottom-0 right-10 h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-5rem)] max-w-6xl items-center justify-center">
+      <div className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-[32px] border border-white/10 bg-white/5 shadow-[0_30px_80px_rgba(2,6,23,0.45)] backdrop-blur-xl lg:grid-cols-[1fr_0.92fr]">
           <div className="bg-white/95 p-6 sm:p-8 lg:p-12">
             <div className="mx-auto max-w-md">
-              <div className="mb-8 flex items-center gap-3">
+              <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
                   <Sparkles className="h-5 w-5" />
                 </div>
@@ -41,9 +41,9 @@ function AuthLayout({ badge, title, subtitle, footer, children }) {
                 {subtitle}
               </p>
 
-              <div className="mt-8">{children}</div>
+              <div className="mt-6">{children}</div>
 
-              <div className="mt-6 text-sm text-slate-600">{footer}</div>
+              <div className="mt-5 text-sm text-slate-600">{footer}</div>
             </div>
           </div>
 

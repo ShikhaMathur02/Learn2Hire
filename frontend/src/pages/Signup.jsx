@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import AuthField from "../components/auth/AuthField";
 import AuthLayout from "../components/auth/AuthLayout";
 import { Button } from "../components/ui/button";
+import { notifyAuthChange } from "../lib/authSession";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -72,8 +73,26 @@ function Signup() {
         return;
       }
 
+      if (data.data?.requiresApproval && role === "faculty") {
+        setError("");
+        navigate("/login", {
+          state: {
+            notice:
+              data.message ||
+              "Your faculty registration was received. Sign in after a college admin approves your account.",
+          },
+        });
+        return;
+      }
+
+      if (!data.data?.token) {
+        setError("Signup did not return a session. Please try again or sign in.");
+        return;
+      }
+
       localStorage.setItem("token", data.data.token);
       localStorage.setItem("user", JSON.stringify(data.data.user));
+      notifyAuthChange();
       navigate("/dashboard");
     } catch (err) {
       setError("Something went wrong. Please try again.");

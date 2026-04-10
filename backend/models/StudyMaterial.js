@@ -62,6 +62,27 @@ const studyMaterialSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // global = everyone; cohort = only students with matching course, branch, year on their profile
+    audience: {
+      type: String,
+      enum: ['global', 'cohort'],
+      default: 'global',
+    },
+    targetCourse: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    targetBranch: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    targetYear: {
+      type: String,
+      default: '',
+      trim: true,
+    },
   },
   {
     timestamps: true,

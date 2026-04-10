@@ -9,6 +9,7 @@ import FacultyDashboard from "../components/faculty-dashboard/FacultyDashboard";
 import StudentDashboard from "../components/student-dashboard/StudentDashboard";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { clearAuthSession } from "../lib/authSession";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -27,8 +28,7 @@ function Dashboard() {
     try {
       setUser(JSON.parse(storedUser));
     } catch (error) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+      clearAuthSession();
       navigate("/login");
       return;
     } finally {
@@ -37,8 +37,7 @@ function Dashboard() {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    clearAuthSession();
     navigate("/login");
   };
 
@@ -92,9 +91,6 @@ function Dashboard() {
                       <Bell className="h-4 w-4" />
                       Notifications
                     </Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link to="/learn">Browse Learning</Link>
                   </Button>
                   <Button asChild>
                     <Link to="/jobs">Browse Jobs</Link>

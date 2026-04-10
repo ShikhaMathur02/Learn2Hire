@@ -303,7 +303,7 @@ function AdminJobsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 py-8 text-white sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 py-5 text-white sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -324,7 +324,7 @@ function AdminJobsPage() {
           <Button
             variant="outline"
             onClick={() => navigate("/dashboard")}
-            className="border-white/15 text-slate-200 hover:bg-white/10 hover:text-white"
+            className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
           >
             <ArrowLeft className="h-4 w-4" />
             Back

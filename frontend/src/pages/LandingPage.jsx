@@ -171,14 +171,14 @@ function LandingPage() {
       <main>
         <HeroSection />
 
-        <section id="features" className="px-5 py-20">
+        <section id="features" className="px-5 py-12 sm:py-14">
           <div className="mx-auto max-w-7xl lg:px-8">
             <SectionHeading
               title="Everything you need to succeed"
               description="Learn2Hire provides comprehensive tools and features for all stakeholders in the placement ecosystem"
             />
 
-            <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {features.map((feature) => {
                 const Icon = feature.icon;
                 return (
@@ -204,14 +204,14 @@ function LandingPage() {
           </div>
         </section>
 
-        <section id="roles" className="bg-slate-100 px-5 py-20">
+        <section id="roles" className="bg-slate-100 px-5 py-12 sm:py-14">
           <div className="mx-auto max-w-7xl lg:px-8">
             <SectionHeading
               title="Tailored solutions for every role"
               description="Learn2Hire provides customized experiences for each stakeholder in the placement process"
             />
 
-            <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {roles.map((role) => {
                 const Icon = role.icon;
                 return (
@@ -242,14 +242,14 @@ function LandingPage() {
           </div>
         </section>
 
-        <section id="how-it-works" className="px-5 py-20">
+        <section id="how-it-works" className="px-5 py-12 sm:py-14">
           <div className="mx-auto max-w-5xl lg:px-8">
             <SectionHeading
               title="How Learn2Hire Works"
               description="A seamless workflow connecting all stakeholders in the placement ecosystem"
             />
 
-            <div className="space-y-10">
+            <div className="space-y-6">
               {steps.map((step, index) => (
                 <div
                   key={step.title}
@@ -270,14 +270,14 @@ function LandingPage() {
           </div>
         </section>
 
-        <section id="testimonials" className="bg-slate-100 px-5 py-20">
+        <section id="testimonials" className="bg-slate-100 px-5 py-12 sm:py-14">
           <div className="mx-auto max-w-7xl lg:px-8">
             <SectionHeading
               title="What our users say"
               description="Hear from students, colleges, and companies who have benefited from Learn2Hire"
             />
 
-            <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {testimonials.map((testimonial) => (
                 <Card key={testimonial.name}>
                   <CardContent>
@@ -311,7 +311,7 @@ function LandingPage() {
 
         <section
           id="contact"
-          className="bg-[linear-gradient(135deg,var(--primary),var(--primary-dark))] px-5 py-20 text-center text-white"
+          className="bg-[linear-gradient(135deg,var(--primary),var(--primary-dark))] px-5 py-12 text-center text-white sm:py-14"
         >
           <div className="mx-auto max-w-4xl lg:px-8">
             <h2 className="text-4xl font-bold sm:text-5xl">
@@ -332,9 +332,9 @@ function LandingPage() {
         </section>
       </main>
 
-      <footer className="bg-[var(--dark)] px-5 pb-8 pt-16 text-white">
+      <footer className="bg-[var(--dark)] px-5 pb-6 pt-10 text-white sm:pb-8 sm:pt-12">
         <div className="mx-auto max-w-7xl lg:px-8">
-          <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             <div>
               <div className="mb-5 text-2xl font-bold">Learn2Hire</div>
               <p className="mb-5 text-slate-300">
@@ -382,7 +382,7 @@ function LandingPage() {
             </div>
           </div>
 
-          <div className="mt-10 border-t border-white/10 pt-8 text-center text-slate-400">
+          <div className="mt-8 border-t border-white/10 pt-6 text-center text-slate-400">
             <p>&copy; 2026 Learn2Hire. All rights reserved.</p>
           </div>
         </div>

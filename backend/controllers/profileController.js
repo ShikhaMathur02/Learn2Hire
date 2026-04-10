@@ -26,6 +26,9 @@ exports.getMyProfile = async (req, res) => {
                 role: req.user.role,
               },
               bio: '',
+              course: '',
+              branch: '',
+              year: '',
               skills: insights.skills,
               stats: insights.stats,
               overallScore: insights.overallScore,
@@ -101,7 +104,7 @@ exports.createProfile = async (req, res) => {
       });
     }
 
-    const { bio, skills } = req.body;
+    const { bio, skills, course, branch, year } = req.body;
 
     const normalizedSkills = [];
     if (Array.isArray(skills)) {
@@ -114,6 +117,9 @@ exports.createProfile = async (req, res) => {
     const profile = await StudentProfile.create({
       user: req.user._id,
       bio: typeof bio === 'string' ? bio.trim() : '',
+      course: typeof course === 'string' ? course.trim() : '',
+      branch: typeof branch === 'string' ? branch.trim() : '',
+      year: typeof year === 'string' ? year.trim() : '',
       skills: normalizedSkills,
     });
 
@@ -147,11 +153,20 @@ exports.createProfile = async (req, res) => {
 // @access  Private
 exports.updateProfile = async (req, res) => {
   try {
-    const { bio, skills, stats } = req.body;
+    const { bio, skills, stats, course, branch, year } = req.body;
     const updateFields = {};
     let normalizedSkills = null;
 
     if (bio !== undefined) updateFields.bio = bio;
+    if (course !== undefined) {
+      updateFields.course = typeof course === 'string' ? course.trim() : '';
+    }
+    if (branch !== undefined) {
+      updateFields.branch = typeof branch === 'string' ? branch.trim() : '';
+    }
+    if (year !== undefined) {
+      updateFields.year = typeof year === 'string' ? year.trim() : '';
+    }
     if (skills !== undefined) {
       normalizedSkills = [];
       if (Array.isArray(skills)) {

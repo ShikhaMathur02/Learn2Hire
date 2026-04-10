@@ -12,6 +12,22 @@ const studentProfileSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Cohort — used to show faculty-targeted study materials (course + branch + year must all match)
+    course: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    branch: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    year: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     // Skill tracking: list of skills with level and progress
     skills: [
       {

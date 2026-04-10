@@ -223,9 +223,9 @@ function CompanyDashboard({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur xl:p-8">
-          <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8 sm:py-6">
+        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur sm:p-6 xl:p-7">
+          <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium text-cyan-300">Company Workspace</p>
               <h1 className="mt-2 text-3xl font-bold">Welcome, {user.name}</h1>
@@ -248,14 +248,14 @@ function CompanyDashboard({ user, onLogout }) {
               <Button
                 variant="outline"
                 onClick={() => navigate("/")}
-                className="border-white/15 text-slate-200 hover:bg-white/10 hover:text-white"
+                className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
               >
                 Go to Home
               </Button>
               <Button
                 variant="outline"
                 onClick={onLogout}
-                className="border-white/15 text-slate-200 hover:bg-white/10 hover:text-white"
+                className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
               >
                 <LogOut className="h-4 w-4" />
                 Logout
@@ -275,7 +275,7 @@ function CompanyDashboard({ user, onLogout }) {
             </div>
           ) : null}
 
-          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               title="Job Posts"
               value={dashboard.metrics.totalJobs}
@@ -302,7 +302,7 @@ function CompanyDashboard({ user, onLogout }) {
             />
           </div>
 
-          <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
             <Card className="border border-white/10 bg-white/5 shadow-none">
               <CardContent className="p-6">
                 <div className="flex items-center gap-3">
@@ -405,7 +405,7 @@ function CompanyDashboard({ user, onLogout }) {
             </Card>
           </div>
 
-          <div className="mt-8 grid gap-6 xl:grid-cols-2">
+          <div className="mt-5 grid gap-5 xl:grid-cols-2">
             <Card className="border border-white/10 bg-white/5 shadow-none">
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold text-white">Recent Job Posts</h2>

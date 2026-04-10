@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,6 +7,7 @@ import {
   BookText,
   BrainCircuit,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   ExternalLink,
   Layers3,
@@ -19,9 +20,51 @@ import SiteHeader from '../components/landing/SiteHeader';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { readApiResponse } from '../lib/api';
+import { clearAuthSession } from '../lib/authSession';
+import heroDashboardImg from '../assets/illustrations/hero-dashboard.png';
+
+const subjectImageMap = {
+  dsa: new URL('../assets/illustrations/subject-dsa.png', import.meta.url).href,
+  dbms: new URL('../assets/illustrations/subject-dbms.png', import.meta.url).href,
+  os: new URL('../assets/illustrations/subject-os.png', import.meta.url).href,
+  cn: new URL('../assets/illustrations/subject-cn.png', import.meta.url).href,
+  oop: new URL('../assets/illustrations/subject-oop.png', import.meta.url).href,
+  'web-dev': new URL('../assets/illustrations/subject-webdev.png', import.meta.url).href,
+  webdev: new URL('../assets/illustrations/subject-webdev.png', import.meta.url).href,
+  'ai-ml': new URL('../assets/illustrations/subject-aiml.png', import.meta.url).href,
+  aiml: new URL('../assets/illustrations/subject-aiml.png', import.meta.url).href,
+  'interview-prep': new URL('../assets/illustrations/subject-interview.png', import.meta.url).href,
+  interview: new URL('../assets/illustrations/subject-interview.png', import.meta.url).href,
+  aptitude: new URL('../assets/illustrations/subject-aptitude.png', import.meta.url).href,
+};
+
+function getSubjectImage(slug) {
+  if (!slug) return null;
+  const key = String(slug).toLowerCase().replace(/\s+/g, '-');
+  return subjectImageMap[key] || null;
+}
+
+function youtubeEmbedUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname.includes('youtube.com')) {
+      const v = u.searchParams.get('v');
+      if (v) return `https://www.youtube.com/embed/${v}`;
+    }
+    if (u.hostname === 'youtu.be') {
+      const id = u.pathname.replace(/^\//, '').split('/')[0];
+      if (id) return `https://www.youtube.com/embed/${id}`;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 function MaterialDetailsPage() {
   const { slug } = useParams();
+  const location = useLocation();
   const sessionStartedAtRef = useRef(Date.now());
   const token = localStorage.getItem('token');
   const storedUser = localStorage.getItem('user');
@@ -33,7 +76,8 @@ function MaterialDetailsPage() {
     parsedUser = null;
   }
 
-  const isLearner = parsedUser?.role === 'student';
+  const isLearner =
+    parsedUser?.role && String(parsedUser.role).toLowerCase() === 'student';
 
   const [material, setMaterial] = useState(null);
   const [relatedMaterials, setRelatedMaterials] = useState([]);
@@ -65,6 +109,7 @@ function MaterialDetailsPage() {
 
         const response = await fetch(`/api/learning/progress/material/${slug}`, {
           method: 'PUT',
+          cache: 'no-store',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
@@ -102,15 +147,35 @@ function MaterialDetailsPage() {
         setProgressLoaded(false);
         sessionStartedAtRef.current = Date.now();
 
-        const response = await fetch(`/api/learning/materials/${slug}`);
+        const optionalAuthHeaders = token
+          ? { Authorization: `Bearer ${token}` }
+          : {};
+
+        const response = await fetch(`/api/learning/materials/${slug}`, {
+          cache: 'no-store',
+          headers: optionalAuthHeaders,
+        });
         const data = await readApiResponse(response);
 
         const fetchedMaterial = data.data?.material || null;
+
+        if (!response.ok || !fetchedMaterial) {
+          setMaterial(null);
+          setRelatedMaterials([]);
+          setProgress(null);
+          setError(
+            (typeof data.message === 'string' && data.message.trim()) ||
+              'Study material not found or is no longer available.'
+          );
+          return;
+        }
+
         setMaterial(fetchedMaterial);
 
-        if (fetchedMaterial?.category?.slug) {
+        if (fetchedMaterial.category?.slug) {
           const relatedResponse = await fetch(
-            `/api/learning/materials?category=${fetchedMaterial.category.slug}`
+            `/api/learning/materials?category=${fetchedMaterial.category.slug}`,
+            { cache: 'no-store', headers: optionalAuthHeaders }
           );
           const relatedData = await readApiResponse(relatedResponse);
           const nextRelatedMaterials = (relatedData.data?.materials || [])
@@ -123,14 +188,14 @@ function MaterialDetailsPage() {
 
         if (token && isLearner) {
           const progressResponse = await fetch(`/api/learning/progress/material/${slug}`, {
+            cache: 'no-store',
             headers: {
               Authorization: `Bearer ${token}`,
             },
           });
 
           if (progressResponse.status === 401) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            clearAuthSession();
             setProgress(null);
           } else {
             const progressData = await readApiResponse(progressResponse);
@@ -176,11 +241,29 @@ function MaterialDetailsPage() {
   }, [isLearner, material, progress?.progressPercent, progressLoaded, saveProgress, token]);
 
   const contentParagraphs = useMemo(() => {
-    return String(material?.content || '')
+    const raw = String(material?.content || '').trim();
+    if (!raw) return [];
+    let parts = raw
       .split(/\n\s*\n/)
       .map((paragraph) => paragraph.trim())
       .filter(Boolean);
+    if (parts.length === 1 && /^#{1,6}\s/m.test(parts[0])) {
+      const byHeader = parts[0]
+        .split(/(?=^#{1,6}\s)/m)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (byHeader.length > 1) return byHeader;
+    }
+    return parts.length ? parts : [raw];
   }, [material?.content]);
+
+  const embedSrc = useMemo(
+    () =>
+      material?.materialType === 'video' && material?.resourceUrl
+        ? youtubeEmbedUrl(material.resourceUrl)
+        : null,
+    [material?.materialType, material?.resourceUrl]
+  );
 
   const articleSections = useMemo(() => {
     if (!material) return [];
@@ -219,21 +302,30 @@ function MaterialDetailsPage() {
   }, [isLearner, material]);
 
   const nextMaterial = relatedMaterials[0] || null;
+  const isDashboardTopicRoute = location.pathname.startsWith('/dashboard/learning/topic/');
+  const topicBasePath = isDashboardTopicRoute ? '/dashboard/learning/topic' : '/learning/topic';
+  const learningHubPath = isDashboardTopicRoute
+    ? '/dashboard/learning#learning-explore-content'
+    : '/learning#learning-explore-content';
+
+  if (!slug) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_18%,#ffffff_38%,#f8fafc_100%)] text-slate-900">
       <SiteHeader />
 
-      <main className="mx-auto max-w-7xl px-4 pb-16 pt-28 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 pb-6 pt-24 sm:px-6 lg:px-8">
         <Button asChild variant="outline" className="mb-6">
-          <Link to="/learn">
+          <Link to={learningHubPath}>
             <ArrowLeft className="h-4 w-4" />
             Back to Learning Hub
           </Link>
         </Button>
 
         {loading ? (
-          <div className="flex h-64 items-center justify-center rounded-[32px] border border-slate-200 bg-white shadow-sm">
+          <div className="flex h-52 items-center justify-center rounded-[32px] border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center gap-3 text-slate-500">
               <LoaderCircle className="h-5 w-5 animate-spin" />
               Loading study material...
@@ -241,11 +333,22 @@ function MaterialDetailsPage() {
           </div>
         ) : error ? (
           <div className="rounded-[32px] border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
-            {error}
+            <p>{error}</p>
+            <Button asChild variant="outline" className="mt-4 bg-white">
+              <Link to={learningHubPath}>Back to learning hub</Link>
+            </Button>
           </div>
         ) : material ? (
-          <div className="space-y-6">
-            <section className="overflow-hidden rounded-[36px] border border-indigo-200/40 bg-[radial-gradient(circle_at_top_left,#4338ca_0%,#1e1b4b_45%,#020617_100%)] px-6 py-10 text-white shadow-[0_35px_100px_rgba(49,46,129,0.24)] sm:px-10">
+          <div className="space-y-4">
+            <section className="relative overflow-hidden rounded-[36px] border border-indigo-200/40 shadow-[0_35px_100px_rgba(49,46,129,0.24)]">
+              <img
+                src={heroDashboardImg}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,#4338ca_0%,#1e1b4b_55%,#020617_100%)] opacity-88" />
+              <div className="relative px-6 py-7 text-white sm:px-10 sm:py-8">
+              <div className="relative">
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 uppercase tracking-wide text-cyan-100">
                   {material.materialType}
@@ -258,10 +361,10 @@ function MaterialDetailsPage() {
                 </span>
               </div>
 
-              <h1 className="mt-6 text-4xl font-bold tracking-tight">{material.title}</h1>
-              <p className="mt-4 max-w-3xl text-base text-slate-200">{material.summary}</p>
+              <h1 className="mt-4 text-4xl font-bold tracking-tight">{material.title}</h1>
+              <p className="mt-3 max-w-3xl text-base text-slate-200">{material.summary}</p>
 
-              <div className="mt-6 flex flex-wrap items-center gap-5 text-sm text-slate-200">
+              <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-slate-200">
                 <span className="inline-flex items-center gap-2">
                   <Clock3 className="h-4 w-4" />
                   {material.estimatedReadMinutes} min
@@ -272,7 +375,7 @@ function MaterialDetailsPage() {
                 </span>
               </div>
 
-              <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
                   <p className="text-sm text-cyan-100">Category</p>
                   <p className="mt-3 text-2xl font-semibold text-white">
@@ -292,15 +395,17 @@ function MaterialDetailsPage() {
                   </p>
                 </div>
               </div>
+              </div>{/* end relative content wrapper */}
+              </div>{/* end relative px-6 py-10 */}
             </section>
 
-            <div className="grid gap-6 xl:grid-cols-[1.45fr_0.8fr]">
-              <div className="space-y-6">
+            <div className="grid gap-4 xl:grid-cols-[1.45fr_0.8fr]">
+              <div className="space-y-4">
                 <Card
                   id="overview"
                   className="rounded-[32px] border-slate-200/80 bg-white/95 shadow-[0_25px_70px_rgba(15,23,42,0.08)]"
                 >
-                  <CardContent className="p-8">
+                  <CardContent className="p-6 sm:p-7">
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
                         <BrainCircuit className="h-6 w-6" />
@@ -352,8 +457,45 @@ function MaterialDetailsPage() {
                       </div>
                     </div>
 
+                    {material.resourceUrl ? (
+                      <div className="mt-8 space-y-4">
+                        {embedSrc ? (
+                          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-black shadow-sm">
+                            <div className="aspect-video w-full">
+                              <iframe
+                                title="Study video"
+                                src={embedSrc}
+                                className="h-full w-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-3xl border border-indigo-200 bg-indigo-50/80 p-6">
+                            <p className="text-sm font-semibold text-indigo-900">
+                              {material.materialType === 'pdf'
+                                ? 'PDF document'
+                                : material.materialType === 'link'
+                                  ? 'External link'
+                                  : 'Resource'}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-indigo-800/90">
+                              Open the resource below to read or watch the full material.
+                            </p>
+                            <Button asChild className="mt-4">
+                              <a href={material.resourceUrl} target="_blank" rel="noreferrer">
+                                Open resource
+                                <ExternalLink className="ml-2 h-4 w-4" />
+                              </a>
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
                     {contentParagraphs.length ? (
-                      <div className="mt-8 space-y-6">
+                      <div className="mt-6 space-y-4">
                         {contentParagraphs.map((paragraph, index) => (
                           <div
                             key={`${material._id}-${index}`}
@@ -373,7 +515,11 @@ function MaterialDetailsPage() {
                           </div>
                         ))}
                       </div>
-                    ) : (
+                    ) : material.resourceUrl && embedSrc ? (
+                      <p className="mt-6 text-sm text-slate-500">
+                        Tip: add notes in the editor for a written summary alongside the video.
+                      </p>
+                    ) : material.resourceUrl ? null : (
                       <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-500">
                         No article content was added for this material yet.
                       </div>
@@ -443,8 +589,21 @@ function MaterialDetailsPage() {
                 </Card>
               </div>
 
-              <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
-                <Card className="rounded-[32px] border-slate-200/80 bg-white/95 shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
+              <div className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+                <Card className="overflow-hidden rounded-[32px] border-slate-200/80 bg-white/95 shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
+                  {getSubjectImage(material.category?.slug) && (
+                    <div className="relative h-28 w-full overflow-hidden">
+                      <img
+                        src={getSubjectImage(material.category?.slug)}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/95" />
+                      <p className="absolute bottom-2 left-4 text-xs font-semibold text-indigo-700">
+                        {material.category?.name || 'Study Material'}
+                      </p>
+                    </div>
+                  )}
                   <CardContent className="p-6">
                     <div className="flex items-center gap-2">
                       <Sparkles className="h-5 w-5 text-indigo-600" />
@@ -548,7 +707,7 @@ function MaterialDetailsPage() {
 
                     {nextMaterial ? (
                       <Link
-                        to={`/learn/material/${nextMaterial.slug}`}
+                        to={`${topicBasePath}/${nextMaterial.slug}`}
                         className="mt-5 block rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:border-indigo-200 hover:bg-indigo-50/50"
                       >
                         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
@@ -575,7 +734,7 @@ function MaterialDetailsPage() {
                       {relatedMaterials.slice(0, 3).map((item) => (
                         <Link
                           key={item._id}
-                          to={`/learn/material/${item.slug}`}
+                          to={`${topicBasePath}/${item.slug}`}
                           className="block rounded-2xl border border-slate-200 px-4 py-3 text-sm transition hover:border-indigo-200 hover:bg-indigo-50"
                         >
                           <p className="font-medium text-slate-900">{item.title}</p>
@@ -590,7 +749,18 @@ function MaterialDetailsPage() {
               </div>
             </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="rounded-[32px] border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <p className="text-sm text-slate-600">
+              We could not load this study material. It may have been removed, or your account may not
+              have access (for example, cohort-only content). Return to the learning hub and pick another
+              topic.
+            </p>
+            <Button asChild className="mt-6">
+              <Link to={learningHubPath}>Browse learning materials</Link>
+            </Button>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -62,12 +62,37 @@ exports.signup = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const user = await User.create({
+    const userPayload = {
       name,
       email,
       password: hashedPassword,
       role,
-    });
+    };
+
+    if (role === 'faculty') {
+      userPayload.facultyApprovalStatus = 'pending';
+    }
+
+    const user = await User.create(userPayload);
+
+    if (role === 'faculty') {
+      return res.status(201).json({
+        success: true,
+        message:
+          'Registration received. A college administrator must approve your faculty account before you can sign in.',
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            facultyApprovalStatus: 'pending',
+          },
+          token: null,
+          requiresApproval: true,
+        },
+      });
+    }
 
     const token = generateToken(user._id);
 
@@ -133,6 +158,7 @@ exports.login = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          facultyApprovalStatus: user.facultyApprovalStatus,
         },
         token,
       },
@@ -159,6 +185,8 @@ exports.getMe = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          facultyApprovalStatus: user.facultyApprovalStatus,
+          managedByCollege: user.managedByCollege,
         },
       },
     });
