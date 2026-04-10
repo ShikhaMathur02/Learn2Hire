@@ -1094,7 +1094,7 @@ function StudentDashboard({ user, onLogout }) {
           </div>
         </aside>
 
-        <div className="flex-1 p-4 sm:p-5 lg:p-6">
+        <div className="flex-1 p-3 sm:p-4">
           <DashboardTopNav
             bleed
             workspaceLabel="Student Workspace"

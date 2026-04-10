@@ -316,7 +316,7 @@ function MaterialDetailsPage() {
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_18%,#ffffff_38%,#f8fafc_100%)] text-slate-900">
       <SiteHeader />
 
-      <main className="mx-auto max-w-7xl px-4 pb-6 pt-24 sm:px-6 lg:px-8">
+      <main className="w-full px-3 pb-6 pt-24 sm:px-4">
         <Button asChild variant="default" className="mb-6">
           <Link to={learningHubPath}>
             <ArrowLeft className="h-4 w-4" />

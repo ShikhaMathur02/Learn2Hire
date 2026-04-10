@@ -12,8 +12,8 @@ function HeroSection() {
       />
       <div className="absolute inset-0 bg-[linear-gradient(135deg,#4f46e5ee_0%,#7c3aedcc_50%,#1e1b4b_100%)]" />
 
-      <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:gap-10">
-        <div className="max-w-2xl">
+      <div className="relative grid w-full items-center gap-8 px-3 sm:px-4 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
+        <div className="min-w-0 max-w-none">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm font-medium text-cyan-100 backdrop-blur">
             AI-Powered Placement Platform
           </span>

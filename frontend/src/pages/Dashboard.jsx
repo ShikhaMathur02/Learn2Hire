@@ -86,7 +86,7 @@ function Dashboard() {
             </DashboardTopNav.ToolbarLink>
           }
         />
-        <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <div className="w-full px-3 py-8 sm:px-4">
           <Card className="border border-slate-200/80 shadow-sm">
             <CardContent className="p-8">
               <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-6">
@@ -122,7 +122,7 @@ function Dashboard() {
         user={{ name: user.name, email: user.email, role: user.role }}
         onLogout={handleLogout}
       />
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div className="w-full px-3 py-8 sm:px-4">
         <Card className="border border-slate-200/80 shadow-sm">
           <CardContent className="p-8">
             <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-6">

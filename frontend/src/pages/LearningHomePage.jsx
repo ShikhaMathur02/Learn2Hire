@@ -568,11 +568,9 @@ function LearningHomePage({ mode = 'auto' }) {
       {!isDashboardLayout && <SiteHeader />}
 
       <main
-        className={`mx-auto max-w-7xl px-4 pb-8 ${
-          isDashboardLayout ? 'pt-6' : 'pt-24'
-        } sm:px-6 lg:px-8`}
+        className={`w-full px-3 pb-8 sm:px-4 ${isDashboardLayout ? 'pt-6' : 'pt-24'}`}
       >
-        <section className="relative overflow-hidden rounded-[38px] border border-indigo-200/40 bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#312e81_42%,#020617_100%)] px-6 py-8 text-white shadow-[0_35px_100px_rgba(49,46,129,0.28)] sm:px-10 sm:py-10 lg:px-12">
+        <section className="relative overflow-hidden rounded-[38px] border border-indigo-200/40 bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#312e81_42%,#020617_100%)] px-4 py-8 text-white shadow-[0_35px_100px_rgba(49,46,129,0.28)] sm:px-6 sm:py-9 lg:px-8">
           <div className="absolute right-0 top-0 h-52 w-52 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-fuchsia-500/10 blur-3xl" />
           <img

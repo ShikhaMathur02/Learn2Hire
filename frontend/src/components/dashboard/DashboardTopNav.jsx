@@ -92,10 +92,10 @@ function DashboardTopNav({
         "sticky top-0 z-40 mb-6 border-b backdrop-blur-xl",
         isDark &&
           (bleed
-            ? "-mx-4 border-white/10 bg-slate-950/80 px-4 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.65)] sm:-mx-5 sm:px-5 lg:-mx-6 lg:px-6"
-            : "border-white/10 bg-slate-950/80 px-4 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.5)] sm:px-6"),
+            ? "-mx-3 border-white/10 bg-slate-950/80 px-3 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.65)] sm:-mx-4 sm:px-4"
+            : "border-white/10 bg-slate-950/80 px-3 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.5)] sm:px-4"),
         !isDark &&
-          "border-slate-200/90 bg-white/95 px-4 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)] sm:px-6",
+          "border-slate-200/90 bg-white/95 px-3 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)] sm:px-4",
         className
       )}
     >

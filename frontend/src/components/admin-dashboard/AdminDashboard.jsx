@@ -334,7 +334,7 @@ function AdminDashboard({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
-      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8 sm:py-6">
+      <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
         <div className="rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
           <DashboardTopNav
             className="mb-0 rounded-none border-x-0 border-t-0 bg-slate-950/55 px-5 py-3 backdrop-blur-xl sm:px-6 sm:py-4 xl:px-7"

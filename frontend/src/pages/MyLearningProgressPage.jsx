@@ -96,7 +96,7 @@ function MyLearningProgressPage() {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_18%,#ffffff_38%,#f8fafc_100%)] text-slate-900">
-      <main className="mx-auto max-w-7xl px-4 pb-6 pt-6 sm:px-6 lg:px-8">
+      <main className="w-full px-3 pb-6 pt-6 sm:px-4">
         <section className="relative overflow-hidden rounded-[36px] border border-indigo-200/40 shadow-[0_35px_100px_rgba(49,46,129,0.24)]">
           <img
             src={progressBannerImg}

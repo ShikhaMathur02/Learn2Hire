@@ -165,9 +165,9 @@ function NotificationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 py-5 text-white sm:px-6 sm:py-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <div className="sticky top-0 z-40 -mx-4 mb-6 border-b border-white/10 bg-slate-950/85 px-4 py-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
+      <div className="w-full">
+        <div className="sticky top-0 z-40 -mx-3 mb-6 border-b border-white/10 bg-slate-950/85 px-3 py-4 backdrop-blur-xl sm:-mx-4 sm:px-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-slate-400">

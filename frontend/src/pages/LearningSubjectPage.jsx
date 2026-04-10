@@ -245,9 +245,7 @@ function LearningSubjectPage({ mode = 'public' }) {
       {!isDashboardLayout && <SiteHeader />}
 
       <main
-        className={`mx-auto max-w-7xl px-4 pb-8 ${
-          isDashboardLayout ? 'pt-6' : 'pt-24'
-        } sm:px-6 lg:px-8`}
+        className={`w-full px-3 pb-8 sm:px-4 ${isDashboardLayout ? 'pt-6' : 'pt-24'}`}
       >
         <Button asChild variant="default" className="mb-6">
           <Link to={hubPath} className="gap-2">

@@ -174,166 +174,144 @@ function LandingPage() {
       <main>
         <HeroSection />
 
-        <section id="features" className="px-5 py-12 sm:py-14">
-          <div className="mx-auto max-w-7xl lg:px-8">
-            <SectionHeading
-              title="Everything you need to succeed"
-              description="Learn2Hire provides comprehensive tools and features for all stakeholders in the placement ecosystem"
-            />
+        <section id="features" className="px-3 py-12 sm:px-4 sm:py-14">
+          <SectionHeading
+            title="Everything you need to succeed"
+            description="Learn2Hire provides comprehensive tools and features for all stakeholders in the placement ecosystem"
+          />
 
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {features.map((feature) => {
-                const Icon = feature.icon;
-                return (
-                  <Card
-                    key={feature.title}
-                    className="transition-transform duration-300 hover:-translate-y-1"
-                  >
-                    <CardContent>
-                      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[color:rgba(79,70,229,0.1)] text-[var(--primary)]">
-                        <Icon className="h-7 w-7" />
-                      </div>
-                      <h3 className="text-2xl font-semibold text-slate-900">
-                        {feature.title}
-                      </h3>
-                      <p className="mt-3 text-slate-600">
-                        {feature.description}
-                      </p>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        <section id="roles" className="bg-slate-100 px-5 py-12 sm:py-14">
-          <div className="mx-auto max-w-7xl lg:px-8">
-            <SectionHeading
-              title="Tailored solutions for every role"
-              description="Learn2Hire provides customized experiences for each stakeholder in the placement process"
-            />
-
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {roles.map((role) => {
-                const Icon = role.icon;
-                return (
-                  <Card key={role.title} className="overflow-hidden border-0">
-                    <div
-                      className={`bg-gradient-to-br ${role.gradient} p-8 text-center text-white`}
-                    >
-                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/15">
-                        <Icon className="h-8 w-8" />
-                      </div>
-                      <h3 className="text-3xl font-bold">{role.title}</h3>
-                    </div>
-                    <CardContent className="space-y-4">
-                      {role.items.map((item) => (
-                        <div key={item} className="flex items-center gap-3">
-                          <CheckCircle2 className="h-5 w-5 text-[var(--primary)]" />
-                          <p>{item}</p>
-                        </div>
-                      ))}
-                      <Button asChild variant="custom" className={`mt-4 w-full justify-center shadow-sm ${role.buttonClass}`}>
-                        <Link to={role.to}>{role.buttonLabel}</Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        <section id="how-it-works" className="px-5 py-12 sm:py-14">
-          <div className="mx-auto max-w-5xl lg:px-8">
-            <SectionHeading
-              title="How Learn2Hire Works"
-              description="A seamless workflow connecting all stakeholders in the placement ecosystem"
-            />
-
-            <div className="space-y-6">
-              {steps.map((step, index) => (
-                <div
-                  key={step.title}
-                  className="flex flex-col gap-5 sm:flex-row sm:items-start"
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {features.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <Card
+                  key={feature.title}
+                  className="transition-transform duration-300 hover:-translate-y-1"
                 >
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-lg font-bold text-white">
-                    {index + 1}
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-semibold text-slate-900">
-                      {step.title}
-                    </h3>
-                    <p className="mt-2 text-slate-600">{step.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="testimonials" className="bg-slate-100 px-5 py-12 sm:py-14">
-          <div className="mx-auto max-w-7xl lg:px-8">
-            <SectionHeading
-              title="What our users say"
-              description="Hear from students, colleges, and companies who have benefited from Learn2Hire"
-            />
-
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {testimonials.map((testimonial) => (
-                <Card key={testimonial.name}>
                   <CardContent>
-                    <div className="mb-5 flex items-center gap-4">
-                      <img
-                        src={testimonial.image}
-                        alt={testimonial.name}
-                        className="h-16 w-16 rounded-full object-cover"
-                      />
-                      <div>
-                        <h4 className="text-lg font-semibold text-slate-900">
-                          {testimonial.name}
-                        </h4>
-                        <p className="text-slate-500">{testimonial.role}</p>
-                      </div>
+                    <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[color:rgba(79,70,229,0.1)] text-[var(--primary)]">
+                      <Icon className="h-7 w-7" />
                     </div>
-                    <p className="italic text-slate-600">
-                      "{testimonial.text}"
-                    </p>
-                    <div className="mt-5 flex gap-1 text-amber-500">
-                      {Array.from({ length: 5 }).map((_, idx) => (
-                        <Star key={idx} className="h-4 w-4 fill-current" />
-                      ))}
-                    </div>
+                    <h3 className="text-2xl font-semibold text-slate-900">{feature.title}</h3>
+                    <p className="mt-3 text-slate-600">{feature.description}</p>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section id="roles" className="bg-slate-100 px-3 py-12 sm:px-4 sm:py-14">
+          <SectionHeading
+            title="Tailored solutions for every role"
+            description="Learn2Hire provides customized experiences for each stakeholder in the placement process"
+          />
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {roles.map((role) => {
+              const Icon = role.icon;
+              return (
+                <Card key={role.title} className="overflow-hidden border-0">
+                  <div className={`bg-gradient-to-br ${role.gradient} p-8 text-center text-white`}>
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/15">
+                      <Icon className="h-8 w-8" />
+                    </div>
+                    <h3 className="text-3xl font-bold">{role.title}</h3>
+                  </div>
+                  <CardContent className="space-y-4">
+                    {role.items.map((item) => (
+                      <div key={item} className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-[var(--primary)]" />
+                        <p>{item}</p>
+                      </div>
+                    ))}
+                    <Button
+                      asChild
+                      variant="custom"
+                      className={`mt-4 w-full justify-center shadow-sm ${role.buttonClass}`}
+                    >
+                      <Link to={role.to}>{role.buttonLabel}</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+
+        <section id="how-it-works" className="px-3 py-12 sm:px-4 sm:py-14">
+          <SectionHeading
+            title="How Learn2Hire Works"
+            description="A seamless workflow connecting all stakeholders in the placement ecosystem"
+          />
+
+          <div className="space-y-6">
+            {steps.map((step, index) => (
+              <div
+                key={step.title}
+                className="flex flex-col gap-5 sm:flex-row sm:items-start"
+              >
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-lg font-bold text-white">
+                  {index + 1}
+                </div>
+                <div>
+                  <h3 className="text-2xl font-semibold text-slate-900">{step.title}</h3>
+                  <p className="mt-2 text-slate-600">{step.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section id="testimonials" className="bg-slate-100 px-3 py-12 sm:px-4 sm:py-14">
+          <SectionHeading
+            title="What our users say"
+            description="Hear from students, colleges, and companies who have benefited from Learn2Hire"
+          />
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {testimonials.map((testimonial) => (
+              <Card key={testimonial.name}>
+                <CardContent>
+                  <div className="mb-5 flex items-center gap-4">
+                    <img
+                      src={testimonial.image}
+                      alt={testimonial.name}
+                      className="h-16 w-16 rounded-full object-cover"
+                    />
+                    <div>
+                      <h4 className="text-lg font-semibold text-slate-900">{testimonial.name}</h4>
+                      <p className="text-slate-500">{testimonial.role}</p>
+                    </div>
+                  </div>
+                  <p className="italic text-slate-600">"{testimonial.text}"</p>
+                  <div className="mt-5 flex gap-1 text-amber-500">
+                    {Array.from({ length: 5 }).map((_, idx) => (
+                      <Star key={idx} className="h-4 w-4 fill-current" />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </section>
 
         <section
           id="contact"
-          className="bg-[linear-gradient(135deg,var(--primary),var(--primary-dark))] px-5 py-12 text-center text-white sm:py-14"
+          className="bg-[linear-gradient(135deg,var(--primary),var(--primary-dark))] px-3 py-12 text-center text-white sm:px-4 sm:py-14"
         >
-          <div className="mx-auto max-w-4xl lg:px-8">
-            <h2 className="text-4xl font-bold sm:text-5xl">
-              Ready to transform your placement process?
-            </h2>
-            <p className="mx-auto mt-5 max-w-3xl text-lg text-white/90">
-              Join hundreds of institutions and companies already benefiting
-              from Learn2Hire.
-            </p>
-            <Button asChild size="lg" variant="default" className="mt-8 shadow-md">
-              <Link to="/signup">Request Demo</Link>
-            </Button>
-          </div>
+          <h2 className="text-4xl font-bold sm:text-5xl">Ready to transform your placement process?</h2>
+          <p className="mt-5 text-lg text-white/90">
+            Join hundreds of institutions and companies already benefiting from Learn2Hire.
+          </p>
+          <Button asChild size="lg" variant="default" className="mt-8 shadow-md">
+            <Link to="/signup">Request Demo</Link>
+          </Button>
         </section>
       </main>
 
-      <footer className="bg-[var(--dark)] px-5 pb-6 pt-10 text-white sm:pb-8 sm:pt-12">
-        <div className="mx-auto max-w-7xl lg:px-8">
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <footer className="bg-[var(--dark)] px-3 pb-6 pt-10 text-white sm:px-4 sm:pb-8 sm:pt-12">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             <div>
               <div className="mb-5 text-2xl font-bold">Learn2Hire</div>
               <p className="mb-5 text-slate-300">
@@ -381,9 +359,8 @@ function LandingPage() {
             </div>
           </div>
 
-          <div className="mt-8 border-t border-white/10 pt-6 text-center text-slate-400">
-            <p>&copy; 2026 Learn2Hire. All rights reserved.</p>
-          </div>
+        <div className="mt-8 border-t border-white/10 pt-6 text-center text-slate-400">
+          <p>&copy; 2026 Learn2Hire. All rights reserved.</p>
         </div>
       </footer>
     </div>

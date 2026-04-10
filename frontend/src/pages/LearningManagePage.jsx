@@ -315,9 +315,9 @@ function LearningManagePage() {
     "mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
 
   return (
-    <div className="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 sm:py-8">
-      <div className="mx-auto max-w-3xl">
-        <div className="sticky top-0 z-40 -mx-4 mb-8 border-b border-white/10 bg-slate-950/90 px-4 py-4 backdrop-blur-xl sm:-mx-4">
+    <div className="min-h-screen bg-slate-950 px-3 py-6 text-slate-100 sm:px-4 sm:py-8">
+      <div className="w-full">
+        <div className="sticky top-0 z-40 -mx-3 mb-8 border-b border-white/10 bg-slate-950/90 px-3 py-4 backdrop-blur-xl sm:-mx-4 sm:px-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-cyan-300">Faculty · Learning</p>
