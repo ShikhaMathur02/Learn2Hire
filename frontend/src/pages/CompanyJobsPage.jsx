@@ -359,11 +359,7 @@ function CompanyJobsPage() {
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            onClick={() => navigate("/dashboard")}
-            className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-          >
+          <Button variant="default" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
@@ -506,13 +502,7 @@ function CompanyJobsPage() {
                     />
 
                     <div className="flex flex-wrap justify-between gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleDelete}
-                        disabled={deleting}
-                        className="border-rose-400/40 text-rose-200 hover:bg-rose-500/10 hover:text-rose-100"
-                      >
+                      <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
                         <Trash2 className="h-4 w-4" />
                         {deleting ? "Deleting..." : "Delete Job"}
                       </Button>

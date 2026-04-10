@@ -6,7 +6,7 @@ import {
   BookText,
   BrainCircuit,
   CheckCircle2,
-  ChevronRight,
+  ChevronDown,
   Clock3,
   Filter,
   Flame,
@@ -26,31 +26,20 @@ import { readApiResponse } from '../lib/api';
 import learningHeroIllustration from '../assets/illustrations/hero-learning.png';
 import learningEmptyIllustration from '../assets/illustrations/empty-state.png';
 
-const subjectImageMap = {
-  dsa: new URL('../assets/illustrations/subject-dsa.png', import.meta.url).href,
-  dbms: new URL('../assets/illustrations/subject-dbms.png', import.meta.url).href,
-  os: new URL('../assets/illustrations/subject-os.png', import.meta.url).href,
-  cn: new URL('../assets/illustrations/subject-cn.png', import.meta.url).href,
-  oop: new URL('../assets/illustrations/subject-oop.png', import.meta.url).href,
-  'web-dev': new URL('../assets/illustrations/subject-webdev.png', import.meta.url).href,
-  webdev: new URL('../assets/illustrations/subject-webdev.png', import.meta.url).href,
-  'ai-ml': new URL('../assets/illustrations/subject-aiml.png', import.meta.url).href,
-  aiml: new URL('../assets/illustrations/subject-aiml.png', import.meta.url).href,
-  'interview-prep': new URL('../assets/illustrations/subject-interview.png', import.meta.url).href,
-  interview: new URL('../assets/illustrations/subject-interview.png', import.meta.url).href,
-  aptitude: new URL('../assets/illustrations/subject-aptitude.png', import.meta.url).href,
-};
-
-function getSubjectImage(slug) {
-  if (!slug) return null;
-  const key = String(slug).toLowerCase().replace(/\s+/g, '-');
-  return subjectImageMap[key] || null;
-}
-
 /** Scroll to Latest Materials (explicit hash only). */
 const MATERIALS_SECTION_HASH = '#learning-materials-list';
-/** Scroll to Search & Filter + full catalog list for the selected subject. */
+/**
+ * Hash used in links / post-login redirect. Intentionally does not match any DOM `id` so the browser
+ * does not auto-scroll; buttons that jump to the catalog use element id `learning-explore-catalog`.
+ */
 const EXPLORE_SECTION_HASH = '#learning-explore-content';
+const EXPLORE_SCROLL_TARGET_ID = 'learning-explore-catalog';
+
+/** Featured count on the learning hub; remaining subjects are reachable via the dropdown. */
+const FEATURED_SUBJECTS_COUNT = 4;
+/** Latest Materials and Full catalog: this many rows stay visible; the rest sit in a details dropdown. */
+const MATERIAL_LIST_VISIBLE_FIRST = 5;
+const LEARNING_TRACKS_PREVIEW = 3;
 
 /** Match materials to a subject whether category is populated { slug, _id } or only an id string. */
 function materialInCategory(material, selectedCategory, categorySlug) {
@@ -101,57 +90,94 @@ function SectionHeader({ eyebrow, title, description, action, tone = 'light' }) 
   );
 }
 
-function SubjectCard({ category, isActive, to }) {
-  const subjectImg = getSubjectImage(category.slug);
+function scrollToExploreCatalog() {
+  window.requestAnimationFrame(() => {
+    document
+      .getElementById(EXPLORE_SCROLL_TARGET_ID)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+/** Native select with visible chevron; optional hint when there are many options. */
+function LearningSelect({
+  id,
+  value,
+  onChange,
+  dark = false,
+  className = '',
+  outerClassName = '',
+  hint,
+  children,
+}) {
+  const selectCls = [
+    'w-full cursor-pointer appearance-none outline-none focus:ring-2',
+    dark
+      ? 'rounded-2xl border border-white/15 bg-slate-950/50 py-3 pl-4 pr-10 text-sm text-white ring-offset-slate-950 focus:ring-cyan-400/40'
+      : 'rounded-xl border border-slate-200 bg-white py-2.5 pl-3 pr-10 text-sm font-medium text-slate-900 focus:ring-indigo-400/40',
+    className,
+  ].join(' ');
 
   return (
-    <Link
-      to={to}
-      className={`group overflow-hidden rounded-[28px] border transition ${
-        isActive
-          ? 'border-indigo-200 bg-indigo-50 shadow-[0_18px_50px_rgba(99,102,241,0.18)]'
-          : 'border-slate-200/80 bg-white hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_18px_50px_rgba(15,23,42,0.10)]'
+    <div className={['w-full', outerClassName].filter(Boolean).join(' ')}>
+      <div className="relative">
+        <select id={id} value={value} onChange={onChange} className={selectCls}>
+          {children}
+        </select>
+        <ChevronDown
+          className={`pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 opacity-90 ${
+            dark ? 'text-cyan-200' : 'text-indigo-600'
+          }`}
+          aria-hidden
+        />
+      </div>
+      {hint ? (
+        <p className={`mt-1.5 flex items-start gap-1 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <ChevronDown className="mt-0.5 h-3 w-3 shrink-0 opacity-70" aria-hidden />
+          <span>{hint}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function SubjectQuickTile({
+  category,
+  subjectPagePath,
+  setExploreSubjectId,
+  isDashboardLayout,
+}) {
+  const shell = isDashboardLayout
+    ? 'border-white/15 bg-white/5 text-white'
+    : 'border-slate-200/90 bg-white text-slate-900 shadow-sm';
+
+  return (
+    <div
+      className={`flex min-h-[140px] flex-col rounded-2xl border p-4 transition hover:-translate-y-0.5 ${shell} ${
+        isDashboardLayout ? 'hover:border-cyan-400/35' : 'hover:border-indigo-200'
       }`}
     >
-      {subjectImg && (
-        <div className="relative h-28 w-full overflow-hidden">
-          <img
-            src={subjectImg}
-            alt=""
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-          />
-          <div className={`absolute inset-0 ${isActive ? 'bg-indigo-900/50' : 'bg-slate-900/30 group-hover:bg-indigo-900/30'} transition`} />
-          <span className={`absolute right-3 top-3 rounded-full px-2.5 py-0.5 text-xs font-semibold ${isActive ? 'bg-indigo-500 text-white' : 'bg-white/80 text-slate-700'}`}>
-            {isActive ? 'Viewing' : 'Explore'}
-          </span>
-        </div>
-      )}
-
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className={`text-lg font-semibold ${isActive ? 'text-indigo-700' : 'text-slate-900'}`}>
-              {category.name}
-            </p>
-            <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-slate-500">
-              {category.description || 'Explore curated learning content in this subject.'}
-            </p>
-          </div>
-          {!subjectImg && (
-            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-indigo-600'}`}>
-              <Layers3 className="h-5 w-5" />
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-            {category.materialCount || 0} materials
-          </span>
-          <ChevronRight className={`h-4 w-4 transition ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'}`} />
-        </div>
+      <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug">{category.name}</p>
+      <p className={`mt-1 text-xs ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}>
+        {category.materialCount ?? 0} materials
+      </p>
+      <div className="mt-auto flex flex-col gap-2 pt-3">
+        <Button asChild variant="default" className="h-9 w-full justify-center text-xs">
+          <Link to={subjectPagePath(category.slug)}>Open subject</Link>
+        </Button>
+        <button
+          type="button"
+          className={`text-center text-xs font-semibold underline decoration-dotted underline-offset-2 transition hover:no-underline ${
+            isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'
+          }`}
+          onClick={() => {
+            setExploreSubjectId(String(category._id));
+            scrollToExploreCatalog();
+          }}
+        >
+          Filter catalog
+        </button>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -166,13 +192,11 @@ function LearningTrackCard({
       ? {
           badge: 'bg-emerald-50 text-emerald-700',
           iconWrap: 'bg-emerald-100 text-emerald-700',
-          button: 'border-emerald-200 text-emerald-700 hover:bg-emerald-50',
           reason: 'border-emerald-100 bg-emerald-50 text-emerald-700',
         }
       : {
           badge: 'bg-indigo-50 text-indigo-700',
           iconWrap: 'bg-indigo-100 text-indigo-700',
-          button: 'border-indigo-200 text-indigo-700 hover:bg-indigo-50',
           reason: 'border-indigo-100 bg-indigo-50 text-indigo-700',
         };
 
@@ -228,7 +252,7 @@ function LearningTrackCard({
               By {material.createdBy?.name || 'Learn2Hire'}
             </p>
           </div>
-          <Button asChild variant="outline" className={`rounded-2xl border bg-white ${accents.button}`}>
+          <Button asChild variant="default">
             <Link to={`${topicBasePath}/${material.slug}`}>
               Open
               <ArrowRight className="h-4 w-4" />
@@ -320,6 +344,8 @@ function LearningHomePage({ mode = 'auto' }) {
     materialType: 'all',
     level: 'all',
   });
+  /** Empty string = all subjects; otherwise category `_id`. */
+  const [exploreSubjectId, setExploreSubjectId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const materialsListRef = useRef(null);
@@ -416,11 +442,20 @@ function LearningHomePage({ mode = 'auto' }) {
     fetchLearningData();
   }, [isStudentLoggedIn, token]);
 
-  const selectedCategory = null;
+  const selectedCategory = useMemo(() => {
+    if (!exploreSubjectId) return null;
+    return categories.find((c) => String(c._id) === String(exploreSubjectId)) || null;
+  }, [categories, exploreSubjectId]);
+
+  const categorySlugForFilter = selectedCategory?.slug;
 
   const filteredMaterials = useMemo(() => {
     return materials.filter((material) => {
-      const matchesCategory = materialInCategory(material, selectedCategory, undefined);
+      const matchesCategory = materialInCategory(
+        material,
+        selectedCategory,
+        categorySlugForFilter || undefined
+      );
       const matchesType =
         filters.materialType === 'all' ? true : material.materialType === filters.materialType;
       const matchesLevel = filters.level === 'all' ? true : material.level === filters.level;
@@ -440,7 +475,23 @@ function LearningHomePage({ mode = 'auto' }) {
     filters.search,
     materials,
     selectedCategory,
+    categorySlugForFilter,
   ]);
+
+  const featuredSubjects = useMemo(() => {
+    if (!categories.length) return [];
+    return [...categories]
+      .sort((a, b) => (b.materialCount || 0) - (a.materialCount || 0))
+      .slice(0, FEATURED_SUBJECTS_COUNT);
+  }, [categories]);
+
+  const subjectDropdownHint = useMemo(() => {
+    if (categories.length <= 1) return null;
+    if (categories.length > FEATURED_SUBJECTS_COUNT) {
+      return `All ${categories.length} subjects are in this menu (${categories.length - FEATURED_SUBJECTS_COUNT} more than the featured tiles). Use the arrow to expand.`;
+    }
+    return 'Use the arrow to open the full subject list.';
+  }, [categories.length]);
 
   useEffect(() => {
     if (loading || error) return;
@@ -448,12 +499,10 @@ function LearningHomePage({ mode = 'auto' }) {
     const hash = location.hash || '';
     const wantsLatestMaterials =
       hash === MATERIALS_SECTION_HASH || hash === '#learning-materials-list';
-    const wantsExplore =
-      hash === EXPLORE_SECTION_HASH || hash === '#learning-explore-content';
 
-    if (!wantsLatestMaterials && !wantsExplore) return undefined;
+    if (!wantsLatestMaterials) return undefined;
 
-    const targetEl = wantsLatestMaterials ? materialsListRef.current : exploreSectionRef.current;
+    const targetEl = materialsListRef.current;
     const run = () => {
       targetEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
@@ -474,8 +523,13 @@ function LearningHomePage({ mode = 'auto' }) {
     materials.length,
   ]);
 
-  const featuredMaterials = filteredMaterials.slice(0, 3);
-  const latestMaterials = filteredMaterials.slice(0, 6);
+  const latestMaterials = filteredMaterials.slice(0, MATERIAL_LIST_VISIBLE_FIRST);
+  const tracksSourceList =
+    isStudentLoggedIn && recommendedMaterials.length
+      ? recommendedMaterials
+      : filteredMaterials;
+  const learningTracksPreview = tracksSourceList.slice(0, LEARNING_TRACKS_PREVIEW);
+  const hasMoreLearningTracks = tracksSourceList.length > LEARNING_TRACKS_PREVIEW;
   const totalMinutes = filteredMaterials.reduce(
     (sum, material) => sum + (material.estimatedReadMinutes || 0),
     0
@@ -548,42 +602,30 @@ function LearningHomePage({ mode = 'auto' }) {
 
               <div className="mt-8 flex flex-wrap gap-3">
                 {canManageLearning ? (
-                  <Button asChild className="bg-white text-slate-900 hover:bg-slate-100">
+                  <Button asChild variant="default">
                     <Link to="/dashboard/learning/manage">Manage Materials</Link>
                   </Button>
                 ) : isStudentLoggedIn ? (
                   <>
-                    <Button asChild className="bg-white text-slate-900 hover:bg-slate-100">
+                    <Button asChild variant="default">
                       <Link to={`${subjectBasePath}${EXPLORE_SECTION_HASH}`}>Browse all materials</Link>
                     </Button>
-                    <Button
-                      asChild
-                      variant="outline"
-                      className="!border-white/20 bg-white/5 !text-white hover:bg-white/10 hover:!text-white"
-                    >
+                    <Button asChild variant="default">
                       <Link to="/dashboard/learning/progress">My Progress</Link>
                     </Button>
                   </>
                 ) : (
-                  <Button asChild className="bg-white text-slate-900 hover:bg-slate-100">
+                  <Button asChild variant="default">
                     <Link to="/signup">Create Account</Link>
                   </Button>
                 )}
 
                 {isStudentLoggedIn ? (
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="!border-white/20 bg-white/5 !text-white hover:bg-white/10 hover:!text-white"
-                  >
+                  <Button asChild variant="default">
                     <Link to="/dashboard">Open Student Dashboard</Link>
                   </Button>
                 ) : (
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="!border-white/20 bg-white/5 !text-white hover:bg-white/10 hover:!text-white"
-                  >
+                  <Button asChild variant="default">
                     <Link to="/login">Login</Link>
                   </Button>
                 )}
@@ -705,29 +747,54 @@ function LearningHomePage({ mode = 'auto' }) {
                   </div>
                 </div>
 
-                <div className="mt-6 space-y-4">
-                  {categories.slice(0, 4).map((category, index) => (
-                    <Link
-                      key={category._id}
-                      to={subjectPagePath(category.slug)}
-                      className="block rounded-3xl border border-white/10 bg-white/5 px-4 py-4 transition hover:bg-white/10"
+                <div className="mt-6 space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100">
+                    Popular tracks
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {featuredSubjects.map((category) => (
+                      <SubjectQuickTile
+                        key={category._id}
+                        category={category}
+                        subjectPagePath={subjectPagePath}
+                        setExploreSubjectId={setExploreSubjectId}
+                        isDashboardLayout
+                      />
+                    ))}
+                  </div>
+                  <div>
+                    <label htmlFor="hero-subject-jump" className="text-xs font-semibold text-cyan-100/90">
+                      All subjects
+                    </label>
+                    <LearningSelect
+                      id="hero-subject-jump"
+                      dark
+                      outerClassName="mt-2"
+                      value={exploreSubjectId}
+                      hint={subjectDropdownHint}
+                      onChange={(e) => {
+                        setExploreSubjectId(e.target.value);
+                        if (e.target.value) scrollToExploreCatalog();
+                      }}
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100">
-                            {index === 0 ? 'Top Track' : 'Popular'}
-                          </p>
-                          <p className="mt-2 text-lg font-semibold text-white">{category.name}</p>
-                          <p className="mt-2 text-sm leading-6 text-slate-200">
-                            {category.description || 'Explore curated learning content in this subject.'}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white">
-                          {category.materialCount || 0}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
+                      <option value="">All subjects — full catalog</option>
+                      {categories.map((category) => (
+                        <option key={category._id} value={category._id}>
+                          {category.name} ({category.materialCount ?? 0})
+                        </option>
+                      ))}
+                    </LearningSelect>
+                  </div>
+                  <p className="text-sm leading-6 text-slate-200">
+                    {selectedCategory
+                      ? selectedCategory.description || 'Filters below apply to this subject.'
+                      : 'Start from a popular track or choose any subject from the menu.'}
+                  </p>
+                  {selectedCategory ? (
+                    <Button asChild variant="default" className="mt-1">
+                      <Link to={subjectPagePath(selectedCategory.slug)}>Subject overview</Link>
+                    </Button>
+                  ) : null}
                 </div>
 
                 {isPublicVisitor ? (
@@ -756,30 +823,84 @@ function LearningHomePage({ mode = 'auto' }) {
           <SectionHeader
             tone={isDashboardLayout ? 'dark' : 'light'}
             eyebrow="Explore"
-            title="Subjects to Start With"
-            description="Pick a subject like DSA, DBMS, OS, CN, OOP, or Web Development and jump directly into curated learning materials."
+            title="Subjects to start with"
+            description="We highlight a few popular tracks. Every other subject is in the menu — pick one to filter the catalog below."
           />
 
-          <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            <SubjectCard
-              category={{
-                _id: 'all',
-                name: 'All Categories',
-                description:
-                  'Browse every published subject and all available materials in one place.',
-                materialCount: materials.length,
-              }}
-              isActive
-              to={`${subjectBasePath}${EXPLORE_SECTION_HASH}`}
-            />
-            {categories.map((category) => (
-              <SubjectCard
-                key={category._id}
-                category={category}
-                isActive={false}
-                to={subjectPagePath(category.slug)}
-              />
-            ))}
+          <div
+            className={`mt-6 flex flex-col gap-6 rounded-[28px] border p-6 sm:p-7 lg:flex-row lg:items-stretch ${
+              isDashboardLayout
+                ? 'border-white/10 bg-white/5 backdrop-blur-xl'
+                : 'border-slate-200/80 bg-white/90 shadow-[0_25px_70px_rgba(15,23,42,0.06)]'
+            }`}
+          >
+            <div className="min-w-0 flex-1">
+              <p
+                className={`text-xs font-semibold uppercase tracking-wide ${
+                  isDashboardLayout ? 'text-cyan-100/90' : 'text-indigo-600'
+                }`}
+              >
+                Featured ({FEATURED_SUBJECTS_COUNT})
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+                {featuredSubjects.map((category) => (
+                  <SubjectQuickTile
+                    key={category._id}
+                    category={category}
+                    subjectPagePath={subjectPagePath}
+                    setExploreSubjectId={setExploreSubjectId}
+                    isDashboardLayout={isDashboardLayout}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div
+              className={`flex w-full shrink-0 flex-col justify-between rounded-2xl border p-4 lg:w-72 ${
+                isDashboardLayout
+                  ? 'border-white/10 bg-slate-950/40'
+                  : 'border-slate-200 bg-slate-50/80'
+              }`}
+            >
+              <div>
+                <label
+                  htmlFor="learning-subject-picker"
+                  className={`text-sm font-semibold ${isDashboardLayout ? 'text-cyan-100' : 'text-indigo-600'}`}
+                >
+                  All subjects
+                </label>
+                <p
+                  className={`mt-1 text-xs ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}
+                >
+                  Menu lists every subject (including the featured tiles).
+                </p>
+                <LearningSelect
+                  id="learning-subject-picker"
+                  dark={isDashboardLayout}
+                  outerClassName="mt-3"
+                  value={exploreSubjectId}
+                  hint={subjectDropdownHint}
+                  onChange={(e) => setExploreSubjectId(e.target.value)}
+                >
+                  <option value="">All subjects ({materials.length})</option>
+                  {categories.map((category) => (
+                    <option key={category._id} value={category._id}>
+                      {category.name} · {category.materialCount ?? 0}
+                    </option>
+                  ))}
+                </LearningSelect>
+              </div>
+              <div className="mt-4 flex flex-col gap-2">
+                <Button asChild variant="default" className="w-full justify-center">
+                  <Link to={`${subjectBasePath}${EXPLORE_SECTION_HASH}`}>Jump to catalog</Link>
+                </Button>
+                {selectedCategory ? (
+                  <Button asChild variant="soft" className="w-full justify-center">
+                    <Link to={subjectPagePath(selectedCategory.slug)}>Open subject page</Link>
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -819,20 +940,56 @@ function LearningHomePage({ mode = 'auto' }) {
                     }`}
                   >
                     <BookOpen className="h-4 w-4" />
-                    {filteredMaterials.length} material{filteredMaterials.length === 1 ? '' : 's'}
+                    {filteredMaterials.length > MATERIAL_LIST_VISIBLE_FIRST
+                      ? `Showing ${MATERIAL_LIST_VISIBLE_FIRST} of ${filteredMaterials.length}`
+                      : `${filteredMaterials.length} material${filteredMaterials.length === 1 ? '' : 's'}`}
                   </div>
                 }
               />
 
               <div className="mt-6 space-y-4">
                 {latestMaterials.length ? (
-                  latestMaterials.map((material) => (
-                    <LatestMaterialRow
-                      key={material._id}
-                      material={material}
-                      topicBasePath={topicBasePath}
-                    />
-                  ))
+                  <>
+                    {latestMaterials.map((material) => (
+                      <LatestMaterialRow
+                        key={material._id}
+                        material={material}
+                        topicBasePath={topicBasePath}
+                      />
+                    ))}
+                    {filteredMaterials.length > MATERIAL_LIST_VISIBLE_FIRST ? (
+                      <details
+                        className={`group rounded-[28px] border shadow-sm ${
+                          isDashboardLayout
+                            ? 'border-white/15 bg-white/5'
+                            : 'border-indigo-200/60 bg-indigo-50/30'
+                        }`}
+                      >
+                        <summary className="flex cursor-pointer list-none items-center justify-center gap-2 px-4 py-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                          <ChevronDown
+                            className={`h-4 w-4 shrink-0 transition group-open:rotate-180 ${
+                              isDashboardLayout ? 'text-cyan-200' : 'text-indigo-700'
+                            }`}
+                            aria-hidden
+                          />
+                          <span className={isDashboardLayout ? 'text-cyan-100' : 'text-indigo-900'}>
+                            View {filteredMaterials.length - MATERIAL_LIST_VISIBLE_FIRST} more
+                            material
+                            {filteredMaterials.length - MATERIAL_LIST_VISIBLE_FIRST === 1 ? '' : 's'}
+                          </span>
+                        </summary>
+                        <div className="space-y-4 border-t border-slate-200/20 px-1 pb-4 pt-4 sm:px-2">
+                          {filteredMaterials.slice(MATERIAL_LIST_VISIBLE_FIRST).map((material) => (
+                            <LatestMaterialRow
+                              key={material._id}
+                              material={material}
+                              topicBasePath={topicBasePath}
+                            />
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
+                  </>
                 ) : (
                   <div className="overflow-hidden rounded-3xl border border-dashed border-slate-300 bg-slate-50 text-center text-sm text-slate-500">
                     <img
@@ -845,10 +1002,11 @@ function LearningHomePage({ mode = 'auto' }) {
                       filteredMaterials.length === 0 &&
                       (filters.search.trim() ||
                         filters.materialType !== 'all' ||
-                        filters.level !== 'all') ? (
+                        filters.level !== 'all' ||
+                        exploreSubjectId) ? (
                         <p>
-                          Nothing matches your search or filters for this subject. Clear the search box
-                          or set type and level to &quot;All&quot; to see materials.
+                          Nothing matches your current subject, search, or filters. Try &quot;All
+                          subjects&quot;, clear the search box, or set type and level to &quot;All&quot;.
                         </p>
                       ) : (
                         <p>No learning materials match the current filters yet.</p>
@@ -872,10 +1030,7 @@ function LearningHomePage({ mode = 'auto' }) {
               />
 
               <div className="mt-6 grid gap-5 xl:grid-cols-3">
-                {(isStudentLoggedIn && recommendedMaterials.length
-                  ? recommendedMaterials.slice(0, 3)
-                  : featuredMaterials
-                ).map((material) => (
+                {learningTracksPreview.map((material) => (
                   <LearningTrackCard
                     key={material._id}
                     material={material}
@@ -885,22 +1040,54 @@ function LearningHomePage({ mode = 'auto' }) {
                   />
                 ))}
               </div>
+              {hasMoreLearningTracks ? (
+                <details
+                  className={`group mt-6 rounded-[28px] border shadow-sm ${
+                    isDashboardLayout
+                      ? 'border-white/15 bg-white/5'
+                      : 'border-indigo-200/60 bg-indigo-50/30'
+                  }`}
+                >
+                  <summary className="flex cursor-pointer list-none items-center justify-center gap-2 px-4 py-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 transition group-open:rotate-180 ${
+                        isDashboardLayout ? 'text-cyan-200' : 'text-indigo-700'
+                      }`}
+                      aria-hidden
+                    />
+                    <span className={isDashboardLayout ? 'text-cyan-100' : 'text-indigo-900'}>
+                      View all {tracksSourceList.length} learning tracks (
+                      {tracksSourceList.length - LEARNING_TRACKS_PREVIEW} more)
+                    </span>
+                  </summary>
+                  <div className="grid gap-5 border-t border-slate-200/20 px-2 pb-4 pt-6 xl:grid-cols-3">
+                    {tracksSourceList.slice(LEARNING_TRACKS_PREVIEW).map((material) => (
+                      <LearningTrackCard
+                        key={material._id}
+                        material={material}
+                        topicBasePath={topicBasePath}
+                        accent={isStudentLoggedIn ? 'emerald' : 'indigo'}
+                        showReason={isStudentLoggedIn}
+                      />
+                    ))}
+                  </div>
+                </details>
+              ) : null}
             </section>
           </>
         )}
 
         <section
           ref={exploreSectionRef}
-          id="learning-explore-content"
+          id={EXPLORE_SCROLL_TARGET_ID}
           className="mt-8 scroll-mt-24"
         >
-          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <Card className="rounded-[34px] border-slate-200/80 bg-white/95 shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
-            <CardContent className="p-6 sm:p-7">
+            <CardContent className="p-6 sm:p-8">
               <SectionHeader
-                eyebrow="Search & Filter"
-                title="Explore Content"
-                description="Use search, level, and type filters to quickly find tutorials, revision notes, and learning tracks."
+                eyebrow="Catalog"
+                title="Explore materials"
+                description="Refine the list with subject (same as above), type, level, and search."
                 action={
                   <div className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
                     {filteredMaterials.length} result{filteredMaterials.length === 1 ? '' : 's'}
@@ -908,119 +1095,182 @@ function LearningHomePage({ mode = 'auto' }) {
                 }
               />
 
-              <div className="mt-6 grid gap-4 lg:grid-cols-[1.5fr_0.7fr_0.7fr]">
-                <label className="rounded-3xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Search className="h-4 w-4" />
-                    <span className="text-sm font-medium">Search</span>
-                  </div>
-                  <input
-                    value={filters.search}
-                    onChange={(event) =>
-                      setFilters((prev) => ({ ...prev, search: event.target.value }))
-                    }
-                    placeholder="Search by title, summary, or tag"
-                    className="mt-2 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                  />
+              <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <label className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3 lg:col-span-2">
+                  <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <Layers3 className="h-4 w-4 text-indigo-600" />
+                    Subject
+                  </span>
+                  <LearningSelect
+                    outerClassName="mt-2"
+                    value={exploreSubjectId}
+                    hint={subjectDropdownHint}
+                    onChange={(e) => setExploreSubjectId(e.target.value)}
+                  >
+                    <option value="">All subjects</option>
+                    {categories.map((category) => (
+                      <option key={category._id} value={category._id}>
+                        {category.name} ({category.materialCount ?? 0})
+                      </option>
+                    ))}
+                  </LearningSelect>
                 </label>
 
-                <select
-                  value={filters.materialType}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, materialType: event.target.value }))
-                  }
-                  className="h-[58px] rounded-3xl border border-slate-200 bg-slate-50/80 px-4 text-sm text-slate-900 outline-none"
-                >
-                  <option value="all">All types</option>
-                  <option value="article">Article</option>
-                  <option value="video">Video</option>
-                  <option value="pdf">PDF</option>
-                  <option value="link">Link</option>
-                </select>
-
-                <select
-                  value={filters.level}
-                  onChange={(event) =>
-                    setFilters((prev) => ({ ...prev, level: event.target.value }))
-                  }
-                  className="h-[58px] rounded-3xl border border-slate-200 bg-slate-50/80 px-4 text-sm text-slate-900 outline-none"
-                >
-                  <option value="all">All levels</option>
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                </select>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-[34px] border-slate-200/80 bg-white/95 shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
-            <CardContent className="p-6 sm:p-7">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700">
-                  <Filter className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-indigo-600">Quick Browse</p>
-                  <h3 className="mt-1 text-2xl font-bold text-slate-900">
-                    {selectedCategory ? selectedCategory.name : 'Popular Topics'}
-                  </h3>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-2">
-                {categories.slice(0, 8).map((category) => (
-                  <Link
-                    key={category._id}
-                    to={subjectPagePath(category.slug)}
-                    className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
+                <label className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">
+                  <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <Filter className="h-4 w-4 text-indigo-600" />
+                    Type
+                  </span>
+                  <LearningSelect
+                    outerClassName="mt-2"
+                    value={filters.materialType}
+                    onChange={(event) =>
+                      setFilters((prev) => ({ ...prev, materialType: event.target.value }))
+                    }
                   >
-                    {category.name}
-                  </Link>
-                ))}
+                    <option value="all">All types</option>
+                    <option value="article">Article</option>
+                    <option value="video">Video</option>
+                    <option value="pdf">PDF</option>
+                    <option value="link">Link</option>
+                  </LearningSelect>
+                </label>
+
+                <label className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">
+                  <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <GraduationCap className="h-4 w-4 text-indigo-600" />
+                    Level
+                  </span>
+                  <LearningSelect
+                    outerClassName="mt-2"
+                    value={filters.level}
+                    onChange={(event) =>
+                      setFilters((prev) => ({ ...prev, level: event.target.value }))
+                    }
+                  >
+                    <option value="all">All levels</option>
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                  </LearningSelect>
+                </label>
               </div>
 
-              <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                <div className="flex items-center gap-3">
-                  <TrendingUp className="h-5 w-5 text-indigo-600" />
-                  <p className="font-semibold text-slate-900">Current Selection</p>
+              <label className="mt-4 block rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <Search className="h-4 w-4 text-indigo-600" />
+                  Search
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  {selectedCategory?.description ||
-                    'Browse all published materials across interview prep, core CS subjects, and modern development tracks.'}
-                </p>
+                <input
+                  value={filters.search}
+                  onChange={(event) =>
+                    setFilters((prev) => ({ ...prev, search: event.target.value }))
+                  }
+                  placeholder="Title, summary, or tag"
+                  className="mt-2 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                />
+              </label>
+
+              <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+                    <TrendingUp className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-900">Current focus</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {selectedCategory
+                        ? selectedCategory.description ||
+                          `Showing materials tagged under ${selectedCategory.name}.`
+                        : 'All published subjects are included. Choose a subject above to focus the list.'}
+                    </p>
+                  </div>
+                </div>
+                {selectedCategory ? (
+                  <Button asChild variant="default" className="shrink-0 self-start sm:self-center">
+                    <Link to={subjectPagePath(selectedCategory.slug)}>Subject overview</Link>
+                  </Button>
+                ) : null}
               </div>
             </CardContent>
           </Card>
-          </div>
 
           {!loading && !error ? (
             <div className="mt-8">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-indigo-600">Full catalog</p>
-                  <h3 className="mt-1 text-xl font-bold text-slate-900">
+                  <p className={`text-sm font-semibold ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}>
+                    Full catalog
+                  </p>
+                  <h3
+                    className={`mt-1 text-xl font-bold ${isDashboardLayout ? 'text-white' : 'text-slate-900'}`}
+                  >
                     {selectedCategory
-                      ? `All materials · ${selectedCategory.name}`
-                      : 'All materials · every subject'}
+                      ? `Materials · ${selectedCategory.name}`
+                      : 'Materials · all subjects'}
                   </h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Search and filters above apply to this list. Open any row to read the full topic.
+                  <p
+                    className={`mt-1 text-sm ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}
+                  >
+                    Only the first {MATERIAL_LIST_VISIBLE_FIRST} rows stay open; expand the list below for
+                    the rest, or narrow by subject and filters.
                   </p>
                 </div>
-                <div className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
-                  {filteredMaterials.length} shown
+                <div
+                  className={`rounded-full px-4 py-2 text-sm font-medium ${
+                    isDashboardLayout
+                      ? 'bg-white/10 text-cyan-100 ring-1 ring-white/15'
+                      : 'bg-indigo-50 text-indigo-700'
+                  }`}
+                >
+                  {filteredMaterials.length > MATERIAL_LIST_VISIBLE_FIRST
+                    ? `Showing ${MATERIAL_LIST_VISIBLE_FIRST} of ${filteredMaterials.length}`
+                    : `${filteredMaterials.length} material${filteredMaterials.length === 1 ? '' : 's'}`}
                 </div>
               </div>
               <div className="space-y-4">
                 {filteredMaterials.length ? (
-                  filteredMaterials.map((material) => (
-                    <LatestMaterialRow
-                      key={material._id}
-                      material={material}
-                      topicBasePath={topicBasePath}
-                    />
-                  ))
+                  <>
+                    {filteredMaterials.slice(0, MATERIAL_LIST_VISIBLE_FIRST).map((material) => (
+                      <LatestMaterialRow
+                        key={material._id}
+                        material={material}
+                        topicBasePath={topicBasePath}
+                      />
+                    ))}
+                    {filteredMaterials.length > MATERIAL_LIST_VISIBLE_FIRST ? (
+                      <details
+                        className={`group rounded-[28px] border shadow-sm ${
+                          isDashboardLayout
+                            ? 'border-white/15 bg-white/5'
+                            : 'border-indigo-200/60 bg-indigo-50/30'
+                        }`}
+                      >
+                        <summary className="flex cursor-pointer list-none items-center justify-center gap-2 px-4 py-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                          <ChevronDown
+                            className={`h-4 w-4 shrink-0 transition group-open:rotate-180 ${
+                              isDashboardLayout ? 'text-cyan-200' : 'text-indigo-700'
+                            }`}
+                            aria-hidden
+                          />
+                          <span className={isDashboardLayout ? 'text-cyan-100' : 'text-indigo-900'}>
+                            View {filteredMaterials.length - MATERIAL_LIST_VISIBLE_FIRST} more
+                            material
+                            {filteredMaterials.length - MATERIAL_LIST_VISIBLE_FIRST === 1 ? '' : 's'}
+                          </span>
+                        </summary>
+                        <div className="space-y-4 border-t border-slate-200/20 px-1 pb-4 pt-4 sm:px-2">
+                          {filteredMaterials.slice(MATERIAL_LIST_VISIBLE_FIRST).map((material) => (
+                            <LatestMaterialRow
+                              key={`catalog-${material._id}`}
+                              material={material}
+                              topicBasePath={topicBasePath}
+                            />
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
+                  </>
                 ) : (
                   <div className="overflow-hidden rounded-3xl border border-dashed border-slate-300 bg-slate-50 text-center text-sm text-slate-500">
                     <img
@@ -1033,10 +1283,11 @@ function LearningHomePage({ mode = 'auto' }) {
                       filteredMaterials.length === 0 &&
                       (filters.search.trim() ||
                         filters.materialType !== 'all' ||
-                        filters.level !== 'all') ? (
+                        filters.level !== 'all' ||
+                        exploreSubjectId) ? (
                         <p>
-                          Nothing matches your filters. Clear search or set type and level to
-                          &quot;All&quot; to see materials.
+                          Nothing matches your filters or subject. Reset to all subjects or loosen type,
+                          level, and search.
                         </p>
                       ) : (
                         <p>No materials in this view yet.</p>

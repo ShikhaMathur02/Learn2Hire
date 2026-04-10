@@ -215,8 +215,10 @@ function Signup() {
 
         <Button
           type="submit"
+          variant="default"
+          size="lg"
           disabled={loading}
-          className="h-12 w-full justify-center rounded-2xl text-sm shadow-lg shadow-indigo-600/20"
+          className="w-full justify-center shadow-lg shadow-indigo-600/25"
         >
           {loading ? "Creating account..." : "Sign up"}
           {!loading ? <ArrowRight className="h-4 w-4" /> : null}

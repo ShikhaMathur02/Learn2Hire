@@ -317,7 +317,7 @@ function MaterialDetailsPage() {
       <SiteHeader />
 
       <main className="mx-auto max-w-7xl px-4 pb-6 pt-24 sm:px-6 lg:px-8">
-        <Button asChild variant="outline" className="mb-6">
+        <Button asChild variant="default" className="mb-6">
           <Link to={learningHubPath}>
             <ArrowLeft className="h-4 w-4" />
             Back to Learning Hub
@@ -334,7 +334,7 @@ function MaterialDetailsPage() {
         ) : error ? (
           <div className="rounded-[32px] border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
             <p>{error}</p>
-            <Button asChild variant="outline" className="mt-4 bg-white">
+            <Button asChild variant="default" className="mt-4">
               <Link to={learningHubPath}>Back to learning hub</Link>
             </Button>
           </div>

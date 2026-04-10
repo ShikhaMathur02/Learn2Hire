@@ -112,7 +112,7 @@ function LearningTrackCard({ material, topicBasePath }) {
         </div>
         <h3 className="mt-4 text-lg font-semibold text-slate-900">{material.title}</h3>
         <p className="mt-2 line-clamp-2 text-sm text-slate-600">{material.summary}</p>
-        <Button asChild variant="outline" className="mt-4 rounded-2xl border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+        <Button asChild variant="default" className="mt-4">
           <Link to={`${topicBasePath}/${material.slug}`}>
             Open
             <ArrowRight className="h-4 w-4" />
@@ -249,15 +249,7 @@ function LearningSubjectPage({ mode = 'public' }) {
           isDashboardLayout ? 'pt-6' : 'pt-24'
         } sm:px-6 lg:px-8`}
       >
-        <Button
-          asChild
-          variant="outline"
-          className={
-            isDashboardLayout
-              ? 'mb-6 !border-white/40 !bg-slate-900/50 !text-slate-100 hover:!bg-white/15 hover:!text-white'
-              : 'mb-6'
-          }
-        >
+        <Button asChild variant="default" className="mb-6">
           <Link to={hubPath} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             All subjects

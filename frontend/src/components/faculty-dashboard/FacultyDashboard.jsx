@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
-  Bell,
   BookOpenCheck,
   ClipboardList,
   LayoutDashboard,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { DashboardTopNav } from "../dashboard/DashboardTopNav";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 
@@ -209,11 +209,7 @@ function FacultyDashboard({ user, onLogout }) {
         description="Monitor created assessments, submission activity, and class performance from one place."
         action={
           <div className="flex flex-wrap gap-2">
-            <Button
-              asChild
-              variant="outline"
-              className="!border-white/20 !bg-white/5 !text-white hover:!bg-white/10 hover:!text-white"
-            >
+            <Button asChild variant="default">
               <Link to="/dashboard/learning/manage">
                 <BookOpenCheck className="h-4 w-4" />
                 Manage learning
@@ -482,11 +478,7 @@ function FacultyDashboard({ user, onLogout }) {
             </nav>
 
             <div className="mt-auto pt-6">
-              <Button
-                variant="outline"
-                onClick={onLogout}
-                className="w-full justify-center !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-              >
+              <Button variant="default" onClick={onLogout} className="w-full justify-center">
                 <LogOut className="h-4 w-4" />
                 Logout
               </Button>
@@ -495,51 +487,16 @@ function FacultyDashboard({ user, onLogout }) {
         </aside>
 
         <div className="flex-1 p-4 sm:p-5 lg:p-6">
-          <header className="mb-4 rounded-[28px] border border-white/10 bg-white/5 p-4 shadow-[0_24px_60px_rgba(2,6,23,0.25)] backdrop-blur-xl sm:p-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-medium text-cyan-300">Learn2Hire</p>
-                <h1 className="mt-1 text-3xl font-bold text-white">Faculty Dashboard</h1>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  asChild
-                  variant="outline"
-                  className="inline-flex !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-                >
-                  <Link to="/dashboard/learning/manage">
-                    <BookOpenCheck className="h-4 w-4" />
-                    Manage learning
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="hidden !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white md:inline-flex"
-                >
-                  <Link to="/notifications">
-                    <Bell className="h-4 w-4" />
-                    Notifications
-                  </Link>
-                </Button>
-                <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium capitalize text-cyan-300 sm:inline-flex">
-                  {me.role}
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
-                  <p className="text-sm font-semibold text-white">{me.name}</p>
-                  <p className="text-xs text-slate-400">{me.email}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={onLogout}
-                  className="hidden !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white md:inline-flex"
-                >
-                  Logout
-                </Button>
-              </div>
-            </div>
-          </header>
+          <DashboardTopNav
+            bleed
+            workspaceLabel="Faculty Workspace"
+            title="Faculty Dashboard"
+            user={{ name: me.name, email: me.email, role: me.role }}
+            onLogout={onLogout}
+            actionItems={[
+              { label: "Manage learning", to: "/dashboard/learning/manage", icon: BookOpenCheck },
+            ]}
+          />
 
           {loading ? (
             <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">

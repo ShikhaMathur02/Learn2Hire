@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
-  Bell,
   BookOpenCheck,
   BriefcaseBusiness,
   Building2,
   Factory,
   GraduationCap,
   LoaderCircle,
-  LogOut,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -18,6 +16,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../../lib/api";
+import { DashboardTopNav } from "../dashboard/DashboardTopNav";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 
@@ -453,48 +452,21 @@ function CollegeDashboard({ user, onLogout }) {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
       <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8 sm:py-6">
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur sm:p-6 xl:p-7">
-          <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-cyan-300">College Workspace</p>
-              <h1 className="mt-2 text-3xl font-bold">Welcome, {me.name}</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                Live placement radar for your campus: roster health, recruiters on the platform, open
-                roles, and applications from your students. Refreshes automatically every minute.
-              </p>
-            </div>
+        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
+          <DashboardTopNav
+            className="mb-0 rounded-none border-x-0 border-t-0 bg-slate-950/55 px-5 py-3 backdrop-blur-xl sm:px-6 sm:py-4 xl:px-7"
+            workspaceLabel="College Workspace"
+            title={`Welcome, ${me.name}`}
+            description="Live placement radar for your campus: roster health, recruiters on the platform, open roles, and applications from your students. Refreshes automatically every minute."
+            user={{ name: me.name, email: me.email, role: me.role }}
+            onLogout={onLogout}
+            actionItems={[
+              { label: "Manage learning", to: "/dashboard/learning/manage", icon: BookOpenCheck },
+              { label: "Go to home", onClick: () => navigate("/") },
+            ]}
+          />
 
-            <div className="flex flex-wrap gap-3">
-              <Button asChild>
-                <Link to="/dashboard/learning/manage">
-                  <BookOpenCheck className="h-4 w-4" />
-                  Manage Learning
-                </Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/notifications">
-                  <Bell className="h-4 w-4" />
-                  Notifications
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => navigate("/")}
-                className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-              >
-                Go to Home
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onLogout}
-                className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-              >
-                <LogOut className="h-4 w-4" />
-                Logout
-              </Button>
-            </div>
-          </div>
-
+          <div className="space-y-6 p-5 sm:p-6 xl:p-7">
           {error ? (
             <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
               {error}
@@ -540,13 +512,13 @@ function CollegeDashboard({ user, onLogout }) {
               </div>
               <Button
                 type="button"
-                variant="outline"
+                variant="default"
                 disabled={insightsRefreshing}
-                className="shrink-0 border-cyan-500/30 text-cyan-100 hover:bg-cyan-500/10 hover:text-white"
+                className="shrink-0"
                 onClick={() => fetchInsights({ silent: false })}
               >
                 <RefreshCw
-                  className={`mr-2 h-4 w-4 ${insightsRefreshing ? "animate-spin" : ""}`}
+                  className={`h-4 w-4 ${insightsRefreshing ? "animate-spin" : ""}`}
                 />
                 {insightsRefreshing ? "Refreshing…" : "Refresh now"}
               </Button>
@@ -745,7 +717,7 @@ function CollegeDashboard({ user, onLogout }) {
                           <div className="flex flex-wrap gap-2">
                             <Button
                               size="sm"
-                              className="bg-emerald-600 hover:bg-emerald-500"
+                              variant="success"
                               disabled={approvalBusyId === u._id}
                               onClick={() => handleFacultyApproval(u._id, "approved")}
                             >
@@ -753,8 +725,7 @@ function CollegeDashboard({ user, onLogout }) {
                             </Button>
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="border-rose-400/40 text-rose-100 hover:bg-rose-500/10"
+                              variant="destructive"
                               disabled={approvalBusyId === u._id}
                               onClick={() => handleFacultyApproval(u._id, "rejected")}
                             >
@@ -1100,6 +1071,7 @@ function CollegeDashboard({ user, onLogout }) {
                 </div>
               </CardContent>
             </Card>
+          </div>
           </div>
         </div>
       </div>

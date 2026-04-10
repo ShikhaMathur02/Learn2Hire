@@ -64,7 +64,8 @@ const roles = [
     title: "Students",
     icon: GraduationCap,
     gradient: "from-[#ff7e5f] to-[#ff9966]",
-    buttonClass: "bg-[#ff7e5f] hover:bg-[#ef6b49]",
+    buttonClass:
+      "border-2 border-[#ff7e5f] bg-white !text-[#ff7e5f] shadow-sm hover:bg-[#ff7e5f] hover:!text-white hover:border-[#ff7e5f]",
     buttonLabel: "Student Portal",
     to: "/signup",
     items: [
@@ -78,7 +79,8 @@ const roles = [
     title: "Colleges",
     icon: School,
     gradient: "from-[#8a4fff] to-[#a97cff]",
-    buttonClass: "bg-[#8a4fff] hover:bg-[#7840eb]",
+    buttonClass:
+      "border-2 border-[#8a4fff] bg-white !text-[#8a4fff] shadow-sm hover:bg-[#8a4fff] hover:!text-white hover:border-[#8a4fff]",
     buttonLabel: "College Portal",
     to: "/signup",
     items: [
@@ -92,7 +94,8 @@ const roles = [
     title: "Companies",
     icon: Briefcase,
     gradient: "from-[#2dd4bf] to-[#34d399]",
-    buttonClass: "bg-[#2dd4bf] text-slate-900 hover:bg-[#24c9b7]",
+    buttonClass:
+      "border-2 border-[#2dd4bf] bg-white !text-slate-900 shadow-sm hover:bg-[#2dd4bf] hover:!text-slate-900 hover:border-[#2dd4bf]",
     buttonLabel: "Recruiter Portal",
     to: "/signup",
     items: [
@@ -231,7 +234,7 @@ function LandingPage() {
                           <p>{item}</p>
                         </div>
                       ))}
-                      <Button asChild className={`mt-4 w-full ${role.buttonClass}`}>
+                      <Button asChild variant="custom" className={`mt-4 w-full justify-center shadow-sm ${role.buttonClass}`}>
                         <Link to={role.to}>{role.buttonLabel}</Link>
                       </Button>
                     </CardContent>
@@ -321,11 +324,7 @@ function LandingPage() {
               Join hundreds of institutions and companies already benefiting
               from Learn2Hire.
             </p>
-            <Button
-              asChild
-              size="lg"
-              className="mt-8  text-[var(--primary)] hover:bg-slate-100"
-            >
+            <Button asChild size="lg" variant="default" className="mt-8 shadow-md">
               <Link to="/signup">Request Demo</Link>
             </Button>
           </div>

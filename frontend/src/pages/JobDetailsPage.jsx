@@ -250,11 +250,7 @@ function JobDetailsPage() {
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            onClick={() => navigate("/jobs")}
-            className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-          >
+          <Button variant="default" onClick={() => navigate("/jobs")}>
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
@@ -289,7 +285,7 @@ function JobDetailsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={handleSaveToggle} disabled={saving}>
+                  <Button variant="default" onClick={handleSaveToggle} disabled={saving}>
                     <Heart className={`h-4 w-4 ${isSaved ? "fill-current" : ""}`} />
                     {saving ? "Saving..." : isSaved ? "Saved" : "Save Job"}
                   </Button>

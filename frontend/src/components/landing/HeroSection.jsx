@@ -26,15 +26,10 @@ function HeroSection() {
             placement solutions.
           </p>
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-            <Button asChild size="lg" className="bg-white text-indigo-700 hover:bg-slate-100">
+            <Button asChild size="lg" variant="default" className="shadow-md">
               <Link to="/signup">Get Started Free</Link>
             </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="lg"
-              className="!border-white/30 bg-white/10 !text-white hover:bg-white/20 hover:!text-white"
-            >
+            <Button asChild size="lg" variant="default" className="shadow-md">
               <a href="#how-it-works">See How It Works</a>
             </Button>
           </div>

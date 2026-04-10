@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
-  Bell,
   BookOpen,
   BriefcaseBusiness,
   CheckCircle2,
@@ -17,6 +16,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../../lib/api";
 import { clearAuthSession } from "../../lib/authSession";
+import { DashboardTopNav } from "../dashboard/DashboardTopNav";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import dashboardProgressImg from "../../assets/illustrations/progress-banner.png";
@@ -296,22 +296,13 @@ function StudentDashboard({ user, onLogout }) {
       />
 
       <div className="mt-2 flex flex-wrap gap-3">
-        <Button
-          size="sm"
-          className="bg-indigo-600 text-white hover:bg-indigo-500"
-          asChild
-        >
+        <Button size="sm" asChild>
           <Link to="/dashboard/learning#learning-explore-content">
             <BookOpen className="h-4 w-4" />
             Start Learning
           </Link>
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="!border-white/30 !bg-white/5 !text-slate-100 hover:!bg-white/10 hover:!text-white"
-          asChild
-        >
+        <Button size="sm" variant="default" asChild>
           <Link to="/dashboard/learning/progress">
             <BarChart3 className="h-4 w-4" />
             Learning Progress
@@ -377,7 +368,7 @@ function StudentDashboard({ user, onLogout }) {
                   title="No skill progress yet"
                   description="Create or update your profile so Learn2Hire can show progress here."
                   action={
-                    <Button variant="outline" onClick={() => setActiveSection("profile")}>
+                    <Button variant="default" onClick={() => setActiveSection("profile")}>
                       Go to Profile
                     </Button>
                   }
@@ -393,7 +384,7 @@ function StudentDashboard({ user, onLogout }) {
               title="Available Assessments"
               description="Published tests you can attempt right now."
               action={
-                <Button asChild variant="outline">
+                <Button asChild variant="default">
                   <Link to="/assessments">View all</Link>
                 </Button>
               }
@@ -416,7 +407,7 @@ function StudentDashboard({ user, onLogout }) {
                         <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-300">
                           {assessment.status}
                         </span>
-                        <Button asChild variant="outline">
+                        <Button asChild variant="default">
                           <Link to={`/assessments/${assessment._id}`}>Open</Link>
                         </Button>
                       </div>
@@ -454,7 +445,7 @@ function StudentDashboard({ user, onLogout }) {
                         </p>
                         <p className="mt-2 text-sm text-slate-500">{job.suggestionReason}</p>
                       </div>
-                      <Button asChild variant="outline">
+                      <Button asChild variant="default">
                         <Link to={`/jobs/${job._id}`}>View</Link>
                       </Button>
                     </div>
@@ -486,7 +477,7 @@ function StudentDashboard({ user, onLogout }) {
               title="Study materials"
               description="Recommended topics from the learning library. Open any item to read and track progress."
               action={
-                <Button asChild variant="outline">
+                <Button asChild variant="default">
                   <Link to="/dashboard/learning#learning-explore-content">Learning hub</Link>
                 </Button>
               }
@@ -744,7 +735,7 @@ function StudentDashboard({ user, onLogout }) {
             title="Study materials"
             description="Recommended readings from the catalog. Progress is saved when you are logged in."
             action={
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="default" size="sm">
                 <Link to="/dashboard/learning#learning-explore-content">All subjects</Link>
               </Button>
             }
@@ -808,7 +799,7 @@ function StudentDashboard({ user, onLogout }) {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-3">
-                    <Button asChild variant="outline">
+                    <Button asChild variant="default">
                       <Link to={`/assessments/${assessment._id}`}>View details</Link>
                     </Button>
                     <Button asChild>
@@ -934,7 +925,7 @@ function StudentDashboard({ user, onLogout }) {
           title="Learning"
           description="See your recent learning activity and jump into study materials from your dashboard."
           action={
-            <Button asChild variant="outline">
+            <Button asChild variant="default">
               <Link to="/dashboard/learning/progress">Open full learning view</Link>
             </Button>
           }
@@ -1095,11 +1086,7 @@ function StudentDashboard({ user, onLogout }) {
             </nav>
 
             <div className="mt-auto pt-6">
-              <Button
-                variant="outline"
-                onClick={onLogout}
-                className="w-full justify-center !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-              >
+              <Button variant="default" onClick={onLogout} className="w-full justify-center">
                 <LogOut className="h-4 w-4" />
                 Logout
               </Button>
@@ -1108,41 +1095,17 @@ function StudentDashboard({ user, onLogout }) {
         </aside>
 
         <div className="flex-1 p-4 sm:p-5 lg:p-6">
-          <header className="mb-4 rounded-[28px] border border-white/10 bg-white/5 p-4 shadow-[0_24px_60px_rgba(2,6,23,0.25)] backdrop-blur-xl sm:p-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-medium text-cyan-300">Learn2Hire</p>
-                <h1 className="mt-1 text-3xl font-bold text-white">Student Dashboard</h1>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  asChild
-                  variant="outline"
-                  className="hidden !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white md:inline-flex"
-                >
-                  <Link to="/notifications">
-                    <Bell className="h-4 w-4" />
-                    Notifications
-                  </Link>
-                </Button>
-                <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-cyan-300 sm:inline-flex">
-                  {displayUser.role}
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
-                  <p className="text-sm font-semibold text-white">{displayUser.name}</p>
-                  <p className="text-xs text-slate-400">{displayUser.email}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={onLogout}
-                  className="hidden !border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white md:inline-flex"
-                >
-                  Logout
-                </Button>
-              </div>
-            </div>
-          </header>
+          <DashboardTopNav
+            bleed
+            workspaceLabel="Student Workspace"
+            title="Student Dashboard"
+            user={{
+              name: displayUser.name,
+              email: displayUser.email,
+              role: displayUser.role,
+            }}
+            onLogout={onLogout}
+          />
 
           {loading ? (
             <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">

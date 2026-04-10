@@ -322,9 +322,8 @@ function AdminJobsPage() {
           </div>
 
           <Button
-            variant="outline"
+            variant="default"
             onClick={() => navigate("/dashboard")}
-            className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
@@ -479,12 +478,7 @@ function AdminJobsPage() {
                       <Button onClick={handleStatusSave} disabled={saving}>
                         {saving ? "Saving..." : "Save Status"}
                       </Button>
-                      <Button
-                        variant="outline"
-                        onClick={handleDeleteJob}
-                        disabled={deleting}
-                        className="border-rose-400/40 text-rose-200 hover:bg-rose-500/10 hover:text-rose-100"
-                      >
+                      <Button variant="destructive" onClick={handleDeleteJob} disabled={deleting}>
                         <Trash2 className="h-4 w-4" />
                         {deleting ? "Deleting..." : "Delete Job"}
                       </Button>

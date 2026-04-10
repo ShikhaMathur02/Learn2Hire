@@ -283,11 +283,7 @@ function StudentAssessment() {
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            onClick={() => navigate("/assessments")}
-            className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-          >
+          <Button variant="default" onClick={() => navigate("/assessments")}>
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
@@ -369,11 +365,7 @@ function StudentAssessment() {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button onClick={() => navigate("/assessments")}>Back to Assessments</Button>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/dashboard")}
-                  className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-                >
+                <Button variant="default" onClick={() => navigate("/dashboard")}>
                   Go to Dashboard
                 </Button>
               </div>

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
+  Bell,
   BriefcaseBusiness,
   Heart,
+  LayoutDashboard,
   LoaderCircle,
   MapPin,
   Search,
@@ -11,6 +12,7 @@ import {
 
 import { readApiResponse } from "../lib/api";
 import { Button } from "../components/ui/button";
+import { NavDropdown } from "../components/ui/nav-dropdown";
 import { Card, CardContent } from "../components/ui/card";
 
 function JobsPage() {
@@ -212,30 +214,34 @@ function JobsPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 py-5 text-white sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-              <Link to="/dashboard" className="transition hover:text-white">
-                Dashboard
-              </Link>
-              <span>/</span>
-              <span className="text-slate-300">Jobs</span>
+        <div className="sticky top-0 z-40 -mx-4 mb-6 border-b border-white/10 bg-slate-950/85 px-4 py-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                <Link to="/dashboard" className="transition hover:text-white">
+                  Dashboard
+                </Link>
+                <span>/</span>
+                <span className="text-slate-300">Jobs</span>
+              </div>
+              <p className="text-sm font-medium text-cyan-300">Career Workspace</p>
+              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Open Jobs</h1>
+              <p className="mt-2 max-w-xl text-sm text-slate-400">
+                Search roles, save opportunities, and open full job details before applying.
+              </p>
             </div>
-            <p className="text-sm font-medium text-cyan-300">Career Workspace</p>
-            <h1 className="mt-1 text-3xl font-bold">Open Jobs</h1>
-            <p className="mt-2 text-sm text-slate-400">
-              Search roles, save opportunities, and open full job details before applying.
-            </p>
-          </div>
 
-          <Button
-            variant="outline"
-            onClick={() => navigate("/dashboard")}
-            className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
+            <NavDropdown
+              theme="dark"
+              align="right"
+              icon={BriefcaseBusiness}
+              label="Go to"
+              items={[
+                { label: "Dashboard home", to: "/dashboard", icon: LayoutDashboard },
+                { label: "Notifications", to: "/notifications", icon: Bell },
+              ]}
+            />
+          </div>
         </div>
 
         {error ? (
@@ -480,7 +486,7 @@ function JobsPage() {
 
                             <div className="flex flex-wrap gap-2">
                               <Button
-                                variant="outline"
+                                variant="default"
                                 onClick={() => handleSaveToggle(job._id)}
                                 disabled={savingJobId === job._id}
                               >

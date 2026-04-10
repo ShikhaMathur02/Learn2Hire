@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Bell,
   BriefcaseBusiness,
   Building2,
   FileSearch,
   LoaderCircle,
-  LogOut,
   PlusCircle,
   Users,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { DashboardTopNav } from "../dashboard/DashboardTopNav";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { readApiResponse } from "../../lib/api";
@@ -224,45 +223,21 @@ function CompanyDashboard({ user, onLogout }) {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
       <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8 sm:py-6">
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur sm:p-6 xl:p-7">
-          <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-cyan-300">Company Workspace</p>
-              <h1 className="mt-2 text-3xl font-bold">Welcome, {user.name}</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                Create job posts, monitor applicant activity, and track hiring progress in one
-                place.
-              </p>
-            </div>
+        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
+          <DashboardTopNav
+            className="mb-0 rounded-none border-x-0 border-t-0 bg-slate-950/55 px-5 py-3 backdrop-blur-xl sm:px-6 sm:py-4 xl:px-7"
+            workspaceLabel="Company Workspace"
+            title={`Welcome, ${user.name}`}
+            description="Create job posts, monitor applicant activity, and track hiring progress in one place."
+            user={{ name: user.name, email: user.email, role: user.role }}
+            onLogout={onLogout}
+            actionItems={[
+              { label: "Manage jobs", to: "/company/jobs" },
+              { label: "Go to home", onClick: () => navigate("/") },
+            ]}
+          />
 
-            <div className="flex flex-wrap gap-3">
-              <Button asChild variant="outline">
-                <Link to="/notifications">
-                  <Bell className="h-4 w-4" />
-                  Notifications
-                </Link>
-              </Button>
-              <Button asChild>
-                <Link to="/company/jobs">Manage Jobs</Link>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => navigate("/")}
-                className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-              >
-                Go to Home
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onLogout}
-                className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-              >
-                <LogOut className="h-4 w-4" />
-                Logout
-              </Button>
-            </div>
-          </div>
-
+          <div className="space-y-6 p-5 sm:p-6 xl:p-7">
           {error ? (
             <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
               {error}
@@ -413,7 +388,7 @@ function CompanyDashboard({ user, onLogout }) {
                   The latest job openings created by your company account.
                 </p>
                 <div className="mt-4">
-                  <Button asChild variant="outline">
+                  <Button asChild variant="default">
                     <Link to="/company/jobs">Open Job Manager</Link>
                   </Button>
                 </div>
@@ -517,6 +492,7 @@ function CompanyDashboard({ user, onLogout }) {
                 </div>
               </CardContent>
             </Card>
+          </div>
           </div>
         </div>
       </div>

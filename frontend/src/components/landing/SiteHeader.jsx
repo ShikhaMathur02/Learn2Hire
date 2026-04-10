@@ -1,7 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, LogIn, LogOut, UserPlus, Users } from "lucide-react";
+import { LayoutDashboard, LogIn, LogOut, Menu, UserPlus, Users } from "lucide-react";
 
 import { Button } from "../ui/button";
+import { NavDropdown } from "../ui/nav-dropdown";
 import { clearAuthSession, useAuthSession } from "../../lib/authSession";
 
 const navItems = [
@@ -66,18 +67,37 @@ function SiteHeader() {
         </nav>
 
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-          <Button asChild variant="outline" className="min-w-[6.5rem] md:hidden">
-            <Link to={learningPath}>Learning</Link>
-          </Button>
+          <div className="md:hidden">
+            <NavDropdown
+              theme="light"
+              align="right"
+              icon={Menu}
+              label="Explore"
+              menuClassName="max-h-[70vh] overflow-y-auto"
+              items={navItems.map((item) =>
+                item.to
+                  ? {
+                      key: item.key,
+                      label: item.label,
+                      to: item.key === "learning" ? learningPath : item.to,
+                    }
+                  : {
+                      key: item.key,
+                      label: item.label,
+                      to: `/#${String(item.href || "").replace(/^#/, "")}`,
+                    }
+              )}
+            />
+          </div>
           {isLandingHome ? (
             <>
-              <Button asChild variant="outline" className="min-w-[7rem]">
+              <Button asChild variant="default" className="min-w-[7rem]">
                 <Link to="/login">
                   <LogIn className="h-4 w-4 shrink-0" aria-hidden />
                   Login
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="min-w-[7.5rem]">
+              <Button asChild variant="default" className="min-w-[7.5rem]">
                 <Link to="/signup">
                   <UserPlus className="h-4 w-4 shrink-0" aria-hidden />
                   Register
@@ -86,26 +106,26 @@ function SiteHeader() {
             </>
           ) : isAuthenticated ? (
             <>
-              <Button asChild variant="outline" className="min-w-[7.5rem]">
+              <Button asChild variant="default" className="min-w-[7.5rem]">
                 <Link to="/dashboard">
                   <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden />
                   Dashboard
                 </Link>
               </Button>
-              <Button variant="outline" className="min-w-[7rem]" onClick={handleLogout}>
+              <Button variant="default" className="min-w-[7rem]" onClick={handleLogout}>
                 <LogOut className="h-4 w-4 shrink-0" aria-hidden />
                 Logout
               </Button>
             </>
           ) : (
             <>
-              <Button asChild variant="outline" className="min-w-[7rem]">
+              <Button asChild variant="default" className="min-w-[7rem]">
                 <Link to="/login">
                   <LogIn className="h-4 w-4 shrink-0" aria-hidden />
                   Login
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="min-w-[7.5rem]">
+              <Button asChild variant="default" className="min-w-[7.5rem]">
                 <Link to="/signup">
                   <UserPlus className="h-4 w-4 shrink-0" aria-hidden />
                   Register

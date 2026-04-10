@@ -105,11 +105,7 @@ function AssessmentsList() {
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            onClick={() => navigate("/dashboard")}
-            className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-          >
+          <Button variant="default" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>

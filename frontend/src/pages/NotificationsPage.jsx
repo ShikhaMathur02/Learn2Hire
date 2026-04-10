@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bell, CheckCheck, LoaderCircle } from "lucide-react";
+import { Bell, CheckCheck, Filter, LoaderCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../lib/api";
 import { Button } from "../components/ui/button";
+import { NavDropdown } from "../components/ui/nav-dropdown";
 import { Card, CardContent } from "../components/ui/card";
 
 function NotificationsPage() {
@@ -166,39 +167,50 @@ function NotificationsPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 py-5 text-white sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-              <Link to="/dashboard" className="transition hover:text-white">
-                Dashboard
-              </Link>
-              <span>/</span>
-              <span className="text-slate-300">Notifications</span>
+        <div className="sticky top-0 z-40 -mx-4 mb-6 border-b border-white/10 bg-slate-950/85 px-4 py-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                <Link to="/dashboard" className="transition hover:text-white">
+                  Dashboard
+                </Link>
+                <span>/</span>
+                <span className="text-slate-300">Notifications</span>
+              </div>
+              <p className="text-sm font-medium text-cyan-300">Activity Center</p>
+              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Notifications</h1>
+              <p className="mt-2 max-w-xl text-sm text-slate-400">
+                Keep track of job updates, applications, and assessment activity.
+              </p>
             </div>
-            <p className="text-sm font-medium text-cyan-300">Activity Center</p>
-            <h1 className="mt-1 text-3xl font-bold">Notifications</h1>
-            <p className="mt-2 text-sm text-slate-400">
-              Keep track of job updates, applications, and assessment activity.
-            </p>
-          </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant={filter === "all" ? "default" : "outline"}
-              onClick={() => setFilter("all")}
-            >
-              All
-            </Button>
-            <Button
-              variant={filter === "unread" ? "default" : "outline"}
-              onClick={() => setFilter("unread")}
-            >
-              Unread ({unreadCount})
-            </Button>
-            <Button variant="outline" onClick={handleMarkAllRead} disabled={markingAll}>
-              <CheckCheck className="h-4 w-4" />
-              {markingAll ? "Updating..." : "Mark all read"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <NavDropdown
+                theme="dark"
+                align="right"
+                icon={Filter}
+                label={filter === "all" ? "Showing: All" : `Showing: Unread (${unreadCount})`}
+                items={[
+                  {
+                    label: "All notifications",
+                    icon: Bell,
+                    onClick: () => setFilter("all"),
+                  },
+                  {
+                    label: `Unread only (${unreadCount})`,
+                    icon: Bell,
+                    onClick: () => setFilter("unread"),
+                  },
+                  { separator: true },
+                  {
+                    label: markingAll ? "Marking all…" : "Mark all as read",
+                    icon: CheckCheck,
+                    onClick: () => handleMarkAllRead(),
+                    disabled: markingAll || unreadCount === 0,
+                  },
+                ]}
+              />
+            </div>
           </div>
         </div>
 
@@ -254,7 +266,7 @@ function NotificationsPage() {
 
                     <div className="flex flex-wrap gap-2">
                       {notification.actionUrl ? (
-                        <Button asChild variant="outline">
+                        <Button asChild variant="default">
                           <Link
                             to={notification.actionUrl}
                             onClick={() => {
@@ -269,7 +281,7 @@ function NotificationsPage() {
                       ) : null}
                       {!notification.isRead ? (
                         <Button
-                          variant="outline"
+                          variant="default"
                           onClick={() => handleMarkRead(notification._id)}
                           disabled={markingId === notification._id}
                         >

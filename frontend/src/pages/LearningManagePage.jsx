@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { ArrowLeft, BookOpenCheck, ExternalLink, LoaderCircle } from "lucide-react";
+import { BookOpenCheck, ExternalLink, Home, LayoutDashboard, LoaderCircle } from "lucide-react";
 
 import { Button } from "../components/ui/button";
+import { NavDropdown } from "../components/ui/nav-dropdown";
 import { Card, CardContent } from "../components/ui/card";
 import { readApiResponse } from "../lib/api";
 
@@ -316,35 +317,38 @@ function LearningManagePage() {
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 sm:py-8">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-cyan-300">Faculty · Learning</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-white">Add study material</h1>
-            <p className="mt-2 max-w-xl text-sm text-slate-400">
-              Publish to the whole catalog, or restrict to a cohort by matching each student&apos;s course,
-              branch, and year on their profile.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              asChild
-              variant="outline"
-              className="!border-white/20 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-            >
-              <Link to="/dashboard" className="gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Back to dashboard
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="!border-white/20 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-            >
-              <Link to="/dashboard/learning#learning-explore-content" className="gap-2">
-                Student learning hub
-              </Link>
-            </Button>
+        <div className="sticky top-0 z-40 -mx-4 mb-8 border-b border-white/10 bg-slate-950/90 px-4 py-4 backdrop-blur-xl sm:-mx-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-cyan-300">Faculty · Learning</p>
+              <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                Add study material
+              </h1>
+              <p className="mt-2 max-w-xl text-sm text-slate-400">
+                Publish to the whole catalog, or restrict to a cohort by matching each student&apos;s course,
+                branch, and year on their profile.
+              </p>
+            </div>
+            <NavDropdown
+              theme="dark"
+              align="right"
+              icon={BookOpenCheck}
+              label="Navigate"
+              items={[
+                { label: "Dashboard home", to: "/dashboard", icon: LayoutDashboard },
+                {
+                  label: "Student learning hub",
+                  to: "/dashboard/learning#learning-explore-content",
+                  icon: BookOpenCheck,
+                },
+                { separator: true },
+                {
+                  label: "Public learning (home)",
+                  to: "/learning",
+                  icon: Home,
+                },
+              ]}
+            />
           </div>
         </div>
 
@@ -398,14 +402,10 @@ function LearningManagePage() {
                   placeholder="https://… (shown on the subject card)"
                 />
               </div>
-              <Button
-                type="submit"
-                disabled={creatingSubject}
-                className="rounded-2xl bg-emerald-600 hover:bg-emerald-500"
-              >
+              <Button type="submit" variant="success" disabled={creatingSubject}>
                 {creatingSubject ? (
                   <>
-                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
                     Creating…
                   </>
                 ) : (
@@ -714,12 +714,13 @@ function LearningManagePage() {
 
                 <Button
                   type="submit"
+                  size="xl"
                   disabled={submitting}
-                  className="w-full rounded-2xl bg-indigo-600 py-6 text-base hover:bg-indigo-500 sm:w-auto"
+                  className="w-full sm:w-auto"
                 >
                   {submitting ? (
                     <>
-                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
                       Publishing…
                     </>
                   ) : (

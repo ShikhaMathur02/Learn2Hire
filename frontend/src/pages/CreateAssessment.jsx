@@ -229,11 +229,7 @@ function CreateAssessment() {
             </div>
           </div>
 
-          <Button
-            variant="outline"
-            onClick={() => navigate("/dashboard")}
-            className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-          >
+          <Button variant="default" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
@@ -340,10 +336,9 @@ function CreateAssessment() {
 
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="destructive"
                       onClick={() => removeQuestion(index)}
                       disabled={questions.length === 1}
-                      className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
                     >
                       <Trash2 className="h-4 w-4" />
                       Remove
@@ -439,12 +434,7 @@ function CreateAssessment() {
           ) : null}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={addQuestion}
-              className="!border-white/15 !bg-white/10 !text-slate-100 hover:!bg-white/20 hover:!text-white"
-            >
+            <Button type="button" variant="default" onClick={addQuestion}>
               <Plus className="h-4 w-4" />
               Add Question
             </Button>

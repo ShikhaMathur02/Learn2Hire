@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { Bell } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { BriefcaseBusiness } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import AdminDashboard from "../components/admin-dashboard/AdminDashboard";
 import CollegeDashboard from "../components/college-dashboard/CollegeDashboard";
 import CompanyDashboard from "../components/company-dashboard/CompanyDashboard";
 import FacultyDashboard from "../components/faculty-dashboard/FacultyDashboard";
 import StudentDashboard from "../components/student-dashboard/StudentDashboard";
-import { Button } from "../components/ui/button";
+import { DashboardTopNav } from "../components/dashboard/DashboardTopNav";
 import { Card, CardContent } from "../components/ui/card";
 import { clearAuthSession } from "../lib/authSession";
 
@@ -71,37 +71,25 @@ function Dashboard() {
 
   if (user.role === "alumni") {
     return (
-      <div className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto max-w-5xl">
-          <Card className="border-0">
+      <div className="min-h-screen bg-slate-100">
+        <DashboardTopNav
+          theme="light"
+          className="mb-0 border-slate-200/90 bg-white shadow-sm shadow-slate-200/40"
+          workspaceLabel="Alumni"
+          title={`Welcome, ${user.name}`}
+          description="Browse open company roles and track your applications from Learn2Hire."
+          user={{ name: user.name, email: user.email, role: user.role }}
+          onLogout={handleLogout}
+          actions={
+            <DashboardTopNav.ToolbarLink to="/jobs" icon={BriefcaseBusiness} theme="light">
+              Browse jobs
+            </DashboardTopNav.ToolbarLink>
+          }
+        />
+        <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+          <Card className="border border-slate-200/80 shadow-sm">
             <CardContent className="p-8">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-indigo-600">Alumni Dashboard</p>
-                  <h1 className="mt-1 text-3xl font-bold text-slate-900">
-                    Welcome, {user.name}
-                  </h1>
-                  <p className="mt-2 text-slate-600">
-                    Browse open company roles and track your applications from Learn2Hire.
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <Button asChild variant="outline">
-                    <Link to="/notifications">
-                      <Bell className="h-4 w-4" />
-                      Notifications
-                    </Link>
-                  </Button>
-                  <Button asChild>
-                    <Link to="/jobs">Browse Jobs</Link>
-                  </Button>
-                  <Button variant="outline" onClick={handleLogout}>
-                    Logout
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6">
+              <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-6">
                 <h2 className="text-xl font-semibold text-slate-900">Career Opportunities</h2>
                 <p className="mt-2 text-slate-600">
                   Your alumni account now has access to the jobs workspace. Open the jobs page to
@@ -109,7 +97,7 @@ function Dashboard() {
                 </p>
               </div>
 
-              <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-6">
+              <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50/80 p-6">
                 <h2 className="text-xl font-semibold text-slate-900">Learning Hub</h2>
                 <p className="mt-2 text-slate-600">
                   Your alumni account can open the public learning hub to read study materials and
@@ -124,26 +112,20 @@ function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="mx-auto max-w-5xl">
-        <Card className="border-0">
+    <div className="min-h-screen bg-slate-100">
+      <DashboardTopNav
+        theme="light"
+        className="mb-0 border-slate-200/90 bg-white shadow-sm shadow-slate-200/40"
+        workspaceLabel="Dashboard"
+        title={`Welcome, ${user.name}`}
+        description={`You are logged in as ${user.role}.`}
+        user={{ name: user.name, email: user.email, role: user.role }}
+        onLogout={handleLogout}
+      />
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <Card className="border border-slate-200/80 shadow-sm">
           <CardContent className="p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium text-indigo-600">Dashboard</p>
-                <h1 className="mt-1 text-3xl font-bold text-slate-900">
-                  Welcome, {user.name}
-                </h1>
-                <p className="mt-2 text-slate-600">
-                  You are logged in as <span className="capitalize">{user.role}</span>.
-                </p>
-              </div>
-              <Button variant="outline" onClick={handleLogout}>
-                Logout
-              </Button>
-            </div>
-
-            <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-6">
               <h2 className="text-xl font-semibold text-slate-900">Workspace setup in progress</h2>
               <p className="mt-2 text-slate-600">
                 A dedicated dashboard for the <span className="capitalize">{user.role}</span> role

@@ -137,8 +137,10 @@ function Login() {
 
         <Button
           type="submit"
+          variant="default"
+          size="lg"
           disabled={loading}
-          className="h-12 w-full justify-center rounded-2xl text-sm shadow-lg shadow-indigo-600/20"
+          className="w-full justify-center shadow-lg shadow-indigo-600/25"
         >
           {loading ? "Signing in..." : "Sign in"}
           {!loading ? <ArrowRight className="h-4 w-4" /> : null}

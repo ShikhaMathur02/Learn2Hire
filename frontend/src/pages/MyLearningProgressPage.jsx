@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { BookOpen, CheckCircle2, Clock3, LoaderCircle, PlayCircle } from 'lucide-react';
+import {
+  BookOpen,
+  CheckCircle2,
+  Clock3,
+  LayoutDashboard,
+  LoaderCircle,
+  PlayCircle,
+} from 'lucide-react';
 
 import { Button } from '../components/ui/button';
+import { NavDropdown } from '../components/ui/nav-dropdown';
 import { Card, CardContent } from '../components/ui/card';
 import { readApiResponse } from '../lib/api';
 import progressBannerImg from '../assets/illustrations/progress-banner.png';
@@ -112,18 +120,20 @@ function MyLearningProgressPage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Button asChild className="bg-white text-slate-900 hover:bg-slate-100">
-                <Link to="/dashboard/learning#learning-explore-content">Open Learning Hub</Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="!border-white/20 bg-white/5 !text-white hover:bg-white/10 hover:!text-white"
-              >
-                <Link to="/dashboard">Back to Dashboard</Link>
-              </Button>
-            </div>
+            <NavDropdown
+              theme="dark"
+              align="right"
+              icon={BookOpen}
+              label="Navigate"
+              items={[
+                {
+                  label: 'Open learning hub',
+                  to: '/dashboard/learning#learning-explore-content',
+                  icon: BookOpen,
+                },
+                { label: 'Dashboard home', to: '/dashboard', icon: LayoutDashboard },
+              ]}
+            />
           </div>
           </div>
         </section>
@@ -157,51 +167,49 @@ function MyLearningProgressPage() {
           </Card>
         </section>
 
-        <section className="mt-6 rounded-[32px] border border-slate-200/80 bg-white/95 p-5 text-slate-900 shadow-[0_25px_70px_rgba(15,23,42,0.08)] sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-slate-900">Saved Learning Activity</h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Average saved progress: {summary.averageProgress}%
-              </p>
-            </div>
+        <section className="mt-6 rounded-[32px] border border-slate-200/80 bg-white/95 text-slate-900 shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
+          <div className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 px-5 py-4 backdrop-blur-xl sm:px-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-900">Saved Learning Activity</h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  Average saved progress: {summary.averageProgress}%
+                </p>
+              </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setFilter('all')}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              <NavDropdown
+                theme="light"
+                align="right"
+                icon={BookOpen}
+                label={
                   filter === 'all'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilter('in-progress')}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  filter === 'in-progress'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                In Progress
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilter('completed')}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  filter === 'completed'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Completed
-              </button>
+                    ? 'View: All activity'
+                    : filter === 'in-progress'
+                      ? 'View: In progress'
+                      : 'View: Completed'
+                }
+                items={[
+                  {
+                    label: 'All activity',
+                    icon: BookOpen,
+                    onClick: () => setFilter('all'),
+                  },
+                  {
+                    label: 'In progress',
+                    icon: PlayCircle,
+                    onClick: () => setFilter('in-progress'),
+                  },
+                  {
+                    label: 'Completed',
+                    icon: CheckCircle2,
+                    onClick: () => setFilter('completed'),
+                  },
+                ]}
+              />
             </div>
           </div>
+
+          <div className="p-5 sm:p-6">
 
           {loading ? (
             <div className="flex h-40 items-center justify-center text-slate-500">
@@ -294,6 +302,7 @@ function MyLearningProgressPage() {
               </div>
             </div>
           )}
+          </div>
         </section>
       </main>
     </div>
