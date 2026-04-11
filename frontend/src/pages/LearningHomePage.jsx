@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
+  ArrowDownAZ,
   ArrowRight,
   BookOpen,
   BookText,
@@ -20,44 +21,92 @@ import {
 } from 'lucide-react';
 
 import SiteHeader from '../components/landing/SiteHeader';
+import { DarkWorkspaceShell } from '../components/layout/DarkWorkspaceShell';
+import { studentNavItems } from '../config/studentNavItems';
+import { facultyNavItems } from '../config/facultyNavItems';
+import { clearAuthSession } from '../lib/authSession';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { readApiResponse } from '../lib/api';
+import { getSubjectImage } from '../lib/subjectIllustration';
 import learningHeroIllustration from '../assets/illustrations/hero-learning.png';
 import learningEmptyIllustration from '../assets/illustrations/empty-state.png';
 
 /** Scroll to Latest Materials (explicit hash only). */
 const MATERIALS_SECTION_HASH = '#learning-materials-list';
-/**
- * Hash used in links / post-login redirect. Intentionally does not match any DOM `id` so the browser
- * does not auto-scroll; buttons that jump to the catalog use element id `learning-explore-catalog`.
- */
-const EXPLORE_SECTION_HASH = '#learning-explore-content';
 const EXPLORE_SCROLL_TARGET_ID = 'learning-explore-catalog';
 
 /** Featured count on the learning hub; remaining subjects are reachable via the dropdown. */
 const FEATURED_SUBJECTS_COUNT = 4;
-/** Latest Materials and Full catalog: this many rows stay visible; the rest sit in a details dropdown. */
-const MATERIAL_LIST_VISIBLE_FIRST = 5;
+/** Catalog grid: this many cards stay visible (one row of 4 on lg+); the rest sit in a details dropdown. */
+const MATERIAL_LIST_VISIBLE_FIRST = 4;
 const LEARNING_TRACKS_PREVIEW = 3;
 
-/** Match materials to a subject whether category is populated { slug, _id } or only an id string. */
-function materialInCategory(material, selectedCategory, categorySlug) {
-  if (!categorySlug) return true;
-  const slugNorm = String(categorySlug).trim().toLowerCase();
+/** Normalize Mongo-style ids from API JSON for comparison. */
+function idKey(id) {
+  if (id == null) return '';
+  if (typeof id === 'object' && typeof id.toString === 'function') return String(id.toString());
+  return String(id);
+}
+
+/**
+ * True if material belongs to the subject picked in the catalog (or no subject picked).
+ * Matches populated category by _id first, then slug; handles category stored as id string.
+ */
+function materialMatchesSelectedSubject(material, selectedCategory, exploreSubjectId) {
+  if (!exploreSubjectId) return true;
+
+  const wantId = idKey(exploreSubjectId);
   const cat = material?.category;
 
+  if (typeof cat === 'string') {
+    return idKey(cat) === wantId;
+  }
+
   if (cat && typeof cat === 'object') {
-    if (cat.slug != null && String(cat.slug).trim().toLowerCase() === slugNorm) return true;
     const mid = cat._id ?? cat.id;
-    if (selectedCategory?._id != null && mid != null) {
-      return String(mid) === String(selectedCategory._id);
+    if (mid != null && idKey(mid) === wantId) return true;
+    if (selectedCategory?.slug != null && cat.slug != null) {
+      const a = String(cat.slug).trim().toLowerCase();
+      const b = String(selectedCategory.slug).trim().toLowerCase();
+      if (a && b && a === b) return true;
     }
   }
-  if (typeof cat === 'string' && selectedCategory?._id != null) {
-    return String(cat) === String(selectedCategory._id);
-  }
+
   return false;
+}
+
+/** Text used for search — include related fields so subject + search still finds matches. */
+function materialSearchHaystack(material) {
+  const cat = material?.category;
+  const categoryName =
+    cat && typeof cat === 'object' && cat.name != null ? String(cat.name) : '';
+  const tags = (material.tags || []).map((t) => (t == null ? '' : String(t)));
+  return [
+    material.title,
+    material.summary,
+    categoryName,
+    material.materialType,
+    material.level,
+    ...tags,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function materialSortByCreatedDesc(a, b) {
+  const ta = new Date(a.createdAt || a.updatedAt || 0).getTime();
+  const tb = new Date(b.createdAt || b.updatedAt || 0).getTime();
+  return tb - ta;
+}
+
+function materialSortByTitleAsc(a, b) {
+  return String(a.title || '').localeCompare(String(b.title || ''), undefined, { sensitivity: 'base' });
+}
+
+function materialSortByReadAsc(a, b) {
+  return (Number(a.estimatedReadMinutes) || 0) - (Number(b.estimatedReadMinutes) || 0);
 }
 
 function SectionHeader({ eyebrow, title, description, action, tone = 'light' }) {
@@ -95,6 +144,17 @@ function scrollToExploreCatalog() {
     document
       .getElementById(EXPLORE_SCROLL_TARGET_ID)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+/** SPA-safe: scroll to catalog and sync the URL hash so the target is bookmarkable. */
+function jumpToExploreCatalog(navigate, location) {
+  navigate(
+    { pathname: location.pathname, search: location.search, hash: EXPLORE_SCROLL_TARGET_ID },
+    { replace: true }
+  );
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => scrollToExploreCatalog());
   });
 }
 
@@ -150,23 +210,75 @@ function SubjectQuickTile({
     ? 'border-white/15 bg-white/5 text-white'
     : 'border-slate-200/90 bg-white text-slate-900 shadow-sm';
 
+  const imgSrc = getSubjectImage(category.slug);
+  const desc = String(category.description || '').trim();
+  const detail =
+    desc ||
+    'Notes, practice sets, and curated tracks — jump in to see everything for this subject.';
+
   return (
     <div
-      className={`flex min-h-[140px] flex-col rounded-2xl border p-4 transition hover:-translate-y-0.5 ${shell} ${
+      className={`flex h-full min-h-[300px] flex-col rounded-2xl border p-4 transition hover:-translate-y-0.5 sm:min-h-[316px] ${shell} ${
         isDashboardLayout ? 'hover:border-cyan-400/35' : 'hover:border-indigo-200'
       }`}
     >
       <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug">{category.name}</p>
-      <p className={`mt-1 text-xs ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}>
+      <p className={`mt-1 shrink-0 text-xs ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}>
         {category.materialCount ?? 0} materials
       </p>
-      <div className="mt-auto flex flex-col gap-2 pt-3">
+
+      <div className="flex min-h-0 flex-1 flex-col gap-2 pt-3">
+        <div
+          className={`relative h-[7.25rem] w-full shrink-0 overflow-hidden rounded-xl border ${
+            isDashboardLayout
+              ? 'border-white/10 bg-slate-950/50'
+              : 'border-slate-200/90 bg-slate-50'
+          }`}
+        >
+          {imgSrc ? (
+            <img
+              src={imgSrc}
+              alt=""
+              className="h-full w-full object-cover object-center"
+              loading="lazy"
+            />
+          ) : (
+            <div
+              className={`flex h-full w-full items-center justify-center ${
+                isDashboardLayout
+                  ? 'bg-gradient-to-br from-slate-800/90 via-indigo-950/70 to-slate-900/90'
+                  : 'bg-gradient-to-br from-indigo-50 via-white to-slate-100'
+              }`}
+            >
+              <BookOpen
+                className={`h-11 w-11 ${isDashboardLayout ? 'text-cyan-200/45' : 'text-indigo-300/90'}`}
+                aria-hidden
+              />
+            </div>
+          )}
+        </div>
+        <p
+          className={`line-clamp-3 min-h-[3.25rem] text-xs leading-snug ${
+            isDashboardLayout
+              ? desc
+                ? 'text-slate-400'
+                : 'text-slate-500'
+              : desc
+                ? 'text-slate-600'
+                : 'text-slate-500'
+          }`}
+        >
+          {detail}
+        </p>
+      </div>
+
+      <div className="mt-auto flex flex-col gap-2 pt-4">
         <Button asChild variant="default" className="h-9 w-full justify-center text-xs">
           <Link to={subjectPagePath(category.slug)}>Open subject</Link>
         </Button>
         <button
           type="button"
-          className={`text-center text-xs font-semibold underline decoration-dotted underline-offset-2 transition hover:no-underline ${
+          className={`min-h-[2.25rem] text-center text-xs font-semibold leading-tight underline decoration-dotted underline-offset-2 transition hover:no-underline ${
             isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'
           }`}
           onClick={() => {
@@ -264,44 +376,140 @@ function LearningTrackCard({
   );
 }
 
-function LatestMaterialRow({ material, topicBasePath = '/learning/topic' }) {
-  return (
-    <Link
-      to={`${topicBasePath}/${material.slug}`}
-      className="group flex flex-col gap-4 rounded-[28px] border border-slate-200/80 bg-white p-5 transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_18px_50px_rgba(15,23,42,0.08)] md:flex-row md:items-center md:justify-between"
-    >
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
-            {material.category?.name || 'General'}
-          </span>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase text-slate-600">
-            {material.materialType}
-          </span>
-        </div>
-        <h3 className="mt-4 text-lg font-semibold text-slate-900 group-hover:text-indigo-700">
-          {material.title}
-        </h3>
-        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{material.summary}</p>
-      </div>
+/** Featured-style tile for material rows (Latest + full catalog grids). */
+function MaterialGridCard({
+  material,
+  topicBasePath = '/learning/topic',
+  isDashboardLayout = false,
+  subjectPagePath,
+  setExploreSubjectId,
+}) {
+  const shell = isDashboardLayout
+    ? 'border-white/15 bg-white/5 text-white'
+    : 'border-slate-200/90 bg-white text-slate-900 shadow-sm';
 
-      <div className="flex min-w-[180px] flex-col items-start gap-3 text-sm text-slate-500 md:items-end">
-        <div className="flex items-center gap-2">
-          <Clock3 className="h-4 w-4" />
-          <span>{material.estimatedReadMinutes} min</span>
-        </div>
-        <span className="text-xs text-slate-400">By {material.createdBy?.name || 'Learn2Hire'}</span>
-        <span className="inline-flex items-center gap-2 font-medium text-indigo-600">
-          Read now
-          <ArrowRight className="h-4 w-4" />
+  const cat =
+    material.category && typeof material.category === 'object' ? material.category : null;
+  const imgSrc = getSubjectImage(cat?.slug);
+  const rawSummary = String(material.summary || '').trim();
+  const detail =
+    rawSummary ||
+    'Practice, reading, and interview-ready notes — open the material to study end-to-end.';
+  const catId = cat?._id ?? cat?.id;
+  const canFilterSubject = Boolean(catId && setExploreSubjectId);
+
+  return (
+    <div
+      className={`flex h-full min-h-[300px] flex-col rounded-2xl border p-4 transition hover:-translate-y-0.5 sm:min-h-[316px] ${shell} ${
+        isDashboardLayout ? 'hover:border-cyan-400/35' : 'hover:border-indigo-200'
+      }`}
+    >
+      <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug">{material.title}</p>
+      <div
+        className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug ${
+          isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
+        }`}
+      >
+        <span className="font-medium text-current">{cat?.name || 'General'}</span>
+        <span aria-hidden className="opacity-60">
+          ·
+        </span>
+        <span className="uppercase tracking-wide">{material.materialType}</span>
+        <span aria-hidden className="opacity-60">
+          ·
+        </span>
+        <span className="capitalize">{material.level}</span>
+        <span aria-hidden className="opacity-60">
+          ·
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Clock3 className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
+          {material.estimatedReadMinutes ?? '—'} min
         </span>
       </div>
-    </Link>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-2 pt-3">
+        <div
+          className={`relative h-[7.25rem] w-full shrink-0 overflow-hidden rounded-xl border ${
+            isDashboardLayout
+              ? 'border-white/10 bg-slate-950/50'
+              : 'border-slate-200/90 bg-slate-50'
+          }`}
+        >
+          {imgSrc ? (
+            <img
+              src={imgSrc}
+              alt=""
+              className="h-full w-full object-cover object-center"
+              loading="lazy"
+            />
+          ) : (
+            <div
+              className={`flex h-full w-full items-center justify-center ${
+                isDashboardLayout
+                  ? 'bg-gradient-to-br from-slate-800/90 via-indigo-950/70 to-slate-900/90'
+                  : 'bg-gradient-to-br from-indigo-50 via-white to-slate-100'
+              }`}
+            >
+              <BookText
+                className={`h-11 w-11 ${isDashboardLayout ? 'text-cyan-200/45' : 'text-indigo-300/90'}`}
+                aria-hidden
+              />
+            </div>
+          )}
+        </div>
+        <p
+          className={`line-clamp-3 min-h-[3.25rem] text-xs leading-snug ${
+            isDashboardLayout
+              ? rawSummary
+                ? 'text-slate-400'
+                : 'text-slate-500'
+              : rawSummary
+                ? 'text-slate-600'
+                : 'text-slate-500'
+          }`}
+        >
+          {detail}
+        </p>
+      </div>
+
+      <div className="mt-auto flex flex-col gap-2 pt-4">
+        <Button asChild variant="default" className="h-9 w-full justify-center text-xs">
+          <Link to={`${topicBasePath}/${material.slug}`}>Open material</Link>
+        </Button>
+        {canFilterSubject ? (
+          <button
+            type="button"
+            className={`min-h-[2.25rem] text-center text-xs font-semibold leading-tight underline decoration-dotted underline-offset-2 transition hover:no-underline ${
+              isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'
+            }`}
+            onClick={() => {
+              setExploreSubjectId(String(catId));
+              scrollToExploreCatalog();
+            }}
+          >
+            Filter catalog
+          </button>
+        ) : cat?.slug && subjectPagePath ? (
+          <Link
+            to={subjectPagePath(cat.slug)}
+            className={`flex min-h-[2.25rem] items-center justify-center text-center text-xs font-semibold leading-tight underline decoration-dotted underline-offset-2 transition hover:no-underline ${
+              isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'
+            }`}
+          >
+            Subject page
+          </Link>
+        ) : (
+          <div className="min-h-[2.25rem]" aria-hidden />
+        )}
+      </div>
+    </div>
   );
 }
 
 function LearningHomePage({ mode = 'auto' }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const token = localStorage.getItem('token');
   const storedUser = localStorage.getItem('user');
 
@@ -344,12 +552,12 @@ function LearningHomePage({ mode = 'auto' }) {
     materialType: 'all',
     level: 'all',
   });
+  const [materialSort, setMaterialSort] = useState('newest');
   /** Empty string = all subjects; otherwise category `_id`. */
   const [exploreSubjectId, setExploreSubjectId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const materialsListRef = useRef(null);
-  const exploreSectionRef = useRef(null);
 
   const isDashboardLayout = mode === 'dashboard';
   const subjectBasePath = isDashboardLayout ? '/dashboard/learning' : '/learning';
@@ -447,35 +655,30 @@ function LearningHomePage({ mode = 'auto' }) {
     return categories.find((c) => String(c._id) === String(exploreSubjectId)) || null;
   }, [categories, exploreSubjectId]);
 
-  const categorySlugForFilter = selectedCategory?.slug;
-
   const filteredMaterials = useMemo(() => {
     return materials.filter((material) => {
-      const matchesCategory = materialInCategory(
+      const matchesCategory = materialMatchesSelectedSubject(
         material,
         selectedCategory,
-        categorySlugForFilter || undefined
+        exploreSubjectId
       );
       const matchesType =
         filters.materialType === 'all' ? true : material.materialType === filters.materialType;
       const matchesLevel = filters.level === 'all' ? true : material.level === filters.level;
       const searchText = filters.search.trim().toLowerCase();
       const matchesSearch = searchText
-        ? [material.title, material.summary, ...(material.tags || [])]
-            .join(' ')
-            .toLowerCase()
-            .includes(searchText)
+        ? materialSearchHaystack(material).includes(searchText)
         : true;
 
       return matchesCategory && matchesType && matchesLevel && matchesSearch;
     });
   }, [
+    exploreSubjectId,
     filters.level,
     filters.materialType,
     filters.search,
     materials,
     selectedCategory,
-    categorySlugForFilter,
   ]);
 
   const featuredSubjects = useMemo(() => {
@@ -523,7 +726,30 @@ function LearningHomePage({ mode = 'auto' }) {
     materials.length,
   ]);
 
-  const latestMaterials = filteredMaterials.slice(0, MATERIAL_LIST_VISIBLE_FIRST);
+  useEffect(() => {
+    if (loading) return;
+    const raw = (location.hash || '').replace(/^#/, '');
+    if (raw !== 'learning-explore-catalog' && raw !== 'learning-explore-content') return undefined;
+    const run = () => scrollToExploreCatalog();
+    const t1 = window.setTimeout(run, 80);
+    const t2 = window.setTimeout(run, 400);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [location.hash, location.pathname, loading]);
+
+  const sortedMaterials = useMemo(() => {
+    const list = [...filteredMaterials];
+    if (materialSort === 'newest') list.sort(materialSortByCreatedDesc);
+    else if (materialSort === 'title') list.sort(materialSortByTitleAsc);
+    else list.sort(materialSortByReadAsc);
+    return list;
+  }, [filteredMaterials, materialSort]);
+
+  const searchQueryTrimmed = filters.search.trim();
+  const isSearchActive = searchQueryTrimmed.length > 0;
+
   const tracksSourceList =
     isStudentLoggedIn && recommendedMaterials.length
       ? recommendedMaterials
@@ -557,19 +783,50 @@ function LearningHomePage({ mode = 'auto' }) {
     },
   ];
 
-  return (
-    <div
-      className={
-        isDashboardLayout
-          ? 'min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)]'
-          : 'min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_18%,#ffffff_38%,#f8fafc_100%)] text-slate-900'
-      }
-    >
-      {!isDashboardLayout && <SiteHeader />}
+  const roleLower = String(user?.role || '').toLowerCase();
+  const useFacultyNav = ['faculty', 'admin', 'college'].includes(roleLower);
+  const workspaceLabel =
+    roleLower === 'faculty'
+      ? 'Faculty Workspace'
+      : roleLower === 'college'
+        ? 'College Workspace'
+        : roleLower === 'admin'
+          ? 'Admin Workspace'
+          : 'Student Workspace';
+  const shellNavItems = useFacultyNav ? facultyNavItems : studentNavItems;
 
-      <main
-        className={`w-full px-3 pb-8 sm:px-4 ${isDashboardLayout ? 'pt-6' : 'pt-24'}`}
-      >
+  const handleLogout = useCallback(() => {
+    clearAuthSession();
+    navigate('/login');
+  }, [navigate]);
+
+  const handleNavSection = useCallback(
+    (id) => {
+      if (useFacultyNav) {
+        navigate('/dashboard', { state: { facultySection: id } });
+        return;
+      }
+      if (id === 'learning') {
+        jumpToExploreCatalog(navigate, location);
+        return;
+      }
+      navigate('/dashboard', { state: { studentSection: id } });
+    },
+    [useFacultyNav, navigate, location]
+  );
+
+  const shellUser = {
+    name: user?.name || 'Account',
+    email: user?.email || '',
+    role: user?.role || 'student',
+  };
+
+  const mainClassName = isDashboardLayout
+    ? 'w-full pb-8'
+    : 'w-full px-3 pb-8 sm:px-4 pt-24';
+
+  const mainContent = (
+      <main className={mainClassName}>
         <section className="relative overflow-hidden rounded-[38px] border border-indigo-200/40 bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#312e81_42%,#020617_100%)] px-4 py-8 text-white shadow-[0_35px_100px_rgba(49,46,129,0.28)] sm:px-6 sm:py-9 lg:px-8">
           <div className="absolute right-0 top-0 h-52 w-52 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-fuchsia-500/10 blur-3xl" />
@@ -605,8 +862,12 @@ function LearningHomePage({ mode = 'auto' }) {
                   </Button>
                 ) : isStudentLoggedIn ? (
                   <>
-                    <Button asChild variant="default">
-                      <Link to={`${subjectBasePath}${EXPLORE_SECTION_HASH}`}>Browse all materials</Link>
+                    <Button
+                      type="button"
+                      variant="default"
+                      onClick={() => jumpToExploreCatalog(navigate, location)}
+                    >
+                      Browse all materials
                     </Button>
                     <Button asChild variant="default">
                       <Link to="/dashboard/learning/progress">My Progress</Link>
@@ -826,21 +1087,22 @@ function LearningHomePage({ mode = 'auto' }) {
           />
 
           <div
-            className={`mt-6 flex flex-col gap-6 rounded-[28px] border p-6 sm:p-7 lg:flex-row lg:items-stretch ${
+            className={`mt-6 rounded-[28px] border p-6 sm:p-7 ${
               isDashboardLayout
                 ? 'border-white/10 bg-white/5 backdrop-blur-xl'
                 : 'border-slate-200/80 bg-white/90 shadow-[0_25px_70px_rgba(15,23,42,0.06)]'
             }`}
           >
-            <div className="min-w-0 flex-1">
-              <p
-                className={`text-xs font-semibold uppercase tracking-wide ${
-                  isDashboardLayout ? 'text-cyan-100/90' : 'text-indigo-600'
-                }`}
-              >
-                Featured ({FEATURED_SUBJECTS_COUNT})
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+            <p
+              className={`text-xs font-semibold uppercase tracking-wide ${
+                isDashboardLayout ? 'text-cyan-100/90' : 'text-indigo-600'
+              }`}
+            >
+              Featured ({FEATURED_SUBJECTS_COUNT})
+            </p>
+            {/* One row on lg: 4 tiles + All subjects — same height as tiles (not including label) */}
+            <div className="mt-3 flex flex-col gap-3 lg:grid lg:min-h-0 lg:grid-cols-[minmax(0,4fr)_minmax(0,1fr)] lg:items-stretch lg:gap-4">
+              <div className="grid min-h-0 grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-3">
                 {featuredSubjects.map((category) => (
                   <SubjectQuickTile
                     key={category._id}
@@ -851,170 +1113,125 @@ function LearningHomePage({ mode = 'auto' }) {
                   />
                 ))}
               </div>
-            </div>
 
-            <div
-              className={`flex w-full shrink-0 flex-col justify-between rounded-2xl border p-4 lg:w-72 ${
-                isDashboardLayout
-                  ? 'border-white/10 bg-slate-950/40'
-                  : 'border-slate-200 bg-slate-50/80'
-              }`}
-            >
-              <div>
+              <div
+                className={`flex h-full min-h-[300px] w-full min-w-0 flex-col rounded-2xl border p-4 transition hover:-translate-y-0.5 sm:min-h-[316px] ${
+                  isDashboardLayout
+                    ? 'border-white/15 bg-white/5 text-white hover:border-cyan-400/35'
+                    : 'border-slate-200/90 bg-white text-slate-900 shadow-sm hover:border-indigo-200'
+                }`}
+              >
                 <label
                   htmlFor="learning-subject-picker"
-                  className={`text-sm font-semibold ${isDashboardLayout ? 'text-cyan-100' : 'text-indigo-600'}`}
+                  className={`line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug ${isDashboardLayout ? 'text-white' : 'text-slate-900'}`}
                 >
                   All subjects
                 </label>
                 <p
-                  className={`mt-1 text-xs ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}
+                  className={`mt-1 shrink-0 text-xs leading-snug ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}
                 >
-                  Menu lists every subject (including the featured tiles).
+                  Browse the full list ({materials.length} materials).
                 </p>
-                <LearningSelect
-                  id="learning-subject-picker"
-                  dark={isDashboardLayout}
-                  outerClassName="mt-3"
-                  value={exploreSubjectId}
-                  hint={subjectDropdownHint}
-                  onChange={(e) => setExploreSubjectId(e.target.value)}
+                <div className="mt-3 shrink-0">
+                  <LearningSelect
+                    id="learning-subject-picker"
+                    dark={isDashboardLayout}
+                    outerClassName=""
+                    value={exploreSubjectId}
+                    hint={subjectDropdownHint}
+                    onChange={(e) => setExploreSubjectId(e.target.value)}
+                  >
+                    <option value="">All subjects ({materials.length})</option>
+                    {categories.map((category) => (
+                      <option key={category._id} value={category._id}>
+                        {category.name} · {category.materialCount ?? 0}
+                      </option>
+                    ))}
+                  </LearningSelect>
+                </div>
+                <div
+                  className={`relative mt-3 min-h-0 flex-1 overflow-hidden rounded-xl border ${
+                    isDashboardLayout ? 'border-white/10' : 'border-slate-200/90'
+                  }`}
                 >
-                  <option value="">All subjects ({materials.length})</option>
-                  {categories.map((category) => (
-                    <option key={category._id} value={category._id}>
-                      {category.name} · {category.materialCount ?? 0}
-                    </option>
-                  ))}
-                </LearningSelect>
-              </div>
-              <div className="mt-4 flex flex-col gap-2">
-                <Button asChild variant="default" className="w-full justify-center">
-                  <Link to={`${subjectBasePath}${EXPLORE_SECTION_HASH}`}>Jump to catalog</Link>
-                </Button>
-                {selectedCategory ? (
-                  <Button asChild variant="soft" className="w-full justify-center">
-                    <Link to={subjectPagePath(selectedCategory.slug)}>Open subject page</Link>
+                  <img
+                    src={learningHeroIllustration}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover object-[center_30%]"
+                    loading="lazy"
+                  />
+                  <div
+                    className={
+                      isDashboardLayout
+                        ? 'absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-slate-950/10'
+                        : 'absolute inset-0 bg-gradient-to-t from-white/95 via-white/45 to-transparent'
+                    }
+                    aria-hidden
+                  />
+                  <div className="relative flex h-full min-h-[7.25rem] flex-col justify-end p-3">
+                    <p
+                      className={`text-xs font-semibold leading-snug ${
+                        isDashboardLayout ? 'text-cyan-100' : 'text-slate-800'
+                      }`}
+                    >
+                      Full catalog
+                    </p>
+                    <p
+                      className={`mt-1 text-[11px] leading-snug ${
+                        isDashboardLayout ? 'text-slate-300' : 'text-slate-600'
+                      }`}
+                    >
+                      Switch subjects anytime — materials and filters update below.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-auto flex flex-col gap-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="h-9 w-full justify-center text-xs"
+                    onClick={() => jumpToExploreCatalog(navigate, location)}
+                  >
+                    Jump to catalog
                   </Button>
-                ) : null}
+                  {selectedCategory ? (
+                    <Button asChild variant="soft" className="h-9 w-full justify-center text-xs">
+                      <Link to={subjectPagePath(selectedCategory.slug)}>Open subject page</Link>
+                    </Button>
+                  ) : (
+                    <div className="min-h-[2.25rem]" aria-hidden />
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </section>
 
         {loading ? (
-          <div className="mt-7 flex h-40 items-center justify-center rounded-[32px] border border-slate-200/80 bg-white/90 text-slate-500 shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
+          <div
+            className={`mt-7 flex h-40 items-center justify-center rounded-[32px] border ${
+              isDashboardLayout
+                ? 'border-white/10 bg-white/5 text-slate-300'
+                : 'border-slate-200/80 bg-white/90 text-slate-500 shadow-[0_25px_70px_rgba(15,23,42,0.08)]'
+            }`}
+          >
             <div className="flex items-center gap-3">
               <LoaderCircle className="h-5 w-5 animate-spin" />
               Loading learning content...
             </div>
           </div>
         ) : error ? (
-          <div className="mt-7 rounded-[32px] border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
+          <div
+            className={`mt-7 rounded-[32px] border p-6 text-sm ${
+              isDashboardLayout
+                ? 'border-rose-400/30 bg-rose-950/40 text-rose-200'
+                : 'border-rose-200 bg-rose-50 text-rose-700'
+            }`}
+          >
             {error}
           </div>
         ) : (
           <>
-            <section
-              ref={materialsListRef}
-              id="learning-materials-list"
-              className="mt-8 scroll-mt-24"
-            >
-              <SectionHeader
-                tone={isDashboardLayout ? 'dark' : 'light'}
-                eyebrow="Latest Articles"
-                title="Latest Materials"
-                description={
-                  selectedCategory
-                    ? `Fresh content and reading tracks for ${selectedCategory.name}.`
-                    : 'Browse the latest published study materials across all subjects. Login as a student to enable saved progress and recommendations.'
-                }
-                action={
-                  <div
-                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
-                      isDashboardLayout
-                        ? 'bg-white/10 text-indigo-100 ring-1 ring-white/15'
-                        : 'bg-indigo-50 text-indigo-700'
-                    }`}
-                  >
-                    <BookOpen className="h-4 w-4" />
-                    {filteredMaterials.length > MATERIAL_LIST_VISIBLE_FIRST
-                      ? `Showing ${MATERIAL_LIST_VISIBLE_FIRST} of ${filteredMaterials.length}`
-                      : `${filteredMaterials.length} material${filteredMaterials.length === 1 ? '' : 's'}`}
-                  </div>
-                }
-              />
-
-              <div className="mt-6 space-y-4">
-                {latestMaterials.length ? (
-                  <>
-                    {latestMaterials.map((material) => (
-                      <LatestMaterialRow
-                        key={material._id}
-                        material={material}
-                        topicBasePath={topicBasePath}
-                      />
-                    ))}
-                    {filteredMaterials.length > MATERIAL_LIST_VISIBLE_FIRST ? (
-                      <details
-                        className={`group rounded-[28px] border shadow-sm ${
-                          isDashboardLayout
-                            ? 'border-white/15 bg-white/5'
-                            : 'border-indigo-200/60 bg-indigo-50/30'
-                        }`}
-                      >
-                        <summary className="flex cursor-pointer list-none items-center justify-center gap-2 px-4 py-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-                          <ChevronDown
-                            className={`h-4 w-4 shrink-0 transition group-open:rotate-180 ${
-                              isDashboardLayout ? 'text-cyan-200' : 'text-indigo-700'
-                            }`}
-                            aria-hidden
-                          />
-                          <span className={isDashboardLayout ? 'text-cyan-100' : 'text-indigo-900'}>
-                            View {filteredMaterials.length - MATERIAL_LIST_VISIBLE_FIRST} more
-                            material
-                            {filteredMaterials.length - MATERIAL_LIST_VISIBLE_FIRST === 1 ? '' : 's'}
-                          </span>
-                        </summary>
-                        <div className="space-y-4 border-t border-slate-200/20 px-1 pb-4 pt-4 sm:px-2">
-                          {filteredMaterials.slice(MATERIAL_LIST_VISIBLE_FIRST).map((material) => (
-                            <LatestMaterialRow
-                              key={material._id}
-                              material={material}
-                              topicBasePath={topicBasePath}
-                            />
-                          ))}
-                        </div>
-                      </details>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="overflow-hidden rounded-3xl border border-dashed border-slate-300 bg-slate-50 text-center text-sm text-slate-500">
-                    <img
-                      src={learningEmptyIllustration}
-                      alt=""
-                      className="mx-auto h-48 w-full object-cover opacity-60"
-                    />
-                    <div className="p-8">
-                      {materials.length > 0 &&
-                      filteredMaterials.length === 0 &&
-                      (filters.search.trim() ||
-                        filters.materialType !== 'all' ||
-                        filters.level !== 'all' ||
-                        exploreSubjectId) ? (
-                        <p>
-                          Nothing matches your current subject, search, or filters. Try &quot;All
-                          subjects&quot;, clear the search box, or set type and level to &quot;All&quot;.
-                        </p>
-                      ) : (
-                        <p>No learning materials match the current filters yet.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-
             <section className="mt-8">
               <SectionHeader
                 tone={isDashboardLayout ? 'dark' : 'light'}
@@ -1058,7 +1275,11 @@ function LearningHomePage({ mode = 'auto' }) {
                       {tracksSourceList.length - LEARNING_TRACKS_PREVIEW} more)
                     </span>
                   </summary>
-                  <div className="grid gap-5 border-t border-slate-200/20 px-2 pb-4 pt-6 xl:grid-cols-3">
+                  <div
+                    className={`grid gap-5 border-t px-2 pb-4 pt-6 xl:grid-cols-3 ${
+                      isDashboardLayout ? 'border-white/10' : 'border-slate-200/20'
+                    }`}
+                  >
                     {tracksSourceList.slice(LEARNING_TRACKS_PREVIEW).map((material) => (
                       <LearningTrackCard
                         key={material._id}
@@ -1075,31 +1296,55 @@ function LearningHomePage({ mode = 'auto' }) {
           </>
         )}
 
-        <section
-          ref={exploreSectionRef}
-          id={EXPLORE_SCROLL_TARGET_ID}
-          className="mt-8 scroll-mt-24"
-        >
-          <Card className="rounded-[34px] border-slate-200/80 bg-white/95 shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
+        <section id={EXPLORE_SCROLL_TARGET_ID} className="mt-8 scroll-mt-24">
+          <Card
+            className={
+              isDashboardLayout
+                ? 'rounded-[34px] border border-white/10 bg-white/[0.07] shadow-[0_28px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl'
+                : 'rounded-[34px] border border-slate-200/80 bg-white/95 shadow-[0_25px_70px_rgba(15,23,42,0.08)]'
+            }
+          >
             <CardContent className="p-6 sm:p-8">
               <SectionHeader
+                tone={isDashboardLayout ? 'dark' : 'light'}
                 eyebrow="Catalog"
                 title="Explore materials"
-                description="Refine the list with subject (same as above), type, level, and search."
+                description="Filter by subject, type, level, and search — then choose how to sort the cards below (newest, A–Z, or shortest read)."
                 action={
-                  <div className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">
-                    {filteredMaterials.length} result{filteredMaterials.length === 1 ? '' : 's'}
+                  <div
+                    className={`rounded-full px-4 py-2 text-sm font-medium ${
+                      isDashboardLayout
+                        ? 'bg-white/10 text-cyan-100 ring-1 ring-white/15'
+                        : 'bg-indigo-50 text-indigo-700'
+                    }`}
+                  >
+                    {loading
+                      ? 'Loading…'
+                      : `${sortedMaterials.length} result${sortedMaterials.length === 1 ? '' : 's'}`}
                   </div>
                 }
               />
 
-              <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <label className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3 lg:col-span-2">
-                  <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <Layers3 className="h-4 w-4 text-indigo-600" />
+              <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-12">
+                <label
+                  className={`flex flex-col rounded-2xl border px-4 py-3 xl:col-span-6 ${
+                    isDashboardLayout
+                      ? 'border-white/10 bg-slate-950/35'
+                      : 'border-slate-200 bg-slate-50/90'
+                  }`}
+                >
+                  <span
+                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
+                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
+                    }`}
+                  >
+                    <Layers3
+                      className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                    />
                     Subject
                   </span>
                   <LearningSelect
+                    dark={isDashboardLayout}
                     outerClassName="mt-2"
                     value={exploreSubjectId}
                     hint={subjectDropdownHint}
@@ -1114,12 +1359,25 @@ function LearningHomePage({ mode = 'auto' }) {
                   </LearningSelect>
                 </label>
 
-                <label className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">
-                  <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <Filter className="h-4 w-4 text-indigo-600" />
+                <label
+                  className={`flex flex-col rounded-2xl border px-4 py-3 xl:col-span-2 ${
+                    isDashboardLayout
+                      ? 'border-white/10 bg-slate-950/35'
+                      : 'border-slate-200 bg-slate-50/90'
+                  }`}
+                >
+                  <span
+                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
+                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
+                    }`}
+                  >
+                    <Filter
+                      className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                    />
                     Type
                   </span>
                   <LearningSelect
+                    dark={isDashboardLayout}
                     outerClassName="mt-2"
                     value={filters.materialType}
                     onChange={(event) =>
@@ -1134,12 +1392,25 @@ function LearningHomePage({ mode = 'auto' }) {
                   </LearningSelect>
                 </label>
 
-                <label className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">
-                  <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <GraduationCap className="h-4 w-4 text-indigo-600" />
+                <label
+                  className={`flex flex-col rounded-2xl border px-4 py-3 xl:col-span-2 ${
+                    isDashboardLayout
+                      ? 'border-white/10 bg-slate-950/35'
+                      : 'border-slate-200 bg-slate-50/90'
+                  }`}
+                >
+                  <span
+                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
+                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
+                    }`}
+                  >
+                    <GraduationCap
+                      className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                    />
                     Level
                   </span>
                   <LearningSelect
+                    dark={isDashboardLayout}
                     outerClassName="mt-2"
                     value={filters.level}
                     onChange={(event) =>
@@ -1152,11 +1423,53 @@ function LearningHomePage({ mode = 'auto' }) {
                     <option value="advanced">Advanced</option>
                   </LearningSelect>
                 </label>
+
+                <label
+                  className={`flex flex-col rounded-2xl border px-4 py-3 xl:col-span-2 ${
+                    isDashboardLayout
+                      ? 'border-white/10 bg-slate-950/35'
+                      : 'border-slate-200 bg-slate-50/90'
+                  }`}
+                >
+                  <span
+                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
+                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
+                    }`}
+                  >
+                    <ArrowDownAZ
+                      className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                    />
+                    Sort
+                  </span>
+                  <LearningSelect
+                    id="learning-material-sort"
+                    dark={isDashboardLayout}
+                    outerClassName="mt-2"
+                    value={materialSort}
+                    onChange={(e) => setMaterialSort(e.target.value)}
+                  >
+                    <option value="newest">Newest first</option>
+                    <option value="title">Title A–Z</option>
+                    <option value="duration">Shortest read first</option>
+                  </LearningSelect>
+                </label>
               </div>
 
-              <label className="mt-4 block rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <Search className="h-4 w-4 text-indigo-600" />
+              <label
+                className={`mt-4 block rounded-2xl border px-4 py-3 ${
+                  isDashboardLayout
+                    ? 'border-white/10 bg-slate-950/35'
+                    : 'border-slate-200 bg-slate-50/90'
+                }`}
+              >
+                <div
+                  className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
+                    isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
+                  }`}
+                >
+                  <Search
+                    className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                  />
                   Search
                 </div>
                 <input
@@ -1165,139 +1478,277 @@ function LearningHomePage({ mode = 'auto' }) {
                     setFilters((prev) => ({ ...prev, search: event.target.value }))
                   }
                   placeholder="Title, summary, or tag"
-                  className="mt-2 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  className={`mt-2 w-full bg-transparent text-sm outline-none ${
+                    isDashboardLayout
+                      ? 'text-white placeholder:text-slate-500'
+                      : 'text-slate-900 placeholder:text-slate-400'
+                  }`}
                 />
               </label>
 
-              <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
-                    <TrendingUp className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-indigo-900">Current focus</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {selectedCategory
-                        ? selectedCategory.description ||
-                          `Showing materials tagged under ${selectedCategory.name}.`
-                        : 'All published subjects are included. Choose a subject above to focus the list.'}
-                    </p>
+              {isSearchActive ? (
+                <div
+                  className={`mt-6 flex flex-col gap-3 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between ${
+                    isDashboardLayout
+                      ? 'border-cyan-400/30 bg-cyan-500/10'
+                      : 'border-indigo-200 bg-indigo-50/90'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                        isDashboardLayout
+                          ? 'bg-cyan-500/20 text-cyan-100'
+                          : 'bg-indigo-100 text-indigo-700'
+                      }`}
+                    >
+                      <Search className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p
+                        className={`text-sm font-semibold ${
+                          isDashboardLayout ? 'text-cyan-50' : 'text-indigo-900'
+                        }`}
+                      >
+                        Search
+                      </p>
+                      <p
+                        className={`mt-1 text-sm ${
+                          isDashboardLayout ? 'text-slate-300' : 'text-slate-700'
+                        }`}
+                      >
+                        Filtering by &quot;{searchQueryTrimmed}&quot;. Results below use this text plus
+                        subject, type, and level.
+                      </p>
+                    </div>
                   </div>
                 </div>
-                {selectedCategory ? (
-                  <Button asChild variant="default" className="shrink-0 self-start sm:self-center">
-                    <Link to={subjectPagePath(selectedCategory.slug)}>Subject overview</Link>
-                  </Button>
-                ) : null}
+              ) : (
+                <div
+                  className={`mt-6 flex flex-col gap-4 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between ${
+                    isDashboardLayout
+                      ? 'border-white/10 bg-white/5'
+                      : 'border-indigo-100 bg-indigo-50/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                        isDashboardLayout
+                          ? 'bg-white/10 text-cyan-200'
+                          : 'bg-indigo-100 text-indigo-700'
+                      }`}
+                    >
+                      <TrendingUp className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p
+                        className={`text-sm font-semibold ${
+                          isDashboardLayout ? 'text-white' : 'text-indigo-900'
+                        }`}
+                      >
+                        Current focus
+                      </p>
+                      <p
+                        className={`mt-1 text-sm ${
+                          isDashboardLayout ? 'text-slate-300' : 'text-slate-600'
+                        }`}
+                      >
+                        {selectedCategory
+                          ? selectedCategory.description ||
+                            `Showing materials tagged under ${selectedCategory.name}.`
+                          : 'All published subjects are included. Choose a subject above to focus the list.'}
+                      </p>
+                    </div>
+                  </div>
+                  {selectedCategory ? (
+                    <Button asChild variant="default" className="shrink-0 self-start sm:self-center">
+                      <Link to={subjectPagePath(selectedCategory.slug)}>Subject overview</Link>
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+
+              <div
+                ref={materialsListRef}
+                id="learning-materials-list"
+                className={`mt-8 scroll-mt-24 border-t pt-8 ${
+                  isDashboardLayout ? 'border-white/10' : 'border-slate-200/80'
+                }`}
+              >
+                {loading ? (
+                  <div
+                    className={`flex min-h-[140px] items-center justify-center gap-2 text-sm ${
+                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
+                    }`}
+                  >
+                    <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden />
+                    Loading materials…
+                  </div>
+                ) : error ? (
+                  <p className={isDashboardLayout ? 'text-sm text-rose-300' : 'text-sm text-rose-600'}>
+                    {error}
+                  </p>
+                ) : (
+                  <>
+                    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <p
+                          className={`text-sm font-semibold ${
+                            isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'
+                          }`}
+                        >
+                          Materials
+                        </p>
+                        <h3
+                          className={`mt-1 text-lg font-bold ${
+                            isDashboardLayout ? 'text-white' : 'text-slate-900'
+                          }`}
+                        >
+                          {selectedCategory ? `In ${selectedCategory.name}` : 'All matching materials'}
+                        </h3>
+                        <p
+                          className={`mt-1 text-sm ${
+                            isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
+                          }`}
+                        >
+                          {materialSort === 'newest' && 'Ordered by publish date (newest first).'}
+                          {materialSort === 'title' && 'Ordered alphabetically by title.'}
+                          {materialSort === 'duration' &&
+                            'Ordered by estimated reading time (shortest first).'}
+                        </p>
+                      </div>
+                      <div
+                        className={`rounded-full px-4 py-2 text-sm font-medium ${
+                          isDashboardLayout
+                            ? 'bg-white/10 text-cyan-100 ring-1 ring-white/15'
+                            : 'bg-indigo-50 text-indigo-700'
+                        }`}
+                      >
+                        {sortedMaterials.length > MATERIAL_LIST_VISIBLE_FIRST
+                          ? `Showing ${MATERIAL_LIST_VISIBLE_FIRST} of ${sortedMaterials.length}`
+                          : `${sortedMaterials.length} material${sortedMaterials.length === 1 ? '' : 's'}`}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      {sortedMaterials.length ? (
+                        <>
+                          {sortedMaterials.slice(0, MATERIAL_LIST_VISIBLE_FIRST).map((material) => (
+                            <MaterialGridCard
+                              key={material._id}
+                              material={material}
+                              topicBasePath={topicBasePath}
+                              isDashboardLayout={isDashboardLayout}
+                              subjectPagePath={subjectPagePath}
+                              setExploreSubjectId={setExploreSubjectId}
+                            />
+                          ))}
+                          {sortedMaterials.length > MATERIAL_LIST_VISIBLE_FIRST ? (
+                            <details
+                              className={`group col-span-full rounded-[28px] border shadow-sm ${
+                                isDashboardLayout
+                                  ? 'border-white/10 bg-white/5'
+                                  : 'border-indigo-200/60 bg-indigo-50/30'
+                              }`}
+                            >
+                              <summary
+                                className={`flex cursor-pointer list-none items-center justify-center gap-2 px-4 py-4 text-sm font-semibold [&::-webkit-details-marker]:hidden ${
+                                  isDashboardLayout ? 'text-cyan-100' : 'text-indigo-900'
+                                }`}
+                              >
+                                <ChevronDown
+                                  className={`h-4 w-4 shrink-0 transition group-open:rotate-180 ${
+                                    isDashboardLayout ? 'text-cyan-200' : 'text-indigo-700'
+                                  }`}
+                                  aria-hidden
+                                />
+                                <span>
+                                  View {sortedMaterials.length - MATERIAL_LIST_VISIBLE_FIRST} more
+                                </span>
+                              </summary>
+                              <div
+                                className={`grid grid-cols-1 gap-3 border-t px-1 pb-4 pt-4 sm:grid-cols-2 sm:px-2 lg:grid-cols-4 ${
+                                  isDashboardLayout ? 'border-white/10' : 'border-slate-200/20'
+                                }`}
+                              >
+                                {sortedMaterials.slice(MATERIAL_LIST_VISIBLE_FIRST).map((material) => (
+                                  <MaterialGridCard
+                                    key={`more-${material._id}`}
+                                    material={material}
+                                    topicBasePath={topicBasePath}
+                                    isDashboardLayout={isDashboardLayout}
+                                    subjectPagePath={subjectPagePath}
+                                    setExploreSubjectId={setExploreSubjectId}
+                                  />
+                                ))}
+                              </div>
+                            </details>
+                          ) : null}
+                        </>
+                      ) : (
+                        <div
+                          className={`col-span-full overflow-hidden rounded-3xl border border-dashed text-center text-sm ${
+                            isDashboardLayout
+                              ? 'border-white/15 bg-slate-950/40 text-slate-400'
+                              : 'border-slate-300 bg-slate-50 text-slate-500'
+                          }`}
+                        >
+                          <img
+                            src={learningEmptyIllustration}
+                            alt=""
+                            className="mx-auto h-40 w-full object-cover opacity-60"
+                          />
+                          <div className="p-6">
+                            {materials.length > 0 &&
+                            filteredMaterials.length === 0 &&
+                            (filters.search.trim() ||
+                              filters.materialType !== 'all' ||
+                              filters.level !== 'all' ||
+                              exploreSubjectId) ? (
+                              <p>
+                                Nothing matches your filters or subject. Reset to all subjects or loosen
+                                type, level, and search.
+                              </p>
+                            ) : (
+                              <p>No materials in this view yet.</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
-
-          {!loading && !error ? (
-            <div className="mt-8">
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className={`text-sm font-semibold ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}>
-                    Full catalog
-                  </p>
-                  <h3
-                    className={`mt-1 text-xl font-bold ${isDashboardLayout ? 'text-white' : 'text-slate-900'}`}
-                  >
-                    {selectedCategory
-                      ? `Materials · ${selectedCategory.name}`
-                      : 'Materials · all subjects'}
-                  </h3>
-                  <p
-                    className={`mt-1 text-sm ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}
-                  >
-                    Only the first {MATERIAL_LIST_VISIBLE_FIRST} rows stay open; expand the list below for
-                    the rest, or narrow by subject and filters.
-                  </p>
-                </div>
-                <div
-                  className={`rounded-full px-4 py-2 text-sm font-medium ${
-                    isDashboardLayout
-                      ? 'bg-white/10 text-cyan-100 ring-1 ring-white/15'
-                      : 'bg-indigo-50 text-indigo-700'
-                  }`}
-                >
-                  {filteredMaterials.length > MATERIAL_LIST_VISIBLE_FIRST
-                    ? `Showing ${MATERIAL_LIST_VISIBLE_FIRST} of ${filteredMaterials.length}`
-                    : `${filteredMaterials.length} material${filteredMaterials.length === 1 ? '' : 's'}`}
-                </div>
-              </div>
-              <div className="space-y-4">
-                {filteredMaterials.length ? (
-                  <>
-                    {filteredMaterials.slice(0, MATERIAL_LIST_VISIBLE_FIRST).map((material) => (
-                      <LatestMaterialRow
-                        key={material._id}
-                        material={material}
-                        topicBasePath={topicBasePath}
-                      />
-                    ))}
-                    {filteredMaterials.length > MATERIAL_LIST_VISIBLE_FIRST ? (
-                      <details
-                        className={`group rounded-[28px] border shadow-sm ${
-                          isDashboardLayout
-                            ? 'border-white/15 bg-white/5'
-                            : 'border-indigo-200/60 bg-indigo-50/30'
-                        }`}
-                      >
-                        <summary className="flex cursor-pointer list-none items-center justify-center gap-2 px-4 py-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-                          <ChevronDown
-                            className={`h-4 w-4 shrink-0 transition group-open:rotate-180 ${
-                              isDashboardLayout ? 'text-cyan-200' : 'text-indigo-700'
-                            }`}
-                            aria-hidden
-                          />
-                          <span className={isDashboardLayout ? 'text-cyan-100' : 'text-indigo-900'}>
-                            View {filteredMaterials.length - MATERIAL_LIST_VISIBLE_FIRST} more
-                            material
-                            {filteredMaterials.length - MATERIAL_LIST_VISIBLE_FIRST === 1 ? '' : 's'}
-                          </span>
-                        </summary>
-                        <div className="space-y-4 border-t border-slate-200/20 px-1 pb-4 pt-4 sm:px-2">
-                          {filteredMaterials.slice(MATERIAL_LIST_VISIBLE_FIRST).map((material) => (
-                            <LatestMaterialRow
-                              key={`catalog-${material._id}`}
-                              material={material}
-                              topicBasePath={topicBasePath}
-                            />
-                          ))}
-                        </div>
-                      </details>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="overflow-hidden rounded-3xl border border-dashed border-slate-300 bg-slate-50 text-center text-sm text-slate-500">
-                    <img
-                      src={learningEmptyIllustration}
-                      alt=""
-                      className="mx-auto h-40 w-full object-cover opacity-60"
-                    />
-                    <div className="p-6">
-                      {materials.length > 0 &&
-                      filteredMaterials.length === 0 &&
-                      (filters.search.trim() ||
-                        filters.materialType !== 'all' ||
-                        filters.level !== 'all' ||
-                        exploreSubjectId) ? (
-                        <p>
-                          Nothing matches your filters or subject. Reset to all subjects or loosen type,
-                          level, and search.
-                        </p>
-                      ) : (
-                        <p>No materials in this view yet.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : null}
         </section>
       </main>
+  );
+
+  if (isDashboardLayout) {
+    return (
+      <DarkWorkspaceShell
+        title="Learning hub"
+        description="Browse subjects, study materials, and tracks aligned with your goals."
+        workspaceLabel={workspaceLabel}
+        brandSubtitle={workspaceLabel}
+        navItems={shellNavItems}
+        activeSection={useFacultyNav ? undefined : 'learning'}
+        onNavSectionSelect={handleNavSection}
+        user={shellUser}
+        onLogout={handleLogout}
+        headerIcon={Sparkles}
+      >
+        {mainContent}
+      </DarkWorkspaceShell>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#e0e7ff_14%,#f1f5f9_42%,#f8fafc_100%)] text-slate-900">
+      <SiteHeader />
+      {mainContent}
     </div>
   );
 }

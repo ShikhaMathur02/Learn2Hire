@@ -1,11 +1,13 @@
 const mongoose = require('mongoose');
 
+const User = require('../models/User');
 const LearningCategory = require('../models/LearningCategory');
 const LearningProgress = require('../models/LearningProgress');
 const StudentProfile = require('../models/StudentProfile');
 const StudyMaterial = require('../models/StudyMaterial');
 const { getLearnerInsights } = require('../utils/learnerInsights');
 const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
+const { createBulkNotifications } = require('../utils/notificationService');
 
 const editorRoles = ['faculty', 'admin', 'college'];
 const learnerRoles = ['student'];
@@ -59,6 +61,10 @@ const normalizeForMatch = (value) => String(value || '').trim().toLowerCase();
 
 const normalizeCohortValue = (value) => String(value || '').trim().toLowerCase();
 
+/** Must match frontend `cohortDegreeRequiresBranch` — engineering-style degrees need a branch. */
+const cohortRequiresBranch = (courseNorm) =>
+  courseNorm === 'b.tech' || courseNorm === 'diploma';
+
 const resolveAudienceContext = async (req) => {
   if (!req.user) {
     return { kind: 'guest', cohort: null };
@@ -71,12 +77,13 @@ const resolveAudienceContext = async (req) => {
   }
   if (userRole === 'student') {
     const profile = await StudentProfile.findOne({ user: req.user._id })
-      .select('course branch year')
+      .select('course branch year semester')
       .lean();
     const course = normalizeCohortValue(profile?.course);
     const branch = normalizeCohortValue(profile?.branch);
     const year = normalizeCohortValue(profile?.year);
-    const cohort = course && branch && year ? { course, branch, year } : null;
+    const semester = normalizeCohortValue(profile?.semester);
+    const cohort = course && year ? { course, branch, year, semester } : null;
     return { kind: 'student', cohort };
   }
   return { kind: 'guest', cohort: null };
@@ -93,11 +100,21 @@ const materialVisibleToContext = (material, ctx) => {
   if (!ctx.cohort) {
     return false;
   }
-  return (
-    normalizeCohortValue(material.targetCourse) === ctx.cohort.course &&
-    normalizeCohortValue(material.targetBranch) === ctx.cohort.branch &&
-    normalizeCohortValue(material.targetYear) === ctx.cohort.year
-  );
+  if (
+    normalizeCohortValue(material.targetCourse) !== ctx.cohort.course ||
+    normalizeCohortValue(material.targetYear) !== ctx.cohort.year
+  ) {
+    return false;
+  }
+  const matBr = normalizeCohortValue(material.targetBranch);
+  if (matBr && matBr !== normalizeCohortValue(ctx.cohort.branch)) {
+    return false;
+  }
+  const targetSem = normalizeCohortValue(material.targetSemester);
+  if (!targetSem) {
+    return true;
+  }
+  return normalizeCohortValue(ctx.cohort.semester) === targetSem;
 };
 
 const ensureUniqueMaterialSlug = async (baseSlug, excludeId = null) => {
@@ -256,7 +273,7 @@ exports.getPublicSubjects = async (req, res) => {
       isPublished: true,
       category: { $in: categoryIds },
     })
-      .select('category audience targetCourse targetBranch targetYear')
+      .select('category audience targetCourse targetBranch targetYear targetSemester')
       .lean();
 
     const visible = materials.filter((m) => materialVisibleToContext(m, ctx));
@@ -332,6 +349,21 @@ exports.createCategory = async (req, res) => {
       icon: icon || '',
       isPublished: isPublished !== undefined ? Boolean(isPublished) : true,
     });
+
+    if (category.isPublished) {
+      const students = await User.find({ role: 'student' }).select('_id').lean();
+      if (students.length) {
+        await createBulkNotifications({
+          recipientIds: students.map((s) => s._id),
+          title: 'New learning subject',
+          message: `A new subject was added: ${category.name}. Explore it in the learning hub.`,
+          category: 'learning',
+          type: 'subject_added',
+          actionUrl: '/dashboard/learning#learning-explore-catalog',
+          metadata: { categoryId: category._id },
+        });
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -677,7 +709,7 @@ exports.getMaterialProgressBySlug = async (req, res) => {
     const material = await StudyMaterial.findOne({
       slug: req.params.slug,
       isPublished: true,
-    }).select('_id audience targetCourse targetBranch targetYear');
+    }).select('_id audience targetCourse targetBranch targetYear targetSemester');
 
     if (!material) {
       return res.status(404).json({
@@ -724,7 +756,7 @@ exports.saveMaterialProgressBySlug = async (req, res) => {
       slug: req.params.slug,
       isPublished: true,
     })
-      .select('_id estimatedReadMinutes category audience targetCourse targetBranch targetYear')
+      .select('_id estimatedReadMinutes category audience targetCourse targetBranch targetYear targetSemester')
       .populate('category', 'name');
 
     if (!material) {
@@ -851,6 +883,7 @@ exports.createMaterial = async (req, res) => {
       targetCourse,
       targetBranch,
       targetYear,
+      targetSemester,
     } = req.body;
 
     if (!title || !categoryId) {
@@ -879,21 +912,29 @@ exports.createMaterial = async (req, res) => {
     let tc = '';
     let tb = '';
     let ty = '';
+    let ts = '';
     if (audienceMode === 'cohort') {
       tc = normalizeCohortValue(targetCourse);
       tb = normalizeCohortValue(targetBranch);
       ty = normalizeCohortValue(targetYear);
-      if (!tc || !tb || !ty) {
+      ts = normalizeCohortValue(targetSemester);
+      if (!tc || !ty) {
         return res.status(400).json({
           success: false,
-          message: 'Cohort materials require course, branch, and year.',
+          message: 'Cohort materials require course and year.',
+        });
+      }
+      if (cohortRequiresBranch(tc) && !tb) {
+        return res.status(400).json({
+          success: false,
+          message: 'Engineering cohorts (B.Tech / Diploma) require a branch such as CSE or EE.',
         });
       }
     }
 
     const slugBase =
       audienceMode === 'cohort'
-        ? slugify(`${title}-${tc}-${tb}-${ty}`)
+        ? slugify(`${title}-${tc}${tb ? `-${tb}` : ''}-${ty}${ts ? `-${ts}` : ''}`)
         : slugify(title);
     const slug = await ensureUniqueMaterialSlug(slugBase);
 
@@ -914,6 +955,7 @@ exports.createMaterial = async (req, res) => {
       targetCourse: audienceMode === 'cohort' ? tc : '',
       targetBranch: audienceMode === 'cohort' ? tb : '',
       targetYear: audienceMode === 'cohort' ? ty : '',
+      targetSemester: audienceMode === 'cohort' ? ts : '',
     });
 
     const populated = await StudyMaterial.findById(material._id)
@@ -986,6 +1028,7 @@ exports.updateMaterial = async (req, res) => {
       targetCourse,
       targetBranch,
       targetYear,
+      targetSemester,
     } = req.body;
 
     if (audience !== undefined) {
@@ -1000,24 +1043,36 @@ exports.updateMaterial = async (req, res) => {
     if (targetYear !== undefined) {
       material.targetYear = normalizeCohortValue(targetYear);
     }
+    if (targetSemester !== undefined) {
+      material.targetSemester = normalizeCohortValue(targetSemester);
+    }
 
     if (material.audience === 'cohort') {
       const tc = normalizeCohortValue(material.targetCourse);
       const tb = normalizeCohortValue(material.targetBranch);
       const ty = normalizeCohortValue(material.targetYear);
-      if (!tc || !tb || !ty) {
+      const ts = normalizeCohortValue(material.targetSemester);
+      if (!tc || !ty) {
         return res.status(400).json({
           success: false,
-          message: 'Cohort materials require course, branch, and year.',
+          message: 'Cohort materials require course and year.',
+        });
+      }
+      if (cohortRequiresBranch(tc) && !tb) {
+        return res.status(400).json({
+          success: false,
+          message: 'Engineering cohorts (B.Tech / Diploma) require a branch such as CSE or EE.',
         });
       }
       material.targetCourse = tc;
       material.targetBranch = tb;
       material.targetYear = ty;
+      material.targetSemester = ts;
     } else {
       material.targetCourse = '';
       material.targetBranch = '';
       material.targetYear = '';
+      material.targetSemester = '';
     }
 
     if (title !== undefined) {
@@ -1029,13 +1084,18 @@ exports.updateMaterial = async (req, res) => {
       audience !== undefined ||
       targetCourse !== undefined ||
       targetBranch !== undefined ||
-      targetYear !== undefined;
+      targetYear !== undefined ||
+      targetSemester !== undefined;
 
     if (slugShouldRefresh) {
       const slugBase =
         material.audience === 'cohort'
           ? slugify(
-              `${material.title}-${material.targetCourse}-${material.targetBranch}-${material.targetYear}`
+              `${material.title}-${material.targetCourse}${
+                material.targetBranch ? `-${material.targetBranch}` : ''
+              }-${material.targetYear}${
+                material.targetSemester ? `-${material.targetSemester}` : ''
+              }`
             )
           : slugify(material.title);
       material.slug = await ensureUniqueMaterialSlug(slugBase, material._id);

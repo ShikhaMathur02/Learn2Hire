@@ -28,6 +28,87 @@ const studentProfileSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    semester: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    // Student contact & placement-style records (optional; filled in profile UI)
+    studentPhone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    fatherName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    motherName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    fatherPhone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    motherPhone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    address: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    city: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    state: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    pincode: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    dateOfBirth: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    bloodGroup: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    emergencyContactName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    emergencyContactPhone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    // Tools & tech stack (for recruiters) — e.g. React, Docker, AWS
+    toolsAndTechnologies: {
+      type: [String],
+      default: [],
+    },
+    // When false, student is hidden from company talent search
+    visibleToCompanies: {
+      type: Boolean,
+      default: true,
+    },
     // Skill tracking: list of skills with level and progress
     skills: [
       {

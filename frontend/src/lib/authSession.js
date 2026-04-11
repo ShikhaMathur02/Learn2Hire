@@ -10,7 +10,7 @@ function computeSnapshot() {
       isAuthenticated: false,
       role: null,
       isStudent: false,
-      learningPath: '/learning#learning-explore-content',
+      learningPath: '/learning#learning-explore-catalog',
     };
   }
   const token = localStorage.getItem('token');
@@ -25,8 +25,8 @@ function computeSnapshot() {
   const role = user?.role ? String(user.role).toLowerCase() : null;
   const isStudent = isAuthenticated && role === 'student';
   const learningPath = isStudent
-    ? '/dashboard/learning#learning-explore-content'
-    : '/learning#learning-explore-content';
+    ? '/dashboard/learning#learning-explore-catalog'
+    : '/learning#learning-explore-catalog';
   return { token, user, isAuthenticated, role, isStudent, learningPath };
 }
 
@@ -58,7 +58,7 @@ function getServerSnapshot() {
       isAuthenticated: false,
       role: null,
       isStudent: false,
-      learningPath: '/learning#learning-explore-content',
+      learningPath: '/learning#learning-explore-catalog',
     };
   }
   return computeSnapshot();

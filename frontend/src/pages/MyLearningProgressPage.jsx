@@ -128,7 +128,7 @@ function MyLearningProgressPage() {
               items={[
                 {
                   label: 'Open learning hub',
-                  to: '/dashboard/learning#learning-explore-content',
+                  to: '/dashboard/learning#learning-explore-catalog',
                   icon: BookOpen,
                 },
                 { label: 'Dashboard home', to: '/dashboard', icon: LayoutDashboard },

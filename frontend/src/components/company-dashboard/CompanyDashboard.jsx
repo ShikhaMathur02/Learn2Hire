@@ -233,6 +233,7 @@ function CompanyDashboard({ user, onLogout }) {
             onLogout={onLogout}
             actionItems={[
               { label: "Manage jobs", to: "/company/jobs" },
+              { label: "Talent pool", to: "/company/talent" },
               { label: "Go to home", onClick: () => navigate("/") },
             ]}
           />

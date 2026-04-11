@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -6,30 +6,34 @@ import {
   CheckCircle2,
   ClipboardList,
   Gauge,
-  LayoutDashboard,
   LoaderCircle,
-  LogOut,
   Sparkles,
-  UserRound,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../../lib/api";
+import {
+  ALL_COHORT_DEGREE_PRESETS,
+  COHORT_BRANCH_PRESETS,
+  COHORT_OTHER,
+  COHORT_PROGRAM_GROUPS,
+  COHORT_SEMESTER_PRESETS,
+  COHORT_YEAR_PRESETS,
+  canonicalizeCohortPreset,
+  cohortDegreeRequiresBranch,
+  degreesForProgram,
+  inferCohortProgramId,
+} from "../../lib/cohortPresets";
 import { clearAuthSession } from "../../lib/authSession";
-import { DashboardTopNav } from "../dashboard/DashboardTopNav";
+import { studentNavItems } from "../../config/studentNavItems";
+import { DarkWorkspaceShell } from "../layout/DarkWorkspaceShell";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import dashboardProgressImg from "../../assets/illustrations/progress-banner.png";
 import learningEmptyImg from "../../assets/illustrations/empty-state.png";
 
-const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "profile", label: "Profile", icon: UserRound },
-  { id: "assessments", label: "Assessments", icon: ClipboardList },
-  { id: "jobs", label: "Jobs", icon: BriefcaseBusiness, path: "/jobs" },
-  { id: "learning", label: "Learning", icon: BookOpen },
-  { id: "progress", label: "Progress", icon: BarChart3 },
-];
+const COHORT_FIELD_CLASS =
+  "mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none";
 
 function SectionTitle({ title, description, action }) {
   return (
@@ -103,8 +107,58 @@ function StudentDashboard({ user, onLogout }) {
   const [cohortCourse, setCohortCourse] = useState("");
   const [cohortBranch, setCohortBranch] = useState("");
   const [cohortYear, setCohortYear] = useState("");
+  const [cohortSemester, setCohortSemester] = useState("");
+  const [cohortProgramId, setCohortProgramId] = useState("");
+  const [cohortCustomCourse, setCohortCustomCourse] = useState(false);
+  const [cohortCustomBranch, setCohortCustomBranch] = useState(false);
+  const [cohortCustomYear, setCohortCustomYear] = useState(false);
+  const [cohortCustomSemester, setCohortCustomSemester] = useState(false);
   const [cohortSaving, setCohortSaving] = useState(false);
   const [cohortMessage, setCohortMessage] = useState("");
+  const [extraProfile, setExtraProfile] = useState({
+    bio: "",
+    toolsAndTechnologies: "",
+    visibleToCompanies: true,
+    studentPhone: "",
+    fatherName: "",
+    motherName: "",
+    fatherPhone: "",
+    motherPhone: "",
+    address: "",
+    city: "",
+    state: "",
+    pincode: "",
+    dateOfBirth: "",
+    bloodGroup: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+  });
+
+  const applyCohortFromProfileFields = useCallback((course, branch, year, semester) => {
+    const c = canonicalizeCohortPreset(ALL_COHORT_DEGREE_PRESETS, course);
+    const b = canonicalizeCohortPreset(COHORT_BRANCH_PRESETS, branch);
+    const y = canonicalizeCohortPreset(COHORT_YEAR_PRESETS, year);
+    const s = canonicalizeCohortPreset(COHORT_SEMESTER_PRESETS, semester);
+    setCohortCourse(c);
+    setCohortBranch(b);
+    setCohortYear(y);
+    setCohortSemester(s);
+    setCohortProgramId(inferCohortProgramId(course, branch));
+    setCohortCustomCourse(Boolean(c && !ALL_COHORT_DEGREE_PRESETS.includes(c)));
+    setCohortCustomBranch(Boolean(b && !COHORT_BRANCH_PRESETS.includes(b)));
+    setCohortCustomYear(Boolean(y && !COHORT_YEAR_PRESETS.includes(y)));
+    setCohortCustomSemester(Boolean(s && !COHORT_SEMESTER_PRESETS.includes(s)));
+  }, []);
+
+  useEffect(() => {
+    const sid = location.state?.studentSection;
+    if (
+      typeof sid === "string" &&
+      studentNavItems.some((i) => i.id === sid && !i.path)
+    ) {
+      setActiveSection(sid);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -190,9 +244,52 @@ function StudentDashboard({ user, onLogout }) {
         const nextProfile = profileData.data?.profile ?? null;
         setProfile(nextProfile);
         if (nextProfile) {
-          setCohortCourse(nextProfile.course || "");
-          setCohortBranch(nextProfile.branch || "");
-          setCohortYear(nextProfile.year || "");
+          applyCohortFromProfileFields(
+            nextProfile.course,
+            nextProfile.branch,
+            nextProfile.year,
+            nextProfile.semester
+          );
+          setExtraProfile({
+            bio: nextProfile.bio || "",
+            toolsAndTechnologies: Array.isArray(nextProfile.toolsAndTechnologies)
+              ? nextProfile.toolsAndTechnologies.join(", ")
+              : "",
+            visibleToCompanies: nextProfile.visibleToCompanies !== false,
+            studentPhone: nextProfile.studentPhone || "",
+            fatherName: nextProfile.fatherName || "",
+            motherName: nextProfile.motherName || "",
+            fatherPhone: nextProfile.fatherPhone || "",
+            motherPhone: nextProfile.motherPhone || "",
+            address: nextProfile.address || "",
+            city: nextProfile.city || "",
+            state: nextProfile.state || "",
+            pincode: nextProfile.pincode || "",
+            dateOfBirth: nextProfile.dateOfBirth || "",
+            bloodGroup: nextProfile.bloodGroup || "",
+            emergencyContactName: nextProfile.emergencyContactName || "",
+            emergencyContactPhone: nextProfile.emergencyContactPhone || "",
+          });
+        } else {
+          applyCohortFromProfileFields("", "", "", "");
+          setExtraProfile({
+            bio: "",
+            toolsAndTechnologies: "",
+            visibleToCompanies: true,
+            studentPhone: "",
+            fatherName: "",
+            motherName: "",
+            fatherPhone: "",
+            motherPhone: "",
+            address: "",
+            city: "",
+            state: "",
+            pincode: "",
+            dateOfBirth: "",
+            bloodGroup: "",
+            emergencyContactName: "",
+            emergencyContactPhone: "",
+          });
         }
         setAssessments(assessmentsData.data?.assessments ?? []);
         setSubmissions(submissionsData.data?.submissions ?? []);
@@ -216,7 +313,7 @@ function StudentDashboard({ user, onLogout }) {
     };
 
     fetchData();
-  }, [navigate]);
+  }, [navigate, applyCohortFromProfileFields]);
 
   const displayUser = profile?.user || user;
   const skills = profile?.skills || [];
@@ -238,17 +335,45 @@ function StudentDashboard({ user, onLogout }) {
   const recentLearningMaterials = learningProgress.slice(0, 3);
   const topSuggestedJobs = suggestedJobs.slice(0, 3);
 
+  const showCohortBranchField =
+    cohortDegreeRequiresBranch(cohortCourse) ||
+    (cohortCustomCourse && cohortProgramId === "engineering");
+
   const saveCohort = async () => {
     const token = localStorage.getItem("token");
     if (!token) return;
     setCohortSaving(true);
     setCohortMessage("");
     try {
-      const payload = {
-        course: cohortCourse.trim(),
-        branch: cohortBranch.trim(),
-        year: cohortYear.trim(),
+      const trim = (s) => (typeof s === "string" ? s.trim() : "");
+      const needsEngBranch =
+        cohortDegreeRequiresBranch(cohortCourse) ||
+        (cohortCustomCourse && cohortProgramId === "engineering");
+      const cohortPayload = {
+        course: trim(cohortCourse),
+        branch: needsEngBranch ? trim(cohortBranch) : "",
+        year: trim(cohortYear),
+        semester: trim(cohortSemester),
       };
+      const detailPayload = {
+        bio: trim(extraProfile.bio),
+        toolsAndTechnologies: trim(extraProfile.toolsAndTechnologies),
+        visibleToCompanies: Boolean(extraProfile.visibleToCompanies),
+        studentPhone: trim(extraProfile.studentPhone),
+        fatherName: trim(extraProfile.fatherName),
+        motherName: trim(extraProfile.motherName),
+        fatherPhone: trim(extraProfile.fatherPhone),
+        motherPhone: trim(extraProfile.motherPhone),
+        address: trim(extraProfile.address),
+        city: trim(extraProfile.city),
+        state: trim(extraProfile.state),
+        pincode: trim(extraProfile.pincode),
+        dateOfBirth: trim(extraProfile.dateOfBirth),
+        bloodGroup: trim(extraProfile.bloodGroup),
+        emergencyContactName: trim(extraProfile.emergencyContactName),
+        emergencyContactPhone: trim(extraProfile.emergencyContactPhone),
+      };
+      const payload = { ...cohortPayload, ...detailPayload };
       const hasStoredProfile = profile && profile._id && !profile.isAutoGenerated;
 
       if (hasStoredProfile) {
@@ -262,7 +387,36 @@ function StudentDashboard({ user, onLogout }) {
         });
         const data = await readApiResponse(res);
         if (!res.ok) throw new Error(data.message || "Update failed");
-        setProfile(data.data?.profile ?? profile);
+        const updated = data.data?.profile ?? profile;
+        setProfile(updated);
+        if (updated) {
+          applyCohortFromProfileFields(
+            updated.course,
+            updated.branch,
+            updated.year,
+            updated.semester
+          );
+          setExtraProfile({
+            bio: updated.bio || "",
+            toolsAndTechnologies: Array.isArray(updated.toolsAndTechnologies)
+              ? updated.toolsAndTechnologies.join(", ")
+              : "",
+            visibleToCompanies: updated.visibleToCompanies !== false,
+            studentPhone: updated.studentPhone || "",
+            fatherName: updated.fatherName || "",
+            motherName: updated.motherName || "",
+            fatherPhone: updated.fatherPhone || "",
+            motherPhone: updated.motherPhone || "",
+            address: updated.address || "",
+            city: updated.city || "",
+            state: updated.state || "",
+            pincode: updated.pincode || "",
+            dateOfBirth: updated.dateOfBirth || "",
+            bloodGroup: updated.bloodGroup || "",
+            emergencyContactName: updated.emergencyContactName || "",
+            emergencyContactPhone: updated.emergencyContactPhone || "",
+          });
+        }
       } else {
         const res = await fetch("/api/profile", {
           method: "POST",
@@ -271,16 +425,44 @@ function StudentDashboard({ user, onLogout }) {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            bio: profile?.bio || "",
             skills: profile?.skills || [],
             ...payload,
           }),
         });
         const data = await readApiResponse(res);
         if (!res.ok) throw new Error(data.message || "Could not save profile");
-        setProfile(data.data?.profile ?? null);
+        const created = data.data?.profile ?? null;
+        setProfile(created);
+        if (created) {
+          applyCohortFromProfileFields(
+            created.course,
+            created.branch,
+            created.year,
+            created.semester
+          );
+          setExtraProfile({
+            bio: created.bio || "",
+            toolsAndTechnologies: Array.isArray(created.toolsAndTechnologies)
+              ? created.toolsAndTechnologies.join(", ")
+              : "",
+            visibleToCompanies: created.visibleToCompanies !== false,
+            studentPhone: created.studentPhone || "",
+            fatherName: created.fatherName || "",
+            motherName: created.motherName || "",
+            fatherPhone: created.fatherPhone || "",
+            motherPhone: created.motherPhone || "",
+            address: created.address || "",
+            city: created.city || "",
+            state: created.state || "",
+            pincode: created.pincode || "",
+            dateOfBirth: created.dateOfBirth || "",
+            bloodGroup: created.bloodGroup || "",
+            emergencyContactName: created.emergencyContactName || "",
+            emergencyContactPhone: created.emergencyContactPhone || "",
+          });
+        }
       }
-      setCohortMessage("Saved. Faculty materials match your course, branch, and year.");
+      setCohortMessage("Profile saved. Cohort fields should match how faculty labels class materials.");
     } catch (err) {
       setCohortMessage(err.message || "Could not save.");
     } finally {
@@ -297,7 +479,7 @@ function StudentDashboard({ user, onLogout }) {
 
       <div className="mt-2 flex flex-wrap gap-3">
         <Button size="sm" asChild>
-          <Link to="/dashboard/learning#learning-explore-content">
+          <Link to="/dashboard/learning#learning-explore-catalog">
             <BookOpen className="h-4 w-4" />
             Start Learning
           </Link>
@@ -478,7 +660,7 @@ function StudentDashboard({ user, onLogout }) {
               description="Recommended topics from the learning library. Open any item to read and track progress."
               action={
                 <Button asChild variant="default">
-                  <Link to="/dashboard/learning#learning-explore-content">Learning hub</Link>
+                  <Link to="/dashboard/learning#learning-explore-catalog">Learning hub</Link>
                 </Button>
               }
             />
@@ -510,7 +692,7 @@ function StudentDashboard({ user, onLogout }) {
                   description="We could not load recommendations. Open the learning hub to browse all subjects."
                   action={
                     <Button asChild>
-                      <Link to="/dashboard/learning#learning-explore-content">Browse learning hub</Link>
+                      <Link to="/dashboard/learning#learning-explore-catalog">Browse learning hub</Link>
                     </Button>
                   }
                 />
@@ -619,10 +801,47 @@ function StudentDashboard({ user, onLogout }) {
                 <p className="mt-2 text-base font-semibold text-white">{displayUser.email}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 md:col-span-2">
-                <p className="text-sm text-slate-400">Bio</p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  {profile.bio || "No bio added yet."}
-                </p>
+                <label className="text-sm text-slate-400" htmlFor="st-bio">
+                  Bio
+                </label>
+                <textarea
+                  id="st-bio"
+                  className="mt-2 min-h-[88px] w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm leading-6 text-slate-200 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  placeholder="Short introduction for recruiters and faculty"
+                  value={extraProfile.bio}
+                  onChange={(e) => setExtraProfile((p) => ({ ...p, bio: e.target.value }))}
+                />
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 md:col-span-2">
+                <label className="text-sm text-slate-400" htmlFor="st-tools">
+                  Tools &amp; technologies
+                </label>
+                <input
+                  id="st-tools"
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  placeholder="e.g. React, Git, Docker, AWS (comma-separated)"
+                  value={extraProfile.toolsAndTechnologies}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, toolsAndTechnologies: e.target.value }))
+                  }
+                />
+                <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-white/20 bg-slate-950/50"
+                    checked={extraProfile.visibleToCompanies}
+                    onChange={(e) =>
+                      setExtraProfile((p) => ({
+                        ...p,
+                        visibleToCompanies: e.target.checked,
+                      }))
+                    }
+                  />
+                  <span>
+                    Let companies discover my profile in the talent pool (learning activity, skills,
+                    and tools above).
+                  </span>
+                </label>
               </div>
             </div>
           ) : (
@@ -639,53 +858,434 @@ function StudentDashboard({ user, onLogout }) {
       <Card className="border border-white/10 bg-white/5 shadow-none">
         <CardContent className="p-6">
           <SectionTitle
-            title="Course, branch & year"
-            description="Must match what faculty enters when they publish class materials (spacing and case are normalized)."
+            title="Program, cohort & contact details"
+            description="Pick your program track and degree the same way faculty do (engineering, management, nursing, pharmacy). Branch is only for B.Tech / Diploma. Parent and address details help placement records."
           />
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <div>
-              <label className="text-xs font-medium text-slate-400" htmlFor="st-course">
-                Course
-              </label>
-              <input
-                id="st-course"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
-                value={cohortCourse}
-                onChange={(e) => setCohortCourse(e.target.value)}
-                placeholder="e.g. B.Tech"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-400" htmlFor="st-branch">
-                Branch
-              </label>
-              <input
-                id="st-branch"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
-                value={cohortBranch}
-                onChange={(e) => setCohortBranch(e.target.value)}
-                placeholder="e.g. CSE"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-400" htmlFor="st-year">
-                Year
-              </label>
-              <input
-                id="st-year"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
-                value={cohortYear}
-                onChange={(e) => setCohortYear(e.target.value)}
-                placeholder="e.g. 2"
-              />
+          <div className="mt-6 space-y-4">
+            <p className="text-xs text-slate-500">
+              Engineering students choose a branch (CSE, EE, …). Other programs leave branch empty.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <div className="min-w-[160px] flex-1">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-prog-select">
+                  Program
+                </label>
+                <select
+                  id="st-prog-select"
+                  className={COHORT_FIELD_CLASS}
+                  value={cohortProgramId}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCohortProgramId(v);
+                    setCohortCourse("");
+                    setCohortCustomCourse(false);
+                    setCohortBranch("");
+                    setCohortCustomBranch(false);
+                  }}
+                >
+                  <option value="">Select program…</option>
+                  {COHORT_PROGRAM_GROUPS.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-[160px] flex-1">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-degree-select">
+                  Course / degree
+                </label>
+                <select
+                  id="st-degree-select"
+                  className={COHORT_FIELD_CLASS}
+                  disabled={!cohortProgramId}
+                  value={
+                    !cohortCourse
+                      ? ""
+                      : degreesForProgram(cohortProgramId).includes(cohortCourse)
+                        ? cohortCourse
+                        : COHORT_OTHER
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") {
+                      setCohortCourse("");
+                      setCohortCustomCourse(false);
+                    } else if (v === COHORT_OTHER) {
+                      setCohortCustomCourse(true);
+                      setCohortCourse("");
+                    } else {
+                      setCohortCustomCourse(false);
+                      setCohortCourse(v);
+                      if (!cohortDegreeRequiresBranch(v)) {
+                        setCohortBranch("");
+                        setCohortCustomBranch(false);
+                      }
+                    }
+                  }}
+                >
+                  <option value="">
+                    {cohortProgramId ? "Select degree…" : "Choose a program first"}
+                  </option>
+                  {degreesForProgram(cohortProgramId).map((d) => (
+                    <option key={d} value={d}>
+                      {d === "B.Sc" ? "B.Sc (Nursing)" : d}
+                    </option>
+                  ))}
+                  <option value={COHORT_OTHER}>Other…</option>
+                </select>
+                {cohortCustomCourse ? (
+                  <input
+                    id="st-degree-custom"
+                    className={COHORT_FIELD_CLASS}
+                    value={cohortCourse}
+                    onChange={(e) => setCohortCourse(e.target.value)}
+                    placeholder="e.g. M.E."
+                    aria-label="Custom degree"
+                  />
+                ) : null}
+              </div>
+              {showCohortBranchField ? (
+                <div className="min-w-[160px] flex-1">
+                  <label className="text-xs font-medium text-slate-400" htmlFor="st-branch-select">
+                    Branch
+                  </label>
+                  <select
+                    id="st-branch-select"
+                    className={COHORT_FIELD_CLASS}
+                    value={
+                      !cohortBranch
+                        ? ""
+                        : COHORT_BRANCH_PRESETS.includes(cohortBranch)
+                          ? cohortBranch
+                          : COHORT_OTHER
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "") {
+                        setCohortBranch("");
+                        setCohortCustomBranch(false);
+                      } else if (v === COHORT_OTHER) {
+                        setCohortCustomBranch(true);
+                        setCohortBranch("");
+                      } else {
+                        setCohortCustomBranch(false);
+                        setCohortBranch(v);
+                      }
+                    }}
+                  >
+                    <option value="">Select branch…</option>
+                    {COHORT_BRANCH_PRESETS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                    <option value={COHORT_OTHER}>Other…</option>
+                  </select>
+                  {cohortCustomBranch ? (
+                    <input
+                      id="st-branch"
+                      className={COHORT_FIELD_CLASS}
+                      value={cohortBranch}
+                      onChange={(e) => setCohortBranch(e.target.value)}
+                      placeholder="e.g. Aerospace"
+                      aria-label="Custom branch"
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+              <div className="min-w-[140px] flex-1">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-year-select">
+                  Year (1–4)
+                </label>
+                <select
+                  id="st-year-select"
+                  className={COHORT_FIELD_CLASS}
+                  value={
+                    !cohortYear
+                      ? ""
+                      : COHORT_YEAR_PRESETS.includes(cohortYear)
+                        ? cohortYear
+                        : COHORT_OTHER
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") {
+                      setCohortYear("");
+                      setCohortCustomYear(false);
+                    } else if (v === COHORT_OTHER) {
+                      setCohortCustomYear(true);
+                      setCohortYear("");
+                    } else {
+                      setCohortCustomYear(false);
+                      setCohortYear(v);
+                    }
+                  }}
+                >
+                  <option value="">Select year…</option>
+                  {COHORT_YEAR_PRESETS.map((y) => (
+                    <option key={y} value={y}>
+                      Year {y}
+                    </option>
+                  ))}
+                  <option value={COHORT_OTHER}>Other…</option>
+                </select>
+                {cohortCustomYear ? (
+                  <input
+                    id="st-year"
+                    className={COHORT_FIELD_CLASS}
+                    value={cohortYear}
+                    onChange={(e) => setCohortYear(e.target.value)}
+                    placeholder="e.g. 5 or 2024–28"
+                    aria-label="Custom year"
+                  />
+                ) : null}
+              </div>
+              <div className="min-w-[140px] flex-1">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-semester-select">
+                  Semester
+                </label>
+                <select
+                  id="st-semester-select"
+                  className={COHORT_FIELD_CLASS}
+                  value={
+                    cohortSemester === ""
+                      ? ""
+                      : COHORT_SEMESTER_PRESETS.includes(cohortSemester)
+                        ? cohortSemester
+                        : COHORT_OTHER
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") {
+                      setCohortSemester("");
+                      setCohortCustomSemester(false);
+                    } else if (v === COHORT_OTHER) {
+                      setCohortCustomSemester(true);
+                      setCohortSemester("");
+                    } else {
+                      setCohortCustomSemester(false);
+                      setCohortSemester(v);
+                    }
+                  }}
+                >
+                  <option value="">Not set / all terms</option>
+                  {COHORT_SEMESTER_PRESETS.map((s) => (
+                    <option key={s} value={s}>
+                      Semester {s}
+                    </option>
+                  ))}
+                  <option value={COHORT_OTHER}>Other…</option>
+                </select>
+                {cohortCustomSemester ? (
+                  <input
+                    id="st-semester"
+                    className={COHORT_FIELD_CLASS}
+                    value={cohortSemester}
+                    onChange={(e) => setCohortSemester(e.target.value)}
+                    placeholder="e.g. 9"
+                    aria-label="Custom semester"
+                  />
+                ) : null}
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Set your current semester so faculty can target materials to your term.
+                </p>
+              </div>
             </div>
           </div>
+
+          <div className="mt-8 border-t border-white/10 pt-6">
+            <h3 className="text-sm font-semibold text-slate-200">Your phone &amp; parents</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-phone">
+                  Your mobile
+                </label>
+                <input
+                  id="st-phone"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.studentPhone}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, studentPhone: e.target.value }))
+                  }
+                  placeholder="+91 …"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-father">
+                  Father&apos;s name
+                </label>
+                <input
+                  id="st-father"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.fatherName}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, fatherName: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-father-phone">
+                  Father&apos;s phone
+                </label>
+                <input
+                  id="st-father-phone"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.fatherPhone}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, fatherPhone: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-mother">
+                  Mother&apos;s name
+                </label>
+                <input
+                  id="st-mother"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.motherName}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, motherName: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-mother-phone">
+                  Mother&apos;s phone
+                </label>
+                <input
+                  id="st-mother-phone"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.motherPhone}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, motherPhone: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 border-t border-white/10 pt-6">
+            <h3 className="text-sm font-semibold text-slate-200">Address &amp; emergency</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-address">
+                  Address
+                </label>
+                <input
+                  id="st-address"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.address}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, address: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-city">
+                  City
+                </label>
+                <input
+                  id="st-city"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.city}
+                  onChange={(e) => setExtraProfile((p) => ({ ...p, city: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-state">
+                  State
+                </label>
+                <input
+                  id="st-state"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.state}
+                  onChange={(e) => setExtraProfile((p) => ({ ...p, state: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-pin">
+                  PIN code
+                </label>
+                <input
+                  id="st-pin"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.pincode}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, pincode: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-dob">
+                  Date of birth
+                </label>
+                <input
+                  id="st-dob"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.dateOfBirth}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, dateOfBirth: e.target.value }))
+                  }
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-blood">
+                  Blood group
+                </label>
+                <input
+                  id="st-blood"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.bloodGroup}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({ ...p, bloodGroup: e.target.value }))
+                  }
+                  placeholder="e.g. O+"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-em-name">
+                  Emergency contact name
+                </label>
+                <input
+                  id="st-em-name"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.emergencyContactName}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({
+                      ...p,
+                      emergencyContactName: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-em-phone">
+                  Emergency contact phone
+                </label>
+                <input
+                  id="st-em-phone"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  value={extraProfile.emergencyContactPhone}
+                  onChange={(e) =>
+                    setExtraProfile((p) => ({
+                      ...p,
+                      emergencyContactPhone: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
           {cohortMessage ? (
             <p className="mt-4 text-sm text-slate-300">{cohortMessage}</p>
           ) : null}
           <div className="mt-4">
             <Button type="button" onClick={saveCohort} disabled={cohortSaving}>
-              {cohortSaving ? "Saving…" : "Save cohort"}
+              {cohortSaving ? "Saving…" : "Save profile"}
             </Button>
           </div>
         </CardContent>
@@ -719,7 +1319,7 @@ function StudentDashboard({ user, onLogout }) {
             ) : (
               <p className="text-sm text-slate-400">
                 No subject progress yet. Open topics from{" "}
-                <Link className="text-cyan-300 underline" to="/dashboard/learning#learning-explore-content">
+                <Link className="text-cyan-300 underline" to="/dashboard/learning#learning-explore-catalog">
                   Learning
                 </Link>{" "}
                 to build your skill bars.
@@ -736,7 +1336,7 @@ function StudentDashboard({ user, onLogout }) {
             description="Recommended readings from the catalog. Progress is saved when you are logged in."
             action={
               <Button asChild variant="default" size="sm">
-                <Link to="/dashboard/learning#learning-explore-content">All subjects</Link>
+                <Link to="/dashboard/learning#learning-explore-catalog">All subjects</Link>
               </Button>
             }
           />
@@ -763,7 +1363,7 @@ function StudentDashboard({ user, onLogout }) {
                 description="Recommendations will appear here once the learning API returns topics."
                 action={
                   <Button asChild>
-                    <Link to="/dashboard/learning#learning-explore-content">Open learning hub</Link>
+                    <Link to="/dashboard/learning#learning-explore-catalog">Open learning hub</Link>
                   </Button>
                 }
               />
@@ -969,7 +1569,7 @@ function StudentDashboard({ user, onLogout }) {
                   description="Open study materials from the learning hub and your progress will show here."
                   action={
                     <Button asChild>
-                      <Link to="/dashboard/learning#learning-explore-content">Browse learning hub</Link>
+                      <Link to="/dashboard/learning#learning-explore-catalog">Browse learning hub</Link>
                     </Button>
                   }
                 />
@@ -1028,7 +1628,7 @@ function StudentDashboard({ user, onLogout }) {
             ) : (
               <p className="text-sm text-slate-400 sm:col-span-2">
                 No recommendations yet.{" "}
-                <Link className="text-cyan-300 underline" to="/dashboard/learning#learning-explore-content">
+                <Link className="text-cyan-300 underline" to="/dashboard/learning#learning-explore-catalog">
                   Browse the catalog
                 </Link>
                 .
@@ -1041,96 +1641,43 @@ function StudentDashboard({ user, onLogout }) {
   );
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
-      <div className="flex min-h-screen flex-col lg:flex-row">
-        <aside className="border-b border-white/10 bg-slate-950/50 backdrop-blur lg:min-h-screen lg:w-72 lg:border-b-0 lg:border-r">
-          <div className="flex h-full flex-col p-5 sm:p-6">
-            <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-lg font-semibold text-white">Learn2Hire</p>
-                <p className="text-sm text-slate-500">Student Workspace</p>
-              </div>
-            </div>
-
-            <nav className="space-y-2">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = !item.path && activeSection === item.id;
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      if (item.path) {
-                        navigate(item.path);
-                        return;
-                      }
-
-                      setActiveSection(item.id);
-                    }}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-                      isActive
-                        ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                        : "text-slate-400 hover:bg-white/5 hover:text-white"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="mt-auto pt-6">
-              <Button variant="default" onClick={onLogout} className="w-full justify-center">
-                <LogOut className="h-4 w-4" />
-                Logout
-              </Button>
-            </div>
+    <DarkWorkspaceShell
+      title="Student Dashboard"
+      workspaceLabel="Student Workspace"
+      brandSubtitle="Student Workspace"
+      navItems={studentNavItems}
+      activeSection={activeSection}
+      onNavSectionSelect={setActiveSection}
+      user={{
+        name: displayUser.name,
+        email: displayUser.email,
+        role: displayUser.role,
+      }}
+      onLogout={onLogout}
+      headerIcon={Sparkles}
+    >
+      {loading ? (
+        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
+          <div className="flex items-center gap-3 text-slate-300">
+            <LoaderCircle className="h-5 w-5 animate-spin" />
+            Loading your dashboard...
           </div>
-        </aside>
-
-        <div className="flex-1 p-3 sm:p-4">
-          <DashboardTopNav
-            bleed
-            workspaceLabel="Student Workspace"
-            title="Student Dashboard"
-            user={{
-              name: displayUser.name,
-              email: displayUser.email,
-              role: displayUser.role,
-            }}
-            onLogout={onLogout}
-          />
-
-          {loading ? (
-            <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
-              <div className="flex items-center gap-3 text-slate-300">
-                <LoaderCircle className="h-5 w-5 animate-spin" />
-                Loading your dashboard...
-              </div>
-            </div>
-          ) : error ? (
-            <div className="rounded-[28px] border border-rose-400/20 bg-rose-500/10 p-6 text-rose-100">
-              <h2 className="text-lg font-semibold">Unable to load dashboard</h2>
-              <p className="mt-2 text-sm text-rose-100/80">{error}</p>
-            </div>
-          ) : (
-            <>
-              {activeSection === "dashboard" && renderDashboard()}
-              {activeSection === "profile" && renderProfile()}
-              {activeSection === "assessments" && renderAssessments()}
-              {activeSection === "learning" && renderLearning()}
-              {activeSection === "progress" && renderProgress()}
-            </>
-          )}
         </div>
-      </div>
-    </div>
+      ) : error ? (
+        <div className="rounded-[28px] border border-rose-400/20 bg-rose-500/10 p-6 text-rose-100">
+          <h2 className="text-lg font-semibold">Unable to load dashboard</h2>
+          <p className="mt-2 text-sm text-rose-100/80">{error}</p>
+        </div>
+      ) : (
+        <>
+          {activeSection === "dashboard" && renderDashboard()}
+          {activeSection === "profile" && renderProfile()}
+          {activeSection === "assessments" && renderAssessments()}
+          {activeSection === "learning" && renderLearning()}
+          {activeSection === "progress" && renderProgress()}
+        </>
+      )}
+    </DarkWorkspaceShell>
   );
 }
 

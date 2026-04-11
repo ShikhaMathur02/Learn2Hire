@@ -4,20 +4,35 @@ import {
   ArrowLeft,
   BriefcaseBusiness,
   ExternalLink,
+  FileText,
   Heart,
+  HeartHandshake,
   LoaderCircle,
   MapPin,
   Send,
+  Sparkles,
 } from "lucide-react";
 
 import { readApiResponse } from "../lib/api";
+import { studentNavItems } from "../config/studentNavItems";
+import { clearAuthSession } from "../lib/authSession";
+import { DarkWorkspaceShell } from "../components/layout/DarkWorkspaceShell";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+
+function readStoredUser() {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 function JobDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => readStoredUser());
   const [job, setJob] = useState(null);
   const [applications, setApplications] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
@@ -29,8 +44,16 @@ function JobDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [interestSubmitting, setInterestSubmitting] = useState(false);
+  const [hasExpressedInterest, setHasExpressedInterest] = useState(false);
+  const [interestNote, setInterestNote] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const handleLogout = () => {
+    clearAuthSession();
+    navigate("/login");
+  };
 
   const existingApplication = useMemo(
     () =>
@@ -120,6 +143,7 @@ function JobDetailsPage() {
       }
 
       setJob(jobData.data?.job || null);
+      setHasExpressedInterest(Boolean(jobData.data?.studentHasExpressedInterest));
       setApplications(applicationsData.data?.applications || []);
       setSavedJobs(savedData.data?.savedJobs || []);
     } catch (err) {
@@ -170,6 +194,71 @@ function JobDetailsPage() {
     }
   };
 
+  const handleDownloadJd = async () => {
+    if (!id) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/jobs/${id}/jd`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await readApiResponse(res);
+        throw new Error(data.message || "Could not download JD.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = job?.jdOriginalName || "job-description.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || "Could not download JD.");
+    }
+  };
+
+  const handleExpressInterest = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    setInterestSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch("/api/jobs/student/express-interest", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ jobId: id, message: interestNote.trim() }),
+      });
+
+      const data = await readApiResponse(
+        response,
+        "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
+      );
+
+      if (!response.ok) {
+        throw new Error(data.message || "Could not notify the company.");
+      }
+
+      setHasExpressedInterest(true);
+      setSuccess("The company has been notified that you're interested in this role.");
+      window.dispatchEvent(new CustomEvent("learn2hire-notifications-changed"));
+    } catch (err) {
+      setError(err.message || "Unable to send interest.");
+    } finally {
+      setInterestSubmitting(false);
+    }
+  };
+
   const handleApply = async (e) => {
     e.preventDefault();
 
@@ -207,6 +296,7 @@ function JobDetailsPage() {
       }
 
       setSuccess("Application submitted successfully.");
+      window.dispatchEvent(new CustomEvent("learn2hire-notifications-changed"));
       await fetchData();
     } catch (err) {
       setError(err.message || "Unable to submit application.");
@@ -215,47 +305,83 @@ function JobDetailsPage() {
     }
   };
 
+  const shellUser = user || {
+    name: "Learner",
+    email: "",
+    role: "student",
+  };
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
-        <div className="flex items-center gap-3">
-          <LoaderCircle className="h-5 w-5 animate-spin" />
-          Loading job details...
+      <DarkWorkspaceShell
+        title="Job details"
+        description="Loading role information…"
+        workspaceLabel="Student Workspace"
+        brandSubtitle="Student Workspace"
+        showHistoryBack={false}
+        navItems={studentNavItems}
+        onNavSectionSelect={(sid) =>
+          navigate("/dashboard", { state: { studentSection: sid } })
+        }
+        user={{
+          name: shellUser.name || "Learner",
+          email: shellUser.email || "",
+          role: shellUser.role || "student",
+        }}
+        onLogout={handleLogout}
+        headerIcon={Sparkles}
+        actionItems={[
+          {
+            label: "Back to jobs",
+            onClick: () => navigate("/jobs"),
+            icon: ArrowLeft,
+          },
+        ]}
+      >
+        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
+          <div className="flex items-center gap-3 text-slate-300">
+            <LoaderCircle className="h-6 w-6 animate-spin" />
+            Loading job details...
+          </div>
         </div>
+      </DarkWorkspaceShell>
+    );
+  }
+
+  if (user && !["student", "alumni"].includes(user.role) && error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 text-center text-slate-200">
+        <p className="max-w-md text-sm">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
-      <div className="w-full">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-              <Link to="/dashboard" className="transition hover:text-white">
-                Dashboard
-              </Link>
-              <span>/</span>
-              <Link to="/jobs" className="transition hover:text-white">
-                Jobs
-              </Link>
-              <span>/</span>
-              <span className="text-slate-300">Details</span>
-            </div>
-            <p className="text-sm font-medium text-cyan-300">Career Workspace</p>
-            <h1 className="mt-1 text-3xl font-bold">{job?.title || "Job Details"}</h1>
-            <p className="mt-2 text-sm text-slate-400">
-              Review the full opportunity details and complete your application with links and a
-              short note.
-            </p>
-          </div>
-
-          <Button variant="default" onClick={() => navigate("/jobs")}>
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-        </div>
-
+    <DarkWorkspaceShell
+      title={job?.title || "Job details"}
+      description="Review the full opportunity details and complete your application with links and a short note."
+      workspaceLabel="Student Workspace"
+      brandSubtitle="Student Workspace"
+      showHistoryBack={false}
+      navItems={studentNavItems}
+      onNavSectionSelect={(sid) =>
+        navigate("/dashboard", { state: { studentSection: sid } })
+      }
+      user={{
+        name: user?.name || "Learner",
+        email: user?.email || "",
+        role: user?.role || "student",
+      }}
+      onLogout={handleLogout}
+      headerIcon={Sparkles}
+      actionItems={[
+        {
+          label: "Back to jobs",
+          onClick: () => navigate("/jobs"),
+          icon: ArrowLeft,
+        },
+      ]}
+    >
         {error ? (
           <div className="mb-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
             {error}
@@ -311,6 +437,26 @@ function JobDetailsPage() {
                   {job?.description || "No description provided for this role."}
                 </p>
               </div>
+
+              {job?.hasJdDocument ? (
+                <div className="mt-6 rounded-2xl border border-cyan-400/25 bg-cyan-500/5 p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <FileText className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Official job description</h3>
+                        <p className="mt-1 text-sm text-slate-400">
+                          PDF provided by the employer: {job.jdOriginalName || "job-description.pdf"}
+                        </p>
+                      </div>
+                    </div>
+                    <Button type="button" variant="outline" onClick={handleDownloadJd}>
+                      <ExternalLink className="h-4 w-4" />
+                      Download JD (PDF)
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-6">
                 <h3 className="text-lg font-semibold text-white">Required skills</h3>
@@ -416,6 +562,47 @@ function JobDetailsPage() {
                       Add a cover letter and optional links to help the company review your profile.
                     </p>
 
+                    {hasExpressedInterest ? (
+                      <div className="mt-4 rounded-2xl border border-cyan-400/25 bg-cyan-500/10 p-4 text-sm text-cyan-100">
+                        <p className="font-medium text-white">Interest sent</p>
+                        <p className="mt-1 text-cyan-100/90">
+                          The employer was notified that you are interested. You can still submit a
+                          full application below.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                        <p className="text-sm font-semibold text-white">Show interest (optional)</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Sends the company a notification without submitting a full application yet.
+                        </p>
+                        <textarea
+                          value={interestNote}
+                          onChange={(e) => setInterestNote(e.target.value)}
+                          rows={2}
+                          maxLength={500}
+                          placeholder="Optional short note to the recruiter (max 500 characters)"
+                          className="mt-3 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="mt-3 w-full border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/10"
+                          disabled={interestSubmitting}
+                          onClick={handleExpressInterest}
+                        >
+                          {interestSubmitting ? (
+                            "Sending..."
+                          ) : (
+                            <>
+                              <HeartHandshake className="h-4 w-4" />
+                              Notify company of interest
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+
                     <form onSubmit={handleApply} className="mt-6 space-y-4">
                       <textarea
                         value={form.coverLetter}
@@ -455,8 +642,7 @@ function JobDetailsPage() {
             </Card>
           </div>
         </div>
-      </div>
-    </div>
+    </DarkWorkspaceShell>
   );
 }
 

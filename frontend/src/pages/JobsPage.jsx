@@ -1,23 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Bell,
   BriefcaseBusiness,
   Heart,
-  LayoutDashboard,
   LoaderCircle,
   MapPin,
   Search,
+  Sparkles,
 } from "lucide-react";
 
 import { readApiResponse } from "../lib/api";
+import { studentNavItems } from "../config/studentNavItems";
+import { clearAuthSession } from "../lib/authSession";
+import { DarkWorkspaceShell } from "../components/layout/DarkWorkspaceShell";
 import { Button } from "../components/ui/button";
-import { NavDropdown } from "../components/ui/nav-dropdown";
 import { Card, CardContent } from "../components/ui/card";
+
+function readStoredUser() {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 function JobsPage() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => readStoredUser());
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
   const [savedJobs, setSavedJobs] = useState([]);
@@ -31,6 +41,11 @@ function JobsPage() {
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const handleLogout = () => {
+    clearAuthSession();
+    navigate("/login");
+  };
 
   const fetchJobsData = useCallback(async () => {
     const token = localStorage.getItem("token");
@@ -200,50 +215,67 @@ function JobsPage() {
     }
   };
 
+  const shellUser = user || {
+    name: "Learner",
+    email: "",
+    role: "student",
+  };
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
-        <div className="flex items-center gap-3">
-          <LoaderCircle className="h-5 w-5 animate-spin" />
-          Loading jobs...
+      <DarkWorkspaceShell
+        title="Open Jobs"
+        description="Search roles, save opportunities, and open full job details before applying."
+        workspaceLabel="Student Workspace"
+        brandSubtitle="Student Workspace"
+        navItems={studentNavItems}
+        onNavSectionSelect={(id) =>
+          navigate("/dashboard", { state: { studentSection: id } })
+        }
+        user={{
+          name: shellUser.name || "Learner",
+          email: shellUser.email || "",
+          role: shellUser.role || "student",
+        }}
+        onLogout={handleLogout}
+        headerIcon={Sparkles}
+      >
+        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
+          <div className="flex items-center gap-3 text-slate-300">
+            <LoaderCircle className="h-6 w-6 animate-spin" />
+            Loading jobs...
+          </div>
         </div>
+      </DarkWorkspaceShell>
+    );
+  }
+
+  if (user && !["student", "alumni"].includes(user.role) && error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 text-center text-slate-200">
+        <p className="max-w-md text-sm">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
-      <div className="w-full">
-        <div className="sticky top-0 z-40 -mx-3 mb-6 border-b border-white/10 bg-slate-950/85 px-3 py-4 backdrop-blur-xl sm:-mx-4 sm:px-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-                <Link to="/dashboard" className="transition hover:text-white">
-                  Dashboard
-                </Link>
-                <span>/</span>
-                <span className="text-slate-300">Jobs</span>
-              </div>
-              <p className="text-sm font-medium text-cyan-300">Career Workspace</p>
-              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Open Jobs</h1>
-              <p className="mt-2 max-w-xl text-sm text-slate-400">
-                Search roles, save opportunities, and open full job details before applying.
-              </p>
-            </div>
-
-            <NavDropdown
-              theme="dark"
-              align="right"
-              icon={BriefcaseBusiness}
-              label="Go to"
-              items={[
-                { label: "Dashboard home", to: "/dashboard", icon: LayoutDashboard },
-                { label: "Notifications", to: "/notifications", icon: Bell },
-              ]}
-            />
-          </div>
-        </div>
-
+    <DarkWorkspaceShell
+      title="Open Jobs"
+      description="Search roles, save opportunities, and open full job details before applying."
+      workspaceLabel="Student Workspace"
+      brandSubtitle="Student Workspace"
+      navItems={studentNavItems}
+      onNavSectionSelect={(id) =>
+        navigate("/dashboard", { state: { studentSection: id } })
+      }
+      user={{
+        name: user?.name || "Learner",
+        email: user?.email || "",
+        role: user?.role || "student",
+      }}
+      onLogout={handleLogout}
+      headerIcon={Sparkles}
+    >
         {error ? (
           <div className="mb-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
             {error}
@@ -517,8 +549,7 @@ function JobsPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
-    </div>
+    </DarkWorkspaceShell>
   );
 }
 

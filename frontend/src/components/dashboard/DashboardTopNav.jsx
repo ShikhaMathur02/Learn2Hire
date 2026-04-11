@@ -1,9 +1,42 @@
-import { useEffect, useRef, useState } from "react";
-import { Bell, ChevronDown, LayoutDashboard, LogOut, Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  Bell,
+  ChevronDown,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Sparkles,
+} from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 
+import { readApiResponse } from "../../lib/api";
 import { cn } from "../../lib/utils";
 import { NavDropdown } from "../ui/nav-dropdown";
+
+const UNREAD_POLL_MS = 45_000;
+const NOTIF_TOAST_MS = 5_000;
+
+/** Last unread count at which the user dismissed the bell badge (per login email). */
+function notifDismissSnapKey(email) {
+  return `learn2hire_notif_dismiss_snap::${email || "anon"}`;
+}
+
+function readDismissSnap(email) {
+  const raw = sessionStorage.getItem(notifDismissSnapKey(email));
+  if (raw === null || raw === "") return -1;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : -1;
+}
+
+function coerceUnreadCount(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
 
 function initialsFromName(name) {
   if (!name || typeof name !== "string") return "?";
@@ -15,7 +48,7 @@ function initialsFromName(name) {
 
 /**
  * Production-style dashboard top bar: brand + title, optional description,
- * module actions, notification icon, account menu with sign out.
+ * module actions, notification icon, account menu with logout.
  *
  * @param {Object} props
  * @param {"dark" | "light"} [props.theme="dark"]
@@ -30,6 +63,12 @@ function initialsFromName(name) {
  * @param {{ label: string, to?: string, onClick?: () => void, icon?: import("lucide-react").LucideIcon }[]} [props.actionItems] — 2+ items become a menu; 1 item renders as a toolbar link
  * @param {boolean} [props.bleed=false] — true: extend to edges of a padded main column (sidebar layouts)
  * @param {string} [props.className]
+ * @param {boolean} [props.showNavMenuButton=false] — hamburger; toggles workspace nav
+ * @param {boolean} [props.showNavMenuAtLarge=false] — when true, keep hamburger visible on `lg+`
+ * @param {boolean} [props.navMenuLeading=false] — when true, place the menu control first on the left (before the brand tile)
+ * @param {string} [props.navMenuAriaLabel] — accessible name for the menu control
+ * @param {boolean} [props.showHistoryBack=false] — themed control that runs browser history back (SPA)
+ * @param {() => void} [props.onNavMenuClick]
  */
 function DashboardTopNav({
   theme = "dark",
@@ -40,14 +79,138 @@ function DashboardTopNav({
   onLogout,
   notificationsTo = "/notifications",
   showNotifications = true,
+  showNavMenuButton = false,
+  showNavMenuAtLarge = false,
+  navMenuLeading = false,
+  navMenuAriaLabel = "Open navigation menu",
+  showHistoryBack = false,
+  onNavMenuClick,
   actions = null,
   actionItems = null,
   bleed = false,
   className,
 }) {
   const isDark = theme === "dark";
+  const navigate = useNavigate();
+  const navUserEmail = (user?.email || "").trim();
+  const dismissSnapKey = notifDismissSnapKey(navUserEmail);
+
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const toastTimerRef = useRef(null);
+
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [dismissSnap, setDismissSnap] = useState(() => readDismissSnap(navUserEmail));
+  const [notifyToast, setNotifyToast] = useState({ open: false, message: "" });
+
+  const dismissToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setNotifyToast({ open: false, message: "" });
+  }, []);
+
+  const fetchUnreadCount = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const htmlMsg =
+      "Notifications API returned HTML instead of JSON. Restart the backend server and refresh the page.";
+
+    try {
+      let response = await fetch("/api/notifications/unread-count", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+      let data = await readApiResponse(response, htmlMsg);
+
+      if (response.status === 401) return;
+
+      let n = coerceUnreadCount(data?.data?.unreadCount);
+      if (n === null) n = coerceUnreadCount(data?.unreadCount);
+
+      if (!response.ok || n === null) {
+        response = await fetch("/api/notifications", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
+        data = await readApiResponse(response, htmlMsg);
+        if (response.status === 401 || !response.ok) return;
+        n = coerceUnreadCount(data?.data?.unreadCount);
+        if (n === null) n = coerceUnreadCount(data?.unreadCount);
+      }
+
+      if (n !== null) setUnreadCount(Math.max(0, Math.floor(n)));
+    } catch {
+      /* ignore polling errors */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnreadCount();
+    const id = setInterval(fetchUnreadCount, UNREAD_POLL_MS);
+    const onFocus = () => fetchUnreadCount();
+    const onVis = () => {
+      if (document.visibilityState === "visible") fetchUnreadCount();
+    };
+    const onNotifChanged = () => fetchUnreadCount();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("learn2hire-notifications-changed", onNotifChanged);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("learn2hire-notifications-changed", onNotifChanged);
+    };
+  }, [fetchUnreadCount]);
+
+  useEffect(() => {
+    setDismissSnap(readDismissSnap(navUserEmail));
+  }, [navUserEmail]);
+
+  useEffect(() => {
+    setDismissSnap((prev) => {
+      const p = Number.isFinite(prev) ? prev : -1;
+      const next = Math.min(p, unreadCount);
+      if (next !== p) {
+        sessionStorage.setItem(dismissSnapKey, String(next));
+      }
+      return next;
+    });
+  }, [unreadCount, dismissSnapKey]);
+
+  useEffect(() => () => dismissToast(), [dismissToast]);
+
+  const effectiveDismissSnap = Number.isFinite(dismissSnap) ? dismissSnap : -1;
+  const showUnreadDot = unreadCount > 0 && unreadCount > effectiveDismissSnap;
+
+  const openNotifications = useCallback(
+    (fromMenu) => {
+      if (fromMenu) setMenuOpen(false);
+      sessionStorage.setItem(dismissSnapKey, String(unreadCount));
+      setDismissSnap(unreadCount);
+
+      if (unreadCount > 0) {
+        const message = `You have ${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}.`;
+        setNotifyToast({ open: true, message });
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => {
+          dismissToast();
+        }, NOTIF_TOAST_MS);
+      } else {
+        dismissToast();
+      }
+
+      navigate(notificationsTo);
+    },
+    [dismissSnapKey, dismissToast, navigate, notificationsTo, unreadCount]
+  );
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -86,6 +249,41 @@ function DashboardTopNav({
     return actions;
   })();
 
+  const navMenuButton =
+    showNavMenuButton && onNavMenuClick ? (
+      <button
+        type="button"
+        onClick={onNavMenuClick}
+        className={cn(
+          "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition",
+          !showNavMenuAtLarge && !navMenuLeading && "lg:hidden",
+          isDark
+            ? "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white"
+            : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
+        )}
+        aria-label={navMenuAriaLabel}
+      >
+        <Menu className="h-5 w-5" aria-hidden />
+      </button>
+    ) : null;
+
+  const historyBackButton = showHistoryBack ? (
+    <button
+      type="button"
+      onClick={() => navigate(-1)}
+      className={cn(
+        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition",
+        isDark
+          ? "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-400/35 hover:bg-white/10 hover:text-white"
+          : "border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-300 hover:bg-white hover:text-slate-900"
+      )}
+      aria-label="Go back"
+      title="Back"
+    >
+      <ArrowLeft className="h-5 w-5" aria-hidden />
+    </button>
+  ) : null;
+
   return (
     <header
       className={cn(
@@ -102,6 +300,8 @@ function DashboardTopNav({
       <div className="py-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
           <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+            {navMenuLeading ? navMenuButton : null}
+            {showHistoryBack ? historyBackButton : null}
             <div
               className={cn(
                 "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-lg sm:h-12 sm:w-12",
@@ -159,6 +359,7 @@ function DashboardTopNav({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:justify-end lg:shrink-0">
+            {!navMenuLeading ? navMenuButton : null}
             {renderedToolbar ? (
               <div
                 className={cn(
@@ -173,18 +374,30 @@ function DashboardTopNav({
             ) : null}
 
             {showNotifications ? (
-              <Link
-                to={notificationsTo}
+              <button
+                type="button"
+                onClick={() => openNotifications(false)}
                 className={cn(
-                  "inline-flex h-10 w-10 items-center justify-center rounded-lg border transition",
+                  "relative z-0 inline-flex h-10 w-10 items-center justify-center overflow-visible rounded-lg border transition",
                   isDark
                     ? "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white"
                     : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
                 )}
-                aria-label="Notifications"
+                aria-label={
+                  unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"
+                }
               >
                 <Bell className="h-[18px] w-[18px]" aria-hidden />
-              </Link>
+                {showUnreadDot ? (
+                  <span
+                    className={cn(
+                      "pointer-events-none absolute -right-0.5 -top-0.5 z-10 h-2.5 w-2.5 rounded-full border-2 border-red-600 bg-red-500 shadow-sm shadow-red-900/50",
+                      isDark ? "border-slate-950" : "border-white"
+                    )}
+                    aria-hidden
+                  />
+                ) : null}
+              </button>
             ) : null}
 
             <div className="relative" ref={menuRef}>
@@ -281,24 +494,32 @@ function DashboardTopNav({
                     Dashboard home
                   </Link>
                   {showNotifications ? (
-                    <Link
-                      to={notificationsTo}
+                    <button
+                      type="button"
                       role="menuitem"
                       className={cn(
                         "flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium transition",
                         isDark ? "text-slate-200 hover:bg-white/5" : "text-slate-700 hover:bg-slate-50"
                       )}
-                      onClick={() => setMenuOpen(false)}
+                      onClick={() => openNotifications(true)}
                     >
-                      <Bell
-                        className={cn(
-                          "h-4 w-4 shrink-0",
-                          isDark ? "text-cyan-300/90" : "text-indigo-600"
-                        )}
-                        aria-hidden
-                      />
+                      <span className="relative inline-flex shrink-0">
+                        <Bell
+                          className={cn(
+                            "h-4 w-4",
+                            isDark ? "text-cyan-300/90" : "text-indigo-600"
+                          )}
+                          aria-hidden
+                        />
+                        {showUnreadDot ? (
+                          <span
+                            className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-red-500"
+                            aria-hidden
+                          />
+                        ) : null}
+                      </span>
                       Notifications
-                    </Link>
+                    </button>
                   ) : null}
                   <div
                     className={cn("mx-2 my-1 h-px", isDark ? "bg-white/10" : "bg-slate-100")}
@@ -319,7 +540,7 @@ function DashboardTopNav({
                     )}
                   >
                     <LogOut className="h-4 w-4 shrink-0" aria-hidden />
-                    Sign out
+                    Logout
                   </button>
                 </div>
               ) : null}
@@ -338,6 +559,39 @@ function DashboardTopNav({
           </p>
         ) : null}
       </div>
+
+      {notifyToast.open ? (
+        <div
+          className={cn(
+            "fixed bottom-4 right-4 z-[100] flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-2xl",
+            isDark
+              ? "border-white/10 bg-slate-900 text-slate-100 ring-1 ring-black/50"
+              : "border-slate-200 bg-white text-slate-900 shadow-slate-900/10"
+          )}
+          role="status"
+        >
+          <Bell
+            className={cn(
+              "mt-0.5 h-5 w-5 shrink-0",
+              isDark ? "text-cyan-300/90" : "text-indigo-600"
+            )}
+            aria-hidden
+          />
+          <p className="min-w-0 flex-1 text-sm leading-snug">{notifyToast.message}</p>
+          <button
+            type="button"
+            onClick={dismissToast}
+            className={cn(
+              "shrink-0 rounded-md px-2 py-1 text-xs font-semibold transition",
+              isDark
+                ? "text-slate-300 hover:bg-white/10 hover:text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            )}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : null}
     </header>
   );
 }

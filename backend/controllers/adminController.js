@@ -4,6 +4,9 @@ const Assessment = require('../models/Assessment');
 const AssessmentSubmission = require('../models/AssessmentSubmission');
 const Job = require('../models/Job');
 const JobApplication = require('../models/JobApplication');
+const LearningProgress = require('../models/LearningProgress');
+const Notification = require('../models/Notification');
+const SavedJob = require('../models/SavedJob');
 const StudentProfile = require('../models/StudentProfile');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
@@ -270,6 +273,33 @@ exports.getPlatformInsights = async (req, res) => {
       (u) => u.role === 'student' && u.managedByCollege
     ).length;
 
+    const studentIds = users.filter((u) => u.role === 'student').map((u) => u._id);
+    const profileSelect =
+      'user course branch year semester bio studentPhone fatherName motherName fatherPhone motherPhone address city state pincode dateOfBirth bloodGroup emergencyContactName emergencyContactPhone';
+    const studentProfiles =
+      studentIds.length > 0
+        ? await StudentProfile.find({ user: { $in: studentIds } }).select(profileSelect).lean()
+        : [];
+    const profileByUserId = new Map(studentProfiles.map((p) => [String(p.user), p]));
+    const people = users.map((u) => {
+      const row = { ...u };
+      if (u.role === 'student') {
+        const p = profileByUserId.get(String(u._id));
+        if (p) {
+          for (const key of profileSelect.split(' ')) {
+            if (key === 'user') continue;
+            row[key] = p[key] || '';
+          }
+        } else {
+          for (const key of profileSelect.split(' ')) {
+            if (key === 'user') continue;
+            row[key] = '';
+          }
+        }
+      }
+      return row;
+    });
+
     res.status(200).json({
       success: true,
       data: {
@@ -284,7 +314,7 @@ exports.getPlatformInsights = async (req, res) => {
         roleCounts,
         jobStatusCounts,
         appStatusCounts,
-        people: users,
+        people,
         jobs,
         applications,
       },
@@ -355,6 +385,128 @@ exports.importStudentsFromSheet = async (req, res) => {
       success: true,
       message: `Student import finished. Created: ${created}, Failed: ${failed}`,
       data: { created, failed, results: outcomes },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Update student academic cohort (admin)
+// @route   PATCH /api/admin/users/:id/student-profile
+// @access  Private (admin only)
+exports.patchStudentCohort = async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
+    const target = await User.findById(id);
+    if (!target || target.role !== 'student') {
+      return res.status(404).json({
+        success: false,
+        message: 'Student user not found.',
+      });
+    }
+
+    const body = req.body || {};
+    const t = (v) => (typeof v === 'string' ? v.trim() : '');
+
+    const profile = await StudentProfile.findOneAndUpdate(
+      { user: id },
+      {
+        $set: {
+          course: t(body.course),
+          branch: t(body.branch),
+          year: t(body.year),
+          semester: t(body.semester),
+          bio: t(body.bio),
+          studentPhone: t(body.studentPhone),
+          fatherName: t(body.fatherName),
+          motherName: t(body.motherName),
+          fatherPhone: t(body.fatherPhone),
+          motherPhone: t(body.motherPhone),
+          address: t(body.address),
+          city: t(body.city),
+          state: t(body.state),
+          pincode: t(body.pincode),
+          dateOfBirth: t(body.dateOfBirth),
+          bloodGroup: t(body.bloodGroup),
+          emergencyContactName: t(body.emergencyContactName),
+          emergencyContactPhone: t(body.emergencyContactPhone),
+        },
+        $setOnInsert: { user: id },
+      },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    ).populate('user', 'name email role');
+
+    res.status(200).json({
+      success: true,
+      message: 'Student profile updated.',
+      data: { profile },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Delete user (admin) — full cascade for students/alumni only
+// @route   DELETE /api/admin/users/:id
+// @access  Private (admin only)
+exports.deleteUser = async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
+    if (String(req.user._id) === String(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own admin account.',
+      });
+    }
+
+    const target = await User.findById(id);
+    if (!target) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (target.role === 'admin') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete admin accounts.',
+      });
+    }
+
+    if (target.role === 'student' || target.role === 'alumni') {
+      await StudentProfile.deleteMany({ user: id });
+      await LearningProgress.deleteMany({ user: id });
+      await AssessmentSubmission.deleteMany({ user: id });
+      await JobApplication.deleteMany({ student: id });
+      await SavedJob.deleteMany({ student: id });
+      await Notification.deleteMany({ recipient: id });
+      await User.findByIdAndDelete(id);
+      return res.status(200).json({
+        success: true,
+        message: 'User and related learner data removed.',
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message:
+        'Automated delete is only enabled for student and alumni accounts. Remove or reassign other roles manually.',
     });
   } catch (err) {
     res.status(500).json({

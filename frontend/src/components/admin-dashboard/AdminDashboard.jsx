@@ -9,8 +9,10 @@ import {
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
+  Trash2,
   Users,
   Workflow,
+  X,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -39,6 +41,50 @@ function MetricCard({ title, value, subtitle, icon: Icon }) {
 }
 
 const roleOptions = ["student", "alumni", "faculty", "company", "admin", "college"];
+
+const emptyStudentProfileForm = {
+  course: "",
+  branch: "",
+  year: "",
+  semester: "",
+  bio: "",
+  studentPhone: "",
+  fatherName: "",
+  motherName: "",
+  fatherPhone: "",
+  motherPhone: "",
+  address: "",
+  city: "",
+  state: "",
+  pincode: "",
+  dateOfBirth: "",
+  bloodGroup: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+};
+
+function studentFormFromPerson(person) {
+  return {
+    course: person.course || "",
+    branch: person.branch || "",
+    year: person.year || "",
+    semester: person.semester || "",
+    bio: person.bio || "",
+    studentPhone: person.studentPhone || "",
+    fatherName: person.fatherName || "",
+    motherName: person.motherName || "",
+    fatherPhone: person.fatherPhone || "",
+    motherPhone: person.motherPhone || "",
+    address: person.address || "",
+    city: person.city || "",
+    state: person.state || "",
+    pincode: person.pincode || "",
+    dateOfBirth: person.dateOfBirth || "",
+    bloodGroup: person.bloodGroup || "",
+    emergencyContactName: person.emergencyContactName || "",
+    emergencyContactPhone: person.emergencyContactPhone || "",
+  };
+}
 
 const emptyAnalytics = {
   totals: {
@@ -87,10 +133,8 @@ function AdminDashboard({ user, onLogout }) {
   const navigate = useNavigate();
   const [analytics, setAnalytics] = useState(emptyAnalytics);
   const [insights, setInsights] = useState(emptyInsights);
-  const [roleDrafts, setRoleDrafts] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [updatingUserId, setUpdatingUserId] = useState("");
   const [peopleRoleFilter, setPeopleRoleFilter] = useState("all");
   const [peopleSearch, setPeopleSearch] = useState("");
   const [error, setError] = useState("");
@@ -102,10 +146,12 @@ function AdminDashboard({ user, onLogout }) {
   const [materialTitle, setMaterialTitle] = useState("");
   const [materialCategoryId, setMaterialCategoryId] = useState("");
   const [importBusy, setImportBusy] = useState(false);
-
-  const hydrateRoleDrafts = useCallback((people) => {
-    setRoleDrafts(Object.fromEntries((people || []).map((u) => [u._id, u.role])));
-  }, []);
+  const [assessments, setAssessments] = useState([]);
+  const [peopleModal, setPeopleModal] = useState(null);
+  const [savingPeopleModal, setSavingPeopleModal] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState("");
+  const [deletingJobId, setDeletingJobId] = useState("");
+  const [deletingAssessmentId, setDeletingAssessmentId] = useState("");
 
   const fetchDashboard = useCallback(
     async ({ silent } = {}) => {
@@ -121,14 +167,16 @@ function AdminDashboard({ user, onLogout }) {
         setError("");
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [analyticsRes, insightsRes] = await Promise.all([
+        const [analyticsRes, insightsRes, assessmentsRes] = await Promise.all([
           fetch("/api/admin/analytics", { cache: "no-store", headers }),
           fetch("/api/admin/insights", { cache: "no-store", headers }),
+          fetch("/api/assessments", { cache: "no-store", headers }),
         ]);
 
-        const [analyticsData, insightsData] = await Promise.all([
+        const [analyticsData, insightsData, assessmentsData] = await Promise.all([
           readApiResponse(analyticsRes),
           readApiResponse(insightsRes),
+          readApiResponse(assessmentsRes),
         ]);
 
         if (analyticsRes.status === 401 || insightsRes.status === 401) {
@@ -145,10 +193,15 @@ function AdminDashboard({ user, onLogout }) {
           throw new Error(insightsData.message || "Failed to load admin insights.");
         }
 
+        if (assessmentsRes.ok) {
+          setAssessments(assessmentsData.data?.assessments || []);
+        } else {
+          setAssessments([]);
+        }
+
         setAnalytics(analyticsData.data || emptyAnalytics);
         const nextInsights = insightsData.data || emptyInsights;
         setInsights(nextInsights);
-        hydrateRoleDrafts(nextInsights.people || []);
       } catch (err) {
         setError(err.message || "Unable to load admin dashboard.");
       } finally {
@@ -156,7 +209,7 @@ function AdminDashboard({ user, onLogout }) {
         if (!silent) setRefreshing(false);
       }
     },
-    [hydrateRoleDrafts, navigate]
+    [navigate]
   );
 
   useEffect(() => {
@@ -180,10 +233,27 @@ function AdminDashboard({ user, onLogout }) {
     return (insights.people || []).filter((u) => {
       if (peopleRoleFilter !== "all" && u.role !== peopleRoleFilter) return false;
       if (!search) return true;
-      return (
-        String(u.name || "").toLowerCase().includes(search) ||
-        String(u.email || "").toLowerCase().includes(search)
-      );
+      const hay = [
+        u.name,
+        u.email,
+        u.role,
+        u.course,
+        u.branch,
+        u.year,
+        u.semester,
+        u.bio,
+        u.studentPhone,
+        u.fatherName,
+        u.motherName,
+        u.fatherPhone,
+        u.motherPhone,
+        u.city,
+        u.state,
+        u.pincode,
+      ]
+        .map((x) => String(x || "").toLowerCase())
+        .join(" ");
+      return hay.includes(search);
     });
   }, [insights.people, peopleRoleFilter, peopleSearch]);
 
@@ -204,41 +274,161 @@ function AdminDashboard({ user, onLogout }) {
     return new Date(iso).toLocaleString();
   };
 
-  const handleRoleUpdate = async (userId) => {
+  const openPeopleProfileModal = (person) => {
+    setPeopleModal({
+      person,
+      role: person.role,
+      student: person.role === "student" ? studentFormFromPerson(person) : null,
+    });
+  };
+
+  const closePeopleProfileModal = () => {
+    setPeopleModal(null);
+  };
+
+  const savePeopleProfileModal = async () => {
+    if (!peopleModal) return;
     const token = localStorage.getItem("token");
     if (!token) {
       navigate("/login");
       return;
     }
 
-    const role = roleDrafts[userId];
-    if (!role) return;
+    const { person, role, student } = peopleModal;
+    const userId = person._id;
 
-    setUpdatingUserId(userId);
+    setSavingPeopleModal(true);
     setError("");
     setSuccess("");
 
     try {
-      const response = await fetch(`/api/admin/users/${userId}/role`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ role }),
-      });
-
-      const data = await readApiResponse(response);
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to update user role.");
+      if (role && role !== person.role) {
+        const response = await fetch(`/api/admin/users/${userId}/role`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ role }),
+        });
+        const data = await readApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to update user role.");
+        }
       }
 
-      setSuccess("User role updated successfully.");
+      if (role === "student" && student) {
+        const response = await fetch(`/api/admin/users/${userId}/student-profile`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(student),
+        });
+        const data = await readApiResponse(response);
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to save student profile.");
+        }
+      }
+
+      setSuccess("Profile saved.");
+      closePeopleProfileModal();
       await fetchDashboard({ silent: true });
     } catch (err) {
-      setError(err.message || "Unable to update role.");
+      setError(err.message || "Unable to save.");
     } finally {
-      setUpdatingUserId("");
+      setSavingPeopleModal(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId, roleLabel) => {
+    if (
+      !window.confirm(
+        `Delete this ${roleLabel} account? This cannot be undone. (Only student/alumni are fully removed automatically.)`
+      )
+    ) {
+      return;
+    }
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setDeletingUserId(userId);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await readApiResponse(response);
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete user.");
+      }
+      setSuccess(data.message || "User removed.");
+      await fetchDashboard({ silent: true });
+    } catch (err) {
+      setError(err.message || "Delete failed.");
+    } finally {
+      setDeletingUserId("");
+    }
+  };
+
+  const handleDeleteJob = async (jobId) => {
+    if (!window.confirm("Delete this job and its applications/saves?")) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setDeletingJobId(jobId);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`/api/jobs/${jobId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await readApiResponse(response);
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete job.");
+      }
+      setSuccess("Job deleted.");
+      await fetchDashboard({ silent: true });
+    } catch (err) {
+      setError(err.message || "Job delete failed.");
+    } finally {
+      setDeletingJobId("");
+    }
+  };
+
+  const handleDeleteAssessment = async (assessmentId) => {
+    if (!window.confirm("Delete this assessment permanently?")) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setDeletingAssessmentId(assessmentId);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`/api/assessments/${assessmentId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await readApiResponse(response);
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete assessment.");
+      }
+      setSuccess("Assessment deleted.");
+      await fetchDashboard({ silent: true });
+    } catch (err) {
+      setError(err.message || "Assessment delete failed.");
+    } finally {
+      setDeletingAssessmentId("");
     }
   };
 
@@ -345,7 +535,8 @@ function AdminDashboard({ user, onLogout }) {
             onLogout={onLogout}
             actionItems={[
               { label: "Manage learning", to: "/dashboard/learning/manage", icon: ClipboardCheck },
-              { label: "Manage jobs", to: "/admin/jobs" },
+              { label: "Create assessment", to: "/assessments/create", icon: BarChart3 },
+              { label: "Manage jobs", to: "/admin/jobs", icon: BriefcaseBusiness },
               { label: "Go to home", onClick: () => navigate("/") },
             ]}
           />
@@ -559,60 +750,159 @@ function AdminDashboard({ user, onLogout }) {
               </div>
             </div>
             <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10">
-              <table className="w-full min-w-[860px] text-left text-sm">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead className="bg-slate-900/60 text-xs uppercase tracking-wide text-slate-400">
                   <tr>
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-4 py-3">Email</th>
-                    <th className="px-4 py-3">Role</th>
-                    <th className="px-4 py-3">Managed By</th>
-                    <th className="px-4 py-3">Faculty Status</th>
-                    <th className="px-4 py-3">Actions</th>
+                    <th className="px-3 py-3 font-semibold">Name</th>
+                    <th className="px-3 py-3 font-semibold">Email</th>
+                    <th className="px-3 py-3 font-semibold">Role</th>
+                    <th className="px-3 py-3 font-semibold">Managed</th>
+                    <th className="px-3 py-3 font-semibold">Faculty</th>
+                    <th className="px-3 py-3 font-semibold">Student summary</th>
+                    <th className="px-3 py-3 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPeople.length ? (
-                    filteredPeople.map((person) => (
-                      <tr key={person._id} className="border-b border-white/5 last:border-0">
-                        <td className="px-4 py-3 text-white">{person.name}</td>
-                        <td className="px-4 py-3 text-slate-300">{person.email}</td>
-                        <td className="px-4 py-3 capitalize">{person.role}</td>
-                        <td className="px-4 py-3 text-slate-400">
-                          {person.managedByCollege?.name || "—"}
-                        </td>
-                        <td className="px-4 py-3 capitalize text-slate-400">
-                          {person.role === "faculty" ? person.facultyApprovalStatus || "approved" : "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={roleDrafts[person._id] || person.role}
-                              onChange={(e) =>
-                                setRoleDrafts((prev) => ({ ...prev, [person._id]: e.target.value }))
-                              }
-                              className="h-9 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-xs"
+                    filteredPeople.map((person) => {
+                      const cohortLine =
+                        person.role === "student"
+                          ? [person.course, person.branch, person.year, person.semester]
+                              .filter(Boolean)
+                              .join(" · ") || "—"
+                          : "—";
+                      return (
+                        <tr key={person._id} className="border-b border-white/5 last:border-0">
+                          <td className="px-3 py-3 align-top text-white">
+                            <span className="block max-w-[10rem] truncate" title={person.name || ""}>
+                              {person.name}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 align-top text-slate-300">
+                            <span className="block max-w-[12rem] truncate" title={person.email || ""}>
+                              {person.email}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 align-top capitalize">{person.role}</td>
+                          <td className="px-3 py-3 align-top text-slate-400">
+                            <span
+                              className="block max-w-[8rem] truncate text-xs"
+                              title={person.managedByCollege?.name || ""}
                             >
-                              {roleOptions.map((role) => (
-                                <option key={role} value={role}>
-                                  {role}
-                                </option>
-                              ))}
-                            </select>
-                            <Button
-                              size="sm"
-                              onClick={() => handleRoleUpdate(person._id)}
-                              disabled={updatingUserId === person._id}
-                            >
-                              {updatingUserId === person._id ? "Saving..." : "Save"}
-                            </Button>
-                          </div>
+                              {person.managedByCollege?.name || "—"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 align-top text-xs capitalize text-slate-400">
+                            {person.role === "faculty"
+                              ? person.facultyApprovalStatus || "approved"
+                              : "—"}
+                          </td>
+                          <td className="max-w-[14rem] px-3 py-3 align-top text-xs text-slate-400">
+                            <span className="line-clamp-2" title={cohortLine}>
+                              {cohortLine}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="text-xs"
+                                onClick={() => openPeopleProfileModal(person)}
+                              >
+                                Open profile
+                              </Button>
+                              {(person.role === "student" || person.role === "alumni") && (
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="justify-center gap-1 text-xs"
+                                  onClick={() => handleDeleteUser(person._id, person.role)}
+                                  disabled={deletingUserId === person._id}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  {deletingUserId === person._id ? "…" : "Delete"}
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                        No users match this filter.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-3xl border border-white/10 bg-slate-950/55 p-5 sm:p-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Assessments (admin)</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Create, review, or remove assessments.{" "}
+                  <Link to="/assessments/create" className="text-cyan-300 underline">
+                    New assessment
+                  </Link>
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+              <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+                <thead className="bg-slate-900/60 text-xs uppercase tracking-wide text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2">Title</th>
+                    <th className="w-[18%] px-3 py-2">Status</th>
+                    <th className="w-[22%] px-3 py-2">Created by</th>
+                    <th className="w-[14%] px-3 py-2">Open</th>
+                    <th className="w-[12%] px-3 py-2">Delete</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {assessments.length ? (
+                    assessments.map((a) => (
+                      <tr key={a._id} className="border-b border-white/5">
+                        <td className="px-3 py-2 text-white">
+                          <span className="line-clamp-2">{a.title}</span>
+                        </td>
+                        <td className="px-3 py-2 capitalize text-slate-300">{a.status}</td>
+                        <td className="px-3 py-2 text-xs text-slate-400">
+                          {a.createdBy?.name || "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <Link
+                            to={`/assessments/${a._id}`}
+                            className="text-xs text-cyan-300 underline"
+                          >
+                            View
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="h-8 gap-1 px-2 text-xs"
+                            onClick={() => handleDeleteAssessment(a._id)}
+                            disabled={deletingAssessmentId === a._id}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
-                        No users match this filter.
+                      <td colSpan={5} className="px-3 py-8 text-center text-slate-500">
+                        No assessments loaded.
                       </td>
                     </tr>
                   )}
@@ -629,12 +919,34 @@ function AdminDashboard({ user, onLogout }) {
                 <div className="mt-4 space-y-3">
                   {recentJobs.length ? (
                     recentJobs.map((job) => (
-                      <div key={job._id} className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-                        <p className="font-semibold text-white">{job.title}</p>
-                        <p className="mt-1 text-sm text-slate-400">
-                          {job.createdBy?.name || "Company"} · {job.location || "Remote"} ·{" "}
-                          <span className="capitalize">{job.status}</span>
-                        </p>
+                      <div
+                        key={job._id}
+                        className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-semibold text-white">{job.title}</p>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {job.createdBy?.name || "Company"} · {job.location || "Remote"} ·{" "}
+                            <span className="capitalize">{job.status}</span>
+                          </p>
+                          <Link
+                            to={`/jobs/${job._id}`}
+                            className="mt-2 inline-block text-xs text-cyan-300 underline"
+                          >
+                            Open job
+                          </Link>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="shrink-0 gap-1"
+                          onClick={() => handleDeleteJob(job._id)}
+                          disabled={deletingJobId === job._id}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          {deletingJobId === job._id ? "…" : "Delete"}
+                        </Button>
                       </div>
                     ))
                   ) : (
@@ -705,6 +1017,212 @@ function AdminDashboard({ user, onLogout }) {
           </div>
         </div>
       </div>
+
+      {peopleModal ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="people-profile-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            aria-label="Close profile editor"
+            onClick={closePeopleProfileModal}
+          />
+          <div className="relative z-10 flex max-h-[92vh] w-full max-w-2xl flex-col rounded-t-3xl border border-white/10 bg-slate-950 shadow-2xl sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+              <div className="min-w-0">
+                <h2 id="people-profile-title" className="text-lg font-bold text-white">
+                  {peopleModal.person.name}
+                </h2>
+                <p className="mt-1 truncate text-sm text-slate-400">{peopleModal.person.email}</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                onClick={closePeopleProfileModal}
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+              <label className="block text-xs font-medium text-slate-400">Role</label>
+              <select
+                value={peopleModal.role}
+                onChange={(e) => {
+                  const nextRole = e.target.value;
+                  setPeopleModal((m) => ({
+                    ...m,
+                    role: nextRole,
+                    student:
+                      nextRole === "student"
+                        ? m.student ?? studentFormFromPerson(m.person)
+                        : null,
+                  }));
+                }}
+                className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 text-sm text-white"
+              >
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-slate-500">
+                Saving applies role changes and, for students, the full academic and contact record
+                below.
+              </p>
+
+              {peopleModal.role === "student" && peopleModal.student ? (
+                <div className="mt-6 space-y-5">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-200">Academic cohort</h3>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {[
+                        ["course", "Program / course"],
+                        ["branch", "Branch"],
+                        ["year", "Year"],
+                        ["semester", "Semester"],
+                      ].map(([key, label]) => (
+                        <div key={key}>
+                          <label className="text-xs text-slate-400">{label}</label>
+                          <input
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            value={peopleModal.student[key]}
+                            onChange={(e) =>
+                              setPeopleModal((m) => ({
+                                ...m,
+                                student: { ...m.student, [key]: e.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-200">Bio</h3>
+                    <textarea
+                      className="mt-2 min-h-[80px] w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                      value={peopleModal.student.bio}
+                      onChange={(e) =>
+                        setPeopleModal((m) => ({
+                          ...m,
+                          student: { ...m.student, bio: e.target.value },
+                        }))
+                      }
+                      placeholder="Short bio"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-200">Parents &amp; contacts</h3>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {[
+                        ["studentPhone", "Student phone"],
+                        ["fatherName", "Father name"],
+                        ["fatherPhone", "Father phone"],
+                        ["motherName", "Mother name"],
+                        ["motherPhone", "Mother phone"],
+                      ].map(([key, label]) => (
+                        <div key={key} className={key === "studentPhone" ? "sm:col-span-2" : ""}>
+                          <label className="text-xs text-slate-400">{label}</label>
+                          <input
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            value={peopleModal.student[key]}
+                            onChange={(e) =>
+                              setPeopleModal((m) => ({
+                                ...m,
+                                student: { ...m.student, [key]: e.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-200">Address</h3>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <label className="text-xs text-slate-400">Street / address</label>
+                        <input
+                          className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                          value={peopleModal.student.address}
+                          onChange={(e) =>
+                            setPeopleModal((m) => ({
+                              ...m,
+                              student: { ...m.student, address: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                      {[
+                        ["city", "City"],
+                        ["state", "State"],
+                        ["pincode", "PIN / ZIP"],
+                      ].map(([key, label]) => (
+                        <div key={key}>
+                          <label className="text-xs text-slate-400">{label}</label>
+                          <input
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            value={peopleModal.student[key]}
+                            onChange={(e) =>
+                              setPeopleModal((m) => ({
+                                ...m,
+                                student: { ...m.student, [key]: e.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-200">Other</h3>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {[
+                        ["dateOfBirth", "Date of birth (YYYY-MM-DD)"],
+                        ["bloodGroup", "Blood group"],
+                        ["emergencyContactName", "Emergency contact name"],
+                        ["emergencyContactPhone", "Emergency contact phone"],
+                      ].map(([key, label]) => (
+                        <div key={key}>
+                          <label className="text-xs text-slate-400">{label}</label>
+                          <input
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            value={peopleModal.student[key]}
+                            onChange={(e) =>
+                              setPeopleModal((m) => ({
+                                ...m,
+                                student: { ...m.student, [key]: e.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-white/10 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+              <Button type="button" variant="outline" onClick={closePeopleProfileModal}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={savePeopleProfileModal}
+                disabled={savingPeopleModal}
+              >
+                {savingPeopleModal ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

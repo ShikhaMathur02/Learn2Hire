@@ -29,6 +29,22 @@ exports.getMyProfile = async (req, res) => {
               course: '',
               branch: '',
               year: '',
+              semester: '',
+              studentPhone: '',
+              fatherName: '',
+              motherName: '',
+              fatherPhone: '',
+              motherPhone: '',
+              address: '',
+              city: '',
+              state: '',
+              pincode: '',
+              dateOfBirth: '',
+              bloodGroup: '',
+              emergencyContactName: '',
+              emergencyContactPhone: '',
+              toolsAndTechnologies: [],
+              visibleToCompanies: true,
               skills: insights.skills,
               stats: insights.stats,
               overallScore: insights.overallScore,
@@ -66,6 +82,23 @@ exports.getMyProfile = async (req, res) => {
 const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'expert'];
 
 // Validate and normalize a single skill object
+const normalizeToolsList = (raw) => {
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map((t) => String(t || '').trim()).filter(Boolean))].slice(0, 50);
+  }
+  if (typeof raw === 'string') {
+    return [
+      ...new Set(
+        raw
+          .split(/[,;\n]+/)
+          .map((t) => t.trim())
+          .filter(Boolean)
+      ),
+    ].slice(0, 50);
+  }
+  return [];
+};
+
 const normalizeSkill = (s) => {
   if (!s || typeof s.name !== 'string' || !s.name.trim()) {
     return null;
@@ -104,7 +137,29 @@ exports.createProfile = async (req, res) => {
       });
     }
 
-    const { bio, skills, course, branch, year } = req.body;
+    const {
+      bio,
+      skills,
+      course,
+      branch,
+      year,
+      semester,
+      studentPhone,
+      fatherName,
+      motherName,
+      fatherPhone,
+      motherPhone,
+      address,
+      city,
+      state,
+      pincode,
+      dateOfBirth,
+      bloodGroup,
+      emergencyContactName,
+      emergencyContactPhone,
+      toolsAndTechnologies,
+      visibleToCompanies,
+    } = req.body;
 
     const normalizedSkills = [];
     if (Array.isArray(skills)) {
@@ -114,12 +169,30 @@ exports.createProfile = async (req, res) => {
       }
     }
 
+    const str = (v) => (typeof v === 'string' ? v.trim() : '');
     const profile = await StudentProfile.create({
       user: req.user._id,
-      bio: typeof bio === 'string' ? bio.trim() : '',
-      course: typeof course === 'string' ? course.trim() : '',
-      branch: typeof branch === 'string' ? branch.trim() : '',
-      year: typeof year === 'string' ? year.trim() : '',
+      bio: str(bio),
+      course: str(course),
+      branch: str(branch),
+      year: str(year),
+      semester: str(semester),
+      studentPhone: str(studentPhone),
+      fatherName: str(fatherName),
+      motherName: str(motherName),
+      fatherPhone: str(fatherPhone),
+      motherPhone: str(motherPhone),
+      address: str(address),
+      city: str(city),
+      state: str(state),
+      pincode: str(pincode),
+      dateOfBirth: str(dateOfBirth),
+      bloodGroup: str(bloodGroup),
+      emergencyContactName: str(emergencyContactName),
+      emergencyContactPhone: str(emergencyContactPhone),
+      toolsAndTechnologies: normalizeToolsList(toolsAndTechnologies),
+      visibleToCompanies:
+        typeof visibleToCompanies === 'boolean' ? visibleToCompanies : true,
       skills: normalizedSkills,
     });
 
@@ -153,19 +226,60 @@ exports.createProfile = async (req, res) => {
 // @access  Private
 exports.updateProfile = async (req, res) => {
   try {
-    const { bio, skills, stats, course, branch, year } = req.body;
+    const {
+      bio,
+      skills,
+      stats,
+      course,
+      branch,
+      year,
+      semester,
+      studentPhone,
+      fatherName,
+      motherName,
+      fatherPhone,
+      motherPhone,
+      address,
+      city,
+      state,
+      pincode,
+      dateOfBirth,
+      bloodGroup,
+      emergencyContactName,
+      emergencyContactPhone,
+      toolsAndTechnologies,
+      visibleToCompanies,
+    } = req.body;
     const updateFields = {};
     let normalizedSkills = null;
 
-    if (bio !== undefined) updateFields.bio = bio;
-    if (course !== undefined) {
-      updateFields.course = typeof course === 'string' ? course.trim() : '';
+    const trimStr = (v) => (typeof v === 'string' ? v.trim() : '');
+
+    if (bio !== undefined) updateFields.bio = trimStr(bio);
+    if (course !== undefined) updateFields.course = trimStr(course);
+    if (branch !== undefined) updateFields.branch = trimStr(branch);
+    if (year !== undefined) updateFields.year = trimStr(year);
+    if (semester !== undefined) updateFields.semester = trimStr(semester);
+    if (studentPhone !== undefined) updateFields.studentPhone = trimStr(studentPhone);
+    if (fatherName !== undefined) updateFields.fatherName = trimStr(fatherName);
+    if (motherName !== undefined) updateFields.motherName = trimStr(motherName);
+    if (fatherPhone !== undefined) updateFields.fatherPhone = trimStr(fatherPhone);
+    if (motherPhone !== undefined) updateFields.motherPhone = trimStr(motherPhone);
+    if (address !== undefined) updateFields.address = trimStr(address);
+    if (city !== undefined) updateFields.city = trimStr(city);
+    if (state !== undefined) updateFields.state = trimStr(state);
+    if (pincode !== undefined) updateFields.pincode = trimStr(pincode);
+    if (dateOfBirth !== undefined) updateFields.dateOfBirth = trimStr(dateOfBirth);
+    if (bloodGroup !== undefined) updateFields.bloodGroup = trimStr(bloodGroup);
+    if (emergencyContactName !== undefined)
+      updateFields.emergencyContactName = trimStr(emergencyContactName);
+    if (emergencyContactPhone !== undefined)
+      updateFields.emergencyContactPhone = trimStr(emergencyContactPhone);
+    if (toolsAndTechnologies !== undefined) {
+      updateFields.toolsAndTechnologies = normalizeToolsList(toolsAndTechnologies);
     }
-    if (branch !== undefined) {
-      updateFields.branch = typeof branch === 'string' ? branch.trim() : '';
-    }
-    if (year !== undefined) {
-      updateFields.year = typeof year === 'string' ? year.trim() : '';
+    if (visibleToCompanies !== undefined) {
+      updateFields.visibleToCompanies = Boolean(visibleToCompanies);
     }
     if (skills !== undefined) {
       normalizedSkills = [];

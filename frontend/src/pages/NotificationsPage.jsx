@@ -1,11 +1,38 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bell, CheckCheck, Filter, LoaderCircle } from "lucide-react";
+import { Bell, CheckCheck, Filter, LoaderCircle, Sparkles } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../lib/api";
+import { studentNavItems } from "../config/studentNavItems";
+import { clearAuthSession } from "../lib/authSession";
+import { DarkWorkspaceShell } from "../components/layout/DarkWorkspaceShell";
+import { DashboardTopNav } from "../components/dashboard/DashboardTopNav";
 import { Button } from "../components/ui/button";
 import { NavDropdown } from "../components/ui/nav-dropdown";
 import { Card, CardContent } from "../components/ui/card";
+
+function emitNotificationsChanged() {
+  window.dispatchEvent(new CustomEvent("learn2hire-notifications-changed"));
+}
+
+function readStoredUser() {
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function workspaceLabelForRole(role) {
+  const map = {
+    faculty: "Faculty Workspace",
+    company: "Company Workspace",
+    college: "College Workspace",
+    admin: "Admin Workspace",
+  };
+  return map[role] || "Workspace";
+}
 
 function NotificationsPage() {
   const navigate = useNavigate();
@@ -17,6 +44,13 @@ function NotificationsPage() {
   const [markingAll, setMarkingAll] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [viewerRole, setViewerRole] = useState("");
+  const [viewerUser, setViewerUser] = useState(() => readStoredUser());
+
+  const handleLogout = () => {
+    clearAuthSession();
+    navigate("/login");
+  };
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -27,6 +61,18 @@ function NotificationsPage() {
       }
 
       try {
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            setViewerRole(parsed.role || "");
+            setViewerUser(parsed);
+          } catch {
+            setViewerRole("");
+            setViewerUser(null);
+          }
+        }
+
         setError("");
         const response = await fetch("/api/notifications", {
           headers: {
@@ -52,6 +98,7 @@ function NotificationsPage() {
 
         setNotifications(data.data?.notifications || []);
         setUnreadCount(data.data?.unreadCount || 0);
+        emitNotificationsChanged();
       } catch (err) {
         setError(err.message || "Unable to load notifications.");
       } finally {
@@ -106,6 +153,7 @@ function NotificationsPage() {
         )
       );
       setUnreadCount((prev) => Math.max(prev - 1, 0));
+      emitNotificationsChanged();
     } catch (err) {
       setError(err.message || "Unable to update notification.");
     } finally {
@@ -145,6 +193,7 @@ function NotificationsPage() {
         prev.map((notification) => ({ ...notification, isRead: true }))
       );
       setUnreadCount(0);
+      emitNotificationsChanged();
       setSuccess("All notifications marked as read.");
     } catch (err) {
       setError(err.message || "Unable to update notifications.");
@@ -153,68 +202,45 @@ function NotificationsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
-        <div className="flex items-center gap-3">
-          <LoaderCircle className="h-5 w-5 animate-spin" />
-          Loading notifications...
-        </div>
-      </div>
-    );
-  }
+  const isLearner = ["student", "alumni"].includes(viewerUser?.role || viewerRole);
 
-  return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
-      <div className="w-full">
-        <div className="sticky top-0 z-40 -mx-3 mb-6 border-b border-white/10 bg-slate-950/85 px-3 py-4 backdrop-blur-xl sm:-mx-4 sm:px-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-                <Link to="/dashboard" className="transition hover:text-white">
-                  Dashboard
-                </Link>
-                <span>/</span>
-                <span className="text-slate-300">Notifications</span>
-              </div>
-              <p className="text-sm font-medium text-cyan-300">Activity Center</p>
-              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Notifications</h1>
-              <p className="mt-2 max-w-xl text-sm text-slate-400">
-                Keep track of job updates, applications, and assessment activity.
-              </p>
-            </div>
+  const filterDropdown = (
+    <NavDropdown
+      theme="dark"
+      align="right"
+      icon={Filter}
+      label={filter === "all" ? "Showing: All" : `Showing: Unread (${unreadCount})`}
+      items={[
+        {
+          label: "All notifications",
+          icon: Bell,
+          onClick: () => setFilter("all"),
+        },
+        {
+          label: `Unread only (${unreadCount})`,
+          icon: Bell,
+          onClick: () => setFilter("unread"),
+        },
+        { separator: true },
+        {
+          label: markingAll ? "Marking all…" : "Mark all as read",
+          icon: CheckCheck,
+          onClick: () => handleMarkAllRead(),
+          disabled: markingAll || unreadCount === 0,
+        },
+      ]}
+    />
+  );
 
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <NavDropdown
-                theme="dark"
-                align="right"
-                icon={Filter}
-                label={filter === "all" ? "Showing: All" : `Showing: Unread (${unreadCount})`}
-                items={[
-                  {
-                    label: "All notifications",
-                    icon: Bell,
-                    onClick: () => setFilter("all"),
-                  },
-                  {
-                    label: `Unread only (${unreadCount})`,
-                    icon: Bell,
-                    onClick: () => setFilter("unread"),
-                  },
-                  { separator: true },
-                  {
-                    label: markingAll ? "Marking all…" : "Mark all as read",
-                    icon: CheckCheck,
-                    onClick: () => handleMarkAllRead(),
-                    disabled: markingAll || unreadCount === 0,
-                  },
-                ]}
-              />
-            </div>
-          </div>
-        </div>
+  const shellUser = viewerUser || {
+    name: "Account",
+    email: "",
+    role: viewerRole || "student",
+  };
 
-        {error ? (
+  const listSection = (
+    <>
+ {error ? (
           <div className="mb-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
             {error}
           </div>
@@ -301,6 +327,91 @@ function NotificationsPage() {
             </Card>
           )}
         </div>
+    </>
+  );
+
+  if (loading) {
+    if (isLearner) {
+      return (
+        <DarkWorkspaceShell
+          title="Notifications"
+          description="Keep track of job updates, applications, and assessment activity."
+          workspaceLabel="Student Workspace"
+          brandSubtitle="Student Workspace"
+          navItems={studentNavItems}
+          onNavSectionSelect={(sid) =>
+            navigate("/dashboard", { state: { studentSection: sid } })
+          }
+          user={{
+            name: shellUser.name || "Learner",
+            email: shellUser.email || "",
+            role: shellUser.role || "student",
+          }}
+          onLogout={handleLogout}
+          headerIcon={Sparkles}
+          actions={filterDropdown}
+        >
+          <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
+            <div className="flex items-center gap-3 text-slate-300">
+              <LoaderCircle className="h-6 w-6 animate-spin" />
+              Loading notifications...
+            </div>
+          </div>
+        </DarkWorkspaceShell>
+      );
+    }
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
+        <div className="flex items-center gap-3">
+          <LoaderCircle className="h-5 w-5 animate-spin" />
+          Loading notifications...
+        </div>
+      </div>
+    );
+  }
+
+  if (isLearner) {
+    return (
+      <DarkWorkspaceShell
+        title="Notifications"
+        description="Keep track of job updates, applications, and assessment activity."
+        workspaceLabel="Student Workspace"
+        brandSubtitle="Student Workspace"
+        navItems={studentNavItems}
+        onNavSectionSelect={(sid) =>
+          navigate("/dashboard", { state: { studentSection: sid } })
+        }
+        user={{
+          name: viewerUser?.name || "Learner",
+          email: viewerUser?.email || "",
+          role: viewerUser?.role || "student",
+        }}
+        onLogout={handleLogout}
+        headerIcon={Sparkles}
+        actions={filterDropdown}
+      >
+        {listSection}
+      </DarkWorkspaceShell>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
+      <div className="p-3 sm:p-4">
+        <DashboardTopNav
+          theme="dark"
+          workspaceLabel={workspaceLabelForRole(viewerRole)}
+          title="Notifications"
+          description="Keep track of job updates, applications, and assessment activity."
+          user={{
+            name: viewerUser?.name || "Account",
+            email: viewerUser?.email || "",
+            role: viewerRole || viewerUser?.role || "",
+          }}
+          onLogout={handleLogout}
+          actions={filterDropdown}
+        />
+        {listSection}
       </div>
     </div>
   );

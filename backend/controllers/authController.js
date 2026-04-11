@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const StudentProfile = require('../models/StudentProfile');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -74,6 +75,37 @@ exports.signup = async (req, res) => {
     }
 
     const user = await User.create(userPayload);
+
+    if (role === 'student') {
+      const { course, branch, year, semester } = req.body;
+      const c = typeof course === 'string' ? course.trim() : '';
+      const b = typeof branch === 'string' ? branch.trim() : '';
+      const y = typeof year === 'string' ? year.trim() : '';
+      const sem = typeof semester === 'string' ? semester.trim() : '';
+      if (!c || !b || !y || !sem) {
+        await User.findByIdAndDelete(user._id);
+        return res.status(400).json({
+          success: false,
+          message:
+            'Students must provide program (e.g. B.Tech), branch (e.g. CSE), year (e.g. 4th year), and semester (e.g. 7th sem).',
+        });
+      }
+      try {
+        await StudentProfile.create({
+          user: user._id,
+          course: c,
+          branch: b,
+          year: y,
+          semester: sem,
+        });
+      } catch (profileErr) {
+        await User.findByIdAndDelete(user._id);
+        return res.status(500).json({
+          success: false,
+          message: profileErr.message || 'Could not create student profile.',
+        });
+      }
+    }
 
     if (role === 'faculty') {
       return res.status(201).json({

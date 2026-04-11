@@ -2,6 +2,28 @@ const mongoose = require('mongoose');
 
 const Notification = require('../models/Notification');
 
+// @desc    Unread count only (for nav badge polling)
+// @route   GET /api/notifications/unread-count
+// @access  Private
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const unreadCount = await Notification.countDocuments({
+      recipient: req.user._id,
+      isRead: false,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: { unreadCount },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
 // @desc    Get my notifications
 // @route   GET /api/notifications
 // @access  Private

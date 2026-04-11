@@ -20,7 +20,7 @@ const notificationSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ['assessment', 'job', 'system'],
+      enum: ['assessment', 'job', 'system', 'learning'],
       default: 'system',
     },
     type: {

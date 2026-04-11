@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Job = require('../models/Job');
 const JobApplication = require('../models/JobApplication');
 const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
+const { createBulkNotifications } = require('../utils/notificationService');
 
 const normalizeRole = (r) => String(r || '').trim().toLowerCase();
 
@@ -228,6 +229,21 @@ exports.setFacultyApproval = async (req, res) => {
       user.managedByCollege = req.user._id;
     }
     await user.save();
+
+    if (decision === 'approved') {
+      const students = await User.find({ role: 'student' }).select('_id').lean();
+      if (students.length) {
+        await createBulkNotifications({
+          recipientIds: students.map((s) => s._id),
+          title: 'New faculty member',
+          message: `${user.name} has joined the teaching team.`,
+          category: 'system',
+          type: 'faculty_joined',
+          actionUrl: '/dashboard/learning',
+          metadata: { facultyId: user._id },
+        });
+      }
+    }
 
     res.status(200).json({
       success: true,

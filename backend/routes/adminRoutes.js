@@ -7,6 +7,8 @@ const {
   getPlatformInsights,
   getUsers,
   updateUserRole,
+  patchStudentCohort,
+  deleteUser,
 } = require('../controllers/adminController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -19,6 +21,8 @@ router.get('/analytics', getAnalytics);
 router.get('/insights', getPlatformInsights);
 router.post('/students/import', upload.single('file'), importStudentsFromSheet);
 router.get('/users', getUsers);
+router.patch('/users/:id/student-profile', patchStudentCohort);
+router.delete('/users/:id', deleteUser);
 router.patch('/users/:id/role', updateUserRole);
 
 module.exports = router;

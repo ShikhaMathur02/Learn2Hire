@@ -78,13 +78,13 @@ function Login() {
   };
 
   const inputClassName =
-    "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:bg-slate-100";
+    "h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:bg-slate-50";
 
   return (
     <AuthLayout
-      badge="Welcome Back"
+      badge="Sign in"
       title="Sign in to your account"
-      subtitle="Access your dashboard, assessments, and placement workflow with your Learn2Hire credentials."
+      subtitle="Use the email and password for your Learn2Hire account."
       footer={
         <p>
           Don&apos;t have an account?{" "}
@@ -94,15 +94,15 @@ function Login() {
         </p>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {notice ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800">
             {notice}
           </div>
         ) : null}
 
         {error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm text-rose-800">
             {error}
           </div>
         ) : null}
@@ -137,10 +137,8 @@ function Login() {
 
         <Button
           type="submit"
-          variant="default"
-          size="lg"
           disabled={loading}
-          className="w-full justify-center shadow-lg shadow-indigo-600/25"
+          className="h-11 w-full justify-center rounded-lg text-sm"
         >
           {loading ? "Signing in..." : "Sign in"}
           {!loading ? <ArrowRight className="h-4 w-4" /> : null}

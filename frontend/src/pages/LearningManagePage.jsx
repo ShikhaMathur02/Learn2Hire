@@ -1,13 +1,40 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { BookOpenCheck, ExternalLink, Home, LayoutDashboard, LoaderCircle } from "lucide-react";
+import {
+  BookOpenCheck,
+  ChevronDown,
+  ExternalLink,
+  Home,
+  LayoutDashboard,
+  LoaderCircle,
+} from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { NavDropdown } from "../components/ui/nav-dropdown";
 import { Card, CardContent } from "../components/ui/card";
 import { readApiResponse } from "../lib/api";
+import {
+  COHORT_BRANCH_PRESETS,
+  COHORT_OTHER,
+  COHORT_PROGRAM_GROUPS,
+  COHORT_SEMESTER_PRESETS,
+  COHORT_YEAR_PRESETS,
+  cohortDegreeRequiresBranch,
+  degreesForProgram,
+} from "../lib/cohortPresets";
 
 const EDITOR_ROLES = new Set(["faculty", "admin", "college"]);
+/** Max rows in "Your study materials" before "Show more". */
+const MANAGE_MATERIALS_PAGE_SIZE = 10;
+
+function materialCategoryIdFromMaterial(m) {
+  const c = m?.category;
+  if (!c) return "";
+  if (typeof c === "string") return c;
+  if (c._id != null) return String(c._id);
+  if (c.id != null) return String(c.id);
+  return "";
+}
 
 function LearningManagePage() {
   const navigate = useNavigate();
@@ -36,11 +63,20 @@ function LearningManagePage() {
   const [targetCourse, setTargetCourse] = useState("");
   const [targetBranch, setTargetBranch] = useState("");
   const [targetYear, setTargetYear] = useState("");
+  const [targetSemester, setTargetSemester] = useState("");
+  const [cohortProgramId, setCohortProgramId] = useState("");
+  const [cohortCustomCourse, setCohortCustomCourse] = useState(false);
+  const [cohortCustomBranch, setCohortCustomBranch] = useState(false);
+  const [cohortCustomYear, setCohortCustomYear] = useState(false);
+  const [cohortCustomSemester, setCohortCustomSemester] = useState(false);
 
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectDescription, setNewSubjectDescription] = useState("");
   const [newSubjectIcon, setNewSubjectIcon] = useState("");
   const [creatingSubject, setCreatingSubject] = useState(false);
+  /** Filter rows in "Your study materials" by subject (empty = all). */
+  const [materialSubjectFilter, setMaterialSubjectFilter] = useState("");
+  const [manageMaterialsExpanded, setManageMaterialsExpanded] = useState(false);
 
   const loadEditorCatalog = useCallback(async () => {
     const [catRes, matRes] = await Promise.all([
@@ -153,6 +189,22 @@ function LearningManagePage() {
     };
   }, [bootstrapped, canEdit, loadEditorCatalog, navigate, token]);
 
+  const filteredManageMaterials = useMemo(() => {
+    if (!materialSubjectFilter) return manageMaterials;
+    return manageMaterials.filter(
+      (m) => materialCategoryIdFromMaterial(m) === String(materialSubjectFilter)
+    );
+  }, [manageMaterials, materialSubjectFilter]);
+
+  const displayedManageMaterials = useMemo(() => {
+    if (manageMaterialsExpanded) return filteredManageMaterials;
+    return filteredManageMaterials.slice(0, MANAGE_MATERIALS_PAGE_SIZE);
+  }, [filteredManageMaterials, manageMaterialsExpanded]);
+
+  useEffect(() => {
+    setManageMaterialsExpanded(false);
+  }, [materialSubjectFilter]);
+
   if (!bootstrapped) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
@@ -232,6 +284,26 @@ function LearningManagePage() {
         .map((t) => t.trim())
         .filter(Boolean);
 
+      if (audience === "cohort") {
+        if (!cohortProgramId) {
+          throw new Error("Select a program for cohort materials.");
+        }
+        if (!targetCourse.trim()) {
+          throw new Error("Select a course / degree for cohort materials.");
+        }
+        const needsEngBranch =
+          cohortDegreeRequiresBranch(targetCourse) ||
+          (cohortCustomCourse && cohortProgramId === "engineering");
+        if (needsEngBranch && !targetBranch.trim()) {
+          throw new Error("Engineering (B.Tech / Diploma) materials need a branch such as CSE or EE.");
+        }
+      }
+
+      const needsEngBranchPayload =
+        audience === "cohort" &&
+        (cohortDegreeRequiresBranch(targetCourse) ||
+          (cohortCustomCourse && cohortProgramId === "engineering"));
+
       const body = {
         title: title.trim(),
         summary: summary.trim(),
@@ -244,8 +316,9 @@ function LearningManagePage() {
         isPublished,
         audience,
         targetCourse: audience === "cohort" ? targetCourse.trim() : "",
-        targetBranch: audience === "cohort" ? targetBranch.trim() : "",
+        targetBranch: audience === "cohort" && needsEngBranchPayload ? targetBranch.trim() : "",
         targetYear: audience === "cohort" ? targetYear.trim() : "",
+        targetSemester: audience === "cohort" ? targetSemester.trim() : "",
       };
 
       if (!body.title || !body.categoryId) {
@@ -314,6 +387,10 @@ function LearningManagePage() {
   const inputClass =
     "mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
 
+  const showCohortBranchField =
+    cohortDegreeRequiresBranch(targetCourse) ||
+    (cohortCustomCourse && cohortProgramId === "engineering");
+
   return (
     <div className="min-h-screen bg-slate-950 px-3 py-6 text-slate-100 sm:px-4 sm:py-8">
       <div className="w-full">
@@ -325,8 +402,8 @@ function LearningManagePage() {
                 Add study material
               </h1>
               <p className="mt-2 max-w-xl text-sm text-slate-400">
-                Publish to the whole catalog, or restrict to a cohort by matching each student&apos;s course,
-                branch, and year on their profile.
+                Publish to the whole catalog, or restrict to a cohort by matching each student&apos;s program,
+                degree, branch (engineering only), year, and semester on their profile.
               </p>
             </div>
             <NavDropdown
@@ -338,7 +415,7 @@ function LearningManagePage() {
                 { label: "Dashboard home", to: "/dashboard", icon: LayoutDashboard },
                 {
                   label: "Student learning hub",
-                  to: "/dashboard/learning#learning-explore-content",
+                  to: "/dashboard/learning#learning-explore-catalog",
                   icon: BookOpenCheck,
                 },
                 { separator: true },
@@ -357,7 +434,7 @@ function LearningManagePage() {
             <h2 className="text-lg font-semibold text-white">Create a new subject</h2>
             <p className="mt-1 text-sm text-slate-400">
               Adds a card under <span className="text-slate-200">Subjects to Start With</span> on{" "}
-              <Link to="/dashboard/learning#learning-explore-content" className="text-cyan-400 underline">
+              <Link to="/dashboard/learning#learning-explore-catalog" className="text-cyan-400 underline">
                 /dashboard/learning
               </Link>
               . Publish at least one material in this subject so it shows for students (unpublished-only
@@ -418,51 +495,121 @@ function LearningManagePage() {
 
         {loadingMeta ? null : manageMaterials.length > 0 ? (
           <Card className="mb-8 border border-white/10 bg-white/5 shadow-none">
-            <CardContent className="p-6 sm:p-8">
-              <h2 className="text-lg font-semibold text-white">Your study materials</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Recently published items. Open a topic to preview how students see it.
-              </p>
-              <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
-                <table className="w-full min-w-[640px] text-left text-sm text-slate-300">
-                  <thead>
-                    <tr className="border-b border-white/10 bg-slate-900/50 text-xs uppercase tracking-wide text-slate-500">
-                      <th className="px-4 py-3 font-medium">Title</th>
-                      <th className="px-4 py-3 font-medium">Subject</th>
-                      <th className="px-4 py-3 font-medium">Type</th>
-                      <th className="px-4 py-3 font-medium">Audience</th>
-                      <th className="px-4 py-3 font-medium text-right">Open</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {manageMaterials.map((m) => (
-                      <tr key={m._id} className="border-b border-white/5 last:border-0">
-                        <td className="max-w-[220px] px-4 py-3 font-medium text-white">
-                          {m.title}
-                        </td>
-                        <td className="px-4 py-3 text-slate-400">
-                          {m.category?.name || "—"}
-                        </td>
-                        <td className="px-4 py-3 capitalize text-slate-400">{m.materialType}</td>
-                        <td className="px-4 py-3 text-slate-400">
-                          {m.audience === "cohort" ? "Class" : "Global"}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Link
-                            to={`/dashboard/learning/topic/${m.slug}`}
-                            className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            View
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <CardContent className="p-0">
+              <details open className="group">
+                <summary className="flex cursor-pointer list-none items-start justify-between gap-4 border-b border-white/10 px-6 py-5 sm:px-8 sm:py-6 [&::-webkit-details-marker]:hidden">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg font-semibold text-white">Your study materials</h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Recently published items ({manageMaterials.length}). The table shows up to{" "}
+                      {MANAGE_MATERIALS_PAGE_SIZE} rows at a time — use{" "}
+                      <span className="text-slate-300">Show more</span> for the rest. Filter by subject
+                      below.
+                    </p>
+                  </div>
+                  <ChevronDown
+                    className="mt-1 h-5 w-5 shrink-0 text-slate-400 transition group-open:rotate-180"
+                    aria-hidden
+                  />
+                </summary>
+                <div className="space-y-4 p-6 sm:p-8">
+                  <div className="max-w-md">
+                    <label
+                      className="text-sm font-medium text-slate-300"
+                      htmlFor="manage-materials-subject-filter"
+                    >
+                      Show materials for
+                    </label>
+                    <select
+                      id="manage-materials-subject-filter"
+                      className={inputClass}
+                      value={materialSubjectFilter}
+                      onChange={(e) => setMaterialSubjectFilter(e.target.value)}
+                    >
+                      <option value="">All subjects ({manageMaterials.length})</option>
+                      {categories.map((c) => {
+                        const count = manageMaterials.filter(
+                          (m) => materialCategoryIdFromMaterial(m) === String(c._id)
+                        ).length;
+                        return (
+                          <option key={c._id} value={c._id}>
+                            {c.name}
+                            {count > 0 ? ` (${count})` : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {filteredManageMaterials.length === 0 ? (
+                    <p className="rounded-2xl border border-white/10 bg-slate-900/40 px-4 py-3 text-sm text-slate-400">
+                      No materials for this subject. Choose &quot;All subjects&quot; or pick another
+                      category.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-white/10">
+                      <table className="w-full min-w-[640px] text-left text-sm text-slate-300">
+                        <thead>
+                          <tr className="border-b border-white/10 bg-slate-900/50 text-xs uppercase tracking-wide text-slate-500">
+                            <th className="px-4 py-3 font-medium">Title</th>
+                            <th className="px-4 py-3 font-medium">Subject</th>
+                            <th className="px-4 py-3 font-medium">Type</th>
+                            <th className="px-4 py-3 font-medium">Audience</th>
+                            <th className="px-4 py-3 font-medium text-right">Open</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {displayedManageMaterials.map((m) => (
+                            <tr key={m._id} className="border-b border-white/5 last:border-0">
+                              <td className="max-w-[220px] px-4 py-3 font-medium text-white">
+                                {m.title}
+                              </td>
+                              <td className="px-4 py-3 text-slate-400">
+                                {m.category?.name || "—"}
+                              </td>
+                              <td className="px-4 py-3 capitalize text-slate-400">
+                                {m.materialType}
+                              </td>
+                              <td className="px-4 py-3 text-slate-400">
+                                {m.audience === "cohort"
+                                  ? m.targetSemester
+                                    ? `Class · sem ${m.targetSemester}`
+                                    : "Class"
+                                  : "Global"}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <Link
+                                  to={`/dashboard/learning/topic/${m.slug}`}
+                                  className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  View
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </Link>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {filteredManageMaterials.length > MANAGE_MATERIALS_PAGE_SIZE ? (
+                    <div className="flex justify-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                        onClick={() => setManageMaterialsExpanded((prev) => !prev)}
+                      >
+                        {manageMaterialsExpanded
+                          ? "Show less"
+                          : `Show more (${filteredManageMaterials.length - MANAGE_MATERIALS_PAGE_SIZE} more)`}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </details>
             </CardContent>
           </Card>
         ) : (
@@ -601,8 +748,9 @@ function LearningManagePage() {
                       <p className="text-sm font-semibold text-white">Who can see this?</p>
                       <p className="mt-1 text-xs text-slate-400">
                         Cohort materials match{" "}
-                        <span className="text-slate-200">course, branch, and year</span> on each
-                        student&apos;s profile (normalized the same way for teachers and students).
+                        <span className="text-slate-200">degree, branch (engineering only), year,</span>{" "}
+                        and <span className="text-slate-200">semester</span> on each student&apos;s
+                        profile (values are compared in a normalized form).
                       </p>
                       <div className="mt-4 flex flex-wrap gap-4">
                         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
@@ -621,52 +769,266 @@ function LearningManagePage() {
                             checked={audience === "cohort"}
                             onChange={() => setAudience("cohort")}
                           />
-                          Specific course, branch & year
+                          Specific class (program, degree, branch if engineering, year, semester)
                         </label>
                       </div>
                     </div>
                   </div>
 
                   {audience === "cohort" ? (
-                    <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                      <div>
-                        <label className="text-xs font-medium text-slate-400" htmlFor="lm-course">
-                          Course
-                        </label>
-                        <input
-                          id="lm-course"
-                          className={inputClass}
-                          value={targetCourse}
-                          onChange={(e) => setTargetCourse(e.target.value)}
-                          placeholder="e.g. B.Tech"
-                          required={audience === "cohort"}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-slate-400" htmlFor="lm-branch">
-                          Branch
-                        </label>
-                        <input
-                          id="lm-branch"
-                          className={inputClass}
-                          value={targetBranch}
-                          onChange={(e) => setTargetBranch(e.target.value)}
-                          placeholder="e.g. CSE"
-                          required={audience === "cohort"}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-slate-400" htmlFor="lm-year">
-                          Year
-                        </label>
-                        <input
-                          id="lm-year"
-                          className={inputClass}
-                          value={targetYear}
-                          onChange={(e) => setTargetYear(e.target.value)}
-                          placeholder="e.g. 2 or 2024-28"
-                          required={audience === "cohort"}
-                        />
+                    <div className="mt-4 space-y-4">
+                      <p className="text-xs text-slate-500">
+                        Choose the program track, then the degree (e.g. B.Tech, B.Pharma). Branch is
+                        only for engineering (B.Tech / Diploma).
+                      </p>
+                      <div className="flex flex-wrap gap-4">
+                        <div className="min-w-[160px] flex-1">
+                          <label
+                            className="text-xs font-medium text-slate-400"
+                            htmlFor="lm-prog-select"
+                          >
+                            Program
+                          </label>
+                          <select
+                            id="lm-prog-select"
+                            className={`${inputClass} mt-1`}
+                            value={cohortProgramId}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setCohortProgramId(v);
+                              setTargetCourse("");
+                              setCohortCustomCourse(false);
+                              setTargetBranch("");
+                              setCohortCustomBranch(false);
+                            }}
+                            required={audience === "cohort"}
+                          >
+                            <option value="">Select program…</option>
+                            {COHORT_PROGRAM_GROUPS.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="min-w-[160px] flex-1">
+                          <label
+                            className="text-xs font-medium text-slate-400"
+                            htmlFor="lm-degree-select"
+                          >
+                            Course / degree
+                          </label>
+                          <select
+                            id="lm-degree-select"
+                            className={`${inputClass} mt-1`}
+                            disabled={!cohortProgramId}
+                            value={
+                              !targetCourse
+                                ? ""
+                                : degreesForProgram(cohortProgramId).includes(targetCourse)
+                                  ? targetCourse
+                                  : COHORT_OTHER
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "") {
+                                setTargetCourse("");
+                                setCohortCustomCourse(false);
+                              } else if (v === COHORT_OTHER) {
+                                setCohortCustomCourse(true);
+                                setTargetCourse("");
+                              } else {
+                                setCohortCustomCourse(false);
+                                setTargetCourse(v);
+                                if (!cohortDegreeRequiresBranch(v)) {
+                                  setTargetBranch("");
+                                  setCohortCustomBranch(false);
+                                }
+                              }
+                            }}
+                            required={audience === "cohort" && !cohortCustomCourse}
+                          >
+                            <option value="">
+                              {cohortProgramId ? "Select degree…" : "Choose a program first"}
+                            </option>
+                            {degreesForProgram(cohortProgramId).map((d) => (
+                              <option key={d} value={d}>
+                                {d === "B.Sc" ? "B.Sc (Nursing)" : d}
+                              </option>
+                            ))}
+                            <option value={COHORT_OTHER}>Other…</option>
+                          </select>
+                          {cohortCustomCourse ? (
+                            <input
+                              id="lm-degree-custom"
+                              className={`${inputClass} mt-2`}
+                              value={targetCourse}
+                              onChange={(e) => setTargetCourse(e.target.value)}
+                              placeholder="e.g. M.E."
+                              required={audience === "cohort"}
+                              aria-label="Custom degree"
+                            />
+                          ) : null}
+                        </div>
+                        {showCohortBranchField ? (
+                          <div className="min-w-[160px] flex-1">
+                            <label
+                              className="text-xs font-medium text-slate-400"
+                              htmlFor="lm-branch-select"
+                            >
+                              Branch
+                            </label>
+                            <select
+                              id="lm-branch-select"
+                              className={`${inputClass} mt-1`}
+                              value={
+                                !targetBranch
+                                  ? ""
+                                  : COHORT_BRANCH_PRESETS.includes(targetBranch)
+                                    ? targetBranch
+                                    : COHORT_OTHER
+                              }
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === "") {
+                                  setTargetBranch("");
+                                  setCohortCustomBranch(false);
+                                } else if (v === COHORT_OTHER) {
+                                  setCohortCustomBranch(true);
+                                  setTargetBranch("");
+                                } else {
+                                  setCohortCustomBranch(false);
+                                  setTargetBranch(v);
+                                }
+                              }}
+                              required={audience === "cohort" && !cohortCustomBranch}
+                            >
+                              <option value="">Select branch…</option>
+                              {COHORT_BRANCH_PRESETS.map((p) => (
+                                <option key={p} value={p}>
+                                  {p}
+                                </option>
+                              ))}
+                              <option value={COHORT_OTHER}>Other…</option>
+                            </select>
+                            {cohortCustomBranch ? (
+                              <input
+                                id="lm-branch"
+                                className={`${inputClass} mt-2`}
+                                value={targetBranch}
+                                onChange={(e) => setTargetBranch(e.target.value)}
+                                placeholder="e.g. Aerospace"
+                                required={audience === "cohort"}
+                                aria-label="Custom branch"
+                              />
+                            ) : null}
+                          </div>
+                        ) : null}
+                        <div className="min-w-[140px] flex-1">
+                          <label
+                            className="text-xs font-medium text-slate-400"
+                            htmlFor="lm-year-select"
+                          >
+                            Year (1–4)
+                          </label>
+                          <select
+                            id="lm-year-select"
+                            className={`${inputClass} mt-1`}
+                            value={
+                              !targetYear
+                                ? ""
+                                : COHORT_YEAR_PRESETS.includes(targetYear)
+                                  ? targetYear
+                                  : COHORT_OTHER
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "") {
+                                setTargetYear("");
+                                setCohortCustomYear(false);
+                              } else if (v === COHORT_OTHER) {
+                                setCohortCustomYear(true);
+                                setTargetYear("");
+                              } else {
+                                setCohortCustomYear(false);
+                                setTargetYear(v);
+                              }
+                            }}
+                            required={audience === "cohort" && !cohortCustomYear}
+                          >
+                            <option value="">Select year…</option>
+                            {COHORT_YEAR_PRESETS.map((y) => (
+                              <option key={y} value={y}>
+                                Year {y}
+                              </option>
+                            ))}
+                            <option value={COHORT_OTHER}>Other…</option>
+                          </select>
+                          {cohortCustomYear ? (
+                            <input
+                              id="lm-year"
+                              className={`${inputClass} mt-2`}
+                              value={targetYear}
+                              onChange={(e) => setTargetYear(e.target.value)}
+                              placeholder="e.g. 5 or 2024–28"
+                              required={audience === "cohort"}
+                              aria-label="Custom year"
+                            />
+                          ) : null}
+                        </div>
+                        <div className="min-w-[140px] flex-1">
+                          <label
+                            className="text-xs font-medium text-slate-400"
+                            htmlFor="lm-semester-select"
+                          >
+                            Semester (optional)
+                          </label>
+                          <select
+                            id="lm-semester-select"
+                            className={`${inputClass} mt-1`}
+                            value={
+                              targetSemester === ""
+                                ? ""
+                                : COHORT_SEMESTER_PRESETS.includes(targetSemester)
+                                  ? targetSemester
+                                  : COHORT_OTHER
+                            }
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "") {
+                                setTargetSemester("");
+                                setCohortCustomSemester(false);
+                              } else if (v === COHORT_OTHER) {
+                                setCohortCustomSemester(true);
+                                setTargetSemester("");
+                              } else {
+                                setCohortCustomSemester(false);
+                                setTargetSemester(v);
+                              }
+                            }}
+                          >
+                            <option value="">All semesters in this year</option>
+                            {COHORT_SEMESTER_PRESETS.map((s) => (
+                              <option key={s} value={s}>
+                                Semester {s}
+                              </option>
+                            ))}
+                            <option value={COHORT_OTHER}>Other…</option>
+                          </select>
+                          {cohortCustomSemester ? (
+                            <input
+                              id="lm-semester"
+                              className={`${inputClass} mt-2`}
+                              value={targetSemester}
+                              onChange={(e) => setTargetSemester(e.target.value)}
+                              placeholder="e.g. 9"
+                              aria-label="Custom semester"
+                            />
+                          ) : null}
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            Leave as “all semesters” unless this item is only for one term.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ) : null}

@@ -97,10 +97,10 @@ exports.getAssessment = async (req, res) => {
 // @access  Private (faculty only)
 exports.createAssessment = async (req, res) => {
   try {
-    if (req.user.role !== 'faculty') {
+    if (req.user.role !== 'faculty' && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Only faculty can create assessments.',
+        message: 'Only faculty or admin can create assessments.',
       });
     }
 
@@ -141,8 +141,8 @@ exports.createAssessment = async (req, res) => {
 
       await createBulkNotifications({
         recipientIds: students.map((user) => user._id),
-        title: 'New assessment available',
-        message: `${assessment.title} is now published and ready to take.`,
+        title: 'New assignment available',
+        message: `${assessment.title} is now published — you can take it from Assessments.`,
         category: 'assessment',
         type: 'assessment_published',
         actionUrl: `/assessments/${assessment._id}`,
@@ -185,10 +185,10 @@ exports.updateAssessment = async (req, res) => {
       });
     }
 
-    if (req.user.role !== 'faculty') {
+    if (req.user.role !== 'faculty' && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Only faculty can update assessments.',
+        message: 'Only faculty or admin can update assessments.',
       });
     }
 
@@ -200,7 +200,10 @@ exports.updateAssessment = async (req, res) => {
       });
     }
 
-    if (assessment.createdBy.toString() !== req.user._id.toString()) {
+    if (
+      req.user.role !== 'admin' &&
+      assessment.createdBy.toString() !== req.user._id.toString()
+    ) {
       return res.status(403).json({
         success: false,
         message: 'You can only update your own assessments.',
@@ -234,8 +237,8 @@ exports.updateAssessment = async (req, res) => {
 
       await createBulkNotifications({
         recipientIds: students.map((user) => user._id),
-        title: 'Assessment published',
-        message: `${assessment.title} is now available in your dashboard.`,
+        title: 'New assignment published',
+        message: `${assessment.title} is now available under Assessments.`,
         category: 'assessment',
         type: 'assessment_published',
         actionUrl: `/assessments/${assessment._id}`,
@@ -286,14 +289,17 @@ exports.deleteAssessment = async (req, res) => {
       });
     }
 
-    if (req.user.role !== 'faculty') {
+    if (req.user.role !== 'faculty' && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
-        message: 'Only faculty can delete assessments.',
+        message: 'Only faculty or admin can delete assessments.',
       });
     }
 
-    if (assessment.createdBy.toString() !== req.user._id.toString()) {
+    if (
+      req.user.role !== 'admin' &&
+      assessment.createdBy.toString() !== req.user._id.toString()
+    ) {
       return res.status(403).json({
         success: false,
         message: 'You can only delete your own assessments.',

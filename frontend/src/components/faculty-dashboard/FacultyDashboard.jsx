@@ -3,30 +3,15 @@ import {
   BarChart3,
   BookOpenCheck,
   ClipboardList,
-  LayoutDashboard,
   LoaderCircle,
-  LogOut,
   Sparkles,
-  UserRound,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import { DashboardTopNav } from "../dashboard/DashboardTopNav";
+import { facultyNavItems } from "../../config/facultyNavItems";
+import { DarkWorkspaceShell } from "../layout/DarkWorkspaceShell";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
-
-const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  {
-    id: "learning",
-    label: "Manage learning",
-    icon: BookOpenCheck,
-    path: "/dashboard/learning/manage",
-  },
-  { id: "profile", label: "Profile", icon: UserRound },
-  { id: "assessments", label: "Assessments", icon: ClipboardList },
-  { id: "progress", label: "Progress", icon: BarChart3 },
-];
 
 function SectionTitle({ title, description, action }) {
   return (
@@ -78,12 +63,23 @@ function MetricCard({ title, value, subtitle, icon: Icon }) {
 
 function FacultyDashboard({ user, onLogout }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeSection, setActiveSection] = useState("dashboard");
   const [me, setMe] = useState(user);
   const [assessments, setAssessments] = useState([]);
   const [submissionsByAssessment, setSubmissionsByAssessment] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const sid = location.state?.facultySection;
+    if (
+      typeof sid === "string" &&
+      facultyNavItems.some((i) => i.id === sid && !i.path)
+    ) {
+      setActiveSection(sid);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -431,96 +427,41 @@ function FacultyDashboard({ user, onLogout }) {
   );
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
-      <div className="flex min-h-screen flex-col lg:flex-row">
-        <aside className="border-b border-white/10 bg-slate-950/50 backdrop-blur lg:min-h-screen lg:w-72 lg:border-b-0 lg:border-r">
-          <div className="flex h-full flex-col p-5 sm:p-6">
-            <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-lg font-semibold text-white">Learn2Hire</p>
-                <p className="text-sm text-slate-500">Faculty Workspace</p>
-              </div>
-            </div>
-
-            <nav className="space-y-2">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = !item.path && activeSection === item.id;
-
-                return item.path ? (
-                  <Link
-                    key={item.id}
-                    to={item.path}
-                    className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </Link>
-                ) : (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveSection(item.id)}
-                    className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-                      isActive
-                        ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                        : "text-slate-400 hover:bg-white/5 hover:text-white"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="mt-auto pt-6">
-              <Button variant="default" onClick={onLogout} className="w-full justify-center">
-                <LogOut className="h-4 w-4" />
-                Logout
-              </Button>
-            </div>
+    <DarkWorkspaceShell
+      title="Faculty Dashboard"
+      workspaceLabel="Faculty Workspace"
+      brandSubtitle="Faculty Workspace"
+      navItems={facultyNavItems}
+      activeSection={activeSection}
+      onNavSectionSelect={setActiveSection}
+      user={{ name: me.name, email: me.email, role: me.role }}
+      onLogout={onLogout}
+      headerIcon={Sparkles}
+      actionItems={[
+        { label: "Manage learning", to: "/dashboard/learning/manage", icon: BookOpenCheck },
+      ]}
+    >
+      {loading ? (
+        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
+          <div className="flex items-center gap-3 text-slate-300">
+            <LoaderCircle className="h-5 w-5 animate-spin" />
+            Loading your faculty dashboard...
           </div>
-        </aside>
-
-        <div className="flex-1 p-3 sm:p-4">
-          <DashboardTopNav
-            bleed
-            workspaceLabel="Faculty Workspace"
-            title="Faculty Dashboard"
-            user={{ name: me.name, email: me.email, role: me.role }}
-            onLogout={onLogout}
-            actionItems={[
-              { label: "Manage learning", to: "/dashboard/learning/manage", icon: BookOpenCheck },
-            ]}
-          />
-
-          {loading ? (
-            <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
-              <div className="flex items-center gap-3 text-slate-300">
-                <LoaderCircle className="h-5 w-5 animate-spin" />
-                Loading your faculty dashboard...
-              </div>
-            </div>
-          ) : error ? (
-            <div className="rounded-[28px] border border-rose-400/20 bg-rose-500/10 p-6 text-rose-100">
-              <h2 className="text-lg font-semibold">Unable to load dashboard</h2>
-              <p className="mt-2 text-sm text-rose-100/80">{error}</p>
-            </div>
-          ) : (
-            <>
-              {activeSection === "dashboard" && renderDashboard()}
-              {activeSection === "profile" && renderProfile()}
-              {activeSection === "assessments" && renderAssessments()}
-              {activeSection === "progress" && renderProgress()}
-            </>
-          )}
         </div>
-      </div>
-    </div>
+      ) : error ? (
+        <div className="rounded-[28px] border border-rose-400/20 bg-rose-500/10 p-6 text-rose-100">
+          <h2 className="text-lg font-semibold">Unable to load dashboard</h2>
+          <p className="mt-2 text-sm text-rose-100/80">{error}</p>
+        </div>
+      ) : (
+        <>
+          {activeSection === "dashboard" && renderDashboard()}
+          {activeSection === "profile" && renderProfile()}
+          {activeSection === "assessments" && renderAssessments()}
+          {activeSection === "progress" && renderProgress()}
+        </>
+      )}
+    </DarkWorkspaceShell>
   );
 }
 

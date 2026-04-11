@@ -3,8 +3,10 @@ import {
   ArrowLeft,
   BriefcaseBusiness,
   ExternalLink,
+  FileText,
   LoaderCircle,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -287,6 +289,71 @@ function CompanyJobsPage() {
     }
   };
 
+  const handleJdFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !selectedJobId) return;
+    if (file.type !== "application/pdf") {
+      setError("Please choose a PDF file for the job description.");
+      return;
+    }
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setJdUploading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const fd = new FormData();
+      fd.append("jd", file);
+      const res = await fetch(`/api/jobs/${selectedJobId}/jd`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await readApiResponse(
+        res,
+        "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
+      );
+      if (!res.ok) throw new Error(data.message || "JD upload failed.");
+      setSuccess("Job description (PDF) uploaded. Students were notified for open roles.");
+      await refreshPage();
+    } catch (err) {
+      setError(err.message || "Could not upload JD.");
+    } finally {
+      setJdUploading(false);
+    }
+  };
+
+  const handleDownloadJd = async () => {
+    if (!selectedJobId) return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/jobs/${selectedJobId}/jd`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await readApiResponse(res);
+        throw new Error(data.message || "Download failed.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = selectedJob?.jdOriginalName || "job-description.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || "Could not download JD.");
+    }
+  };
+
   const handleApplicationStatus = async (applicationId, status) => {
     setUpdatingApplicationId(applicationId);
     setError("");
@@ -351,6 +418,10 @@ function CompanyJobsPage() {
               </Link>
               <span>/</span>
               <span className="text-slate-300">Manage Jobs</span>
+              <span className="text-slate-600">·</span>
+              <Link to="/company/talent" className="transition hover:text-white">
+                Talent pool
+              </Link>
             </div>
             <p className="text-sm font-medium text-cyan-300">Company Workspace</p>
             <h1 className="mt-1 text-3xl font-bold">Manage Job Posts</h1>
@@ -500,6 +571,49 @@ function CompanyJobsPage() {
                       placeholder="Describe the role, responsibilities, and expectations"
                       className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
                     />
+
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <FileText className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" />
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              Job description document (PDF)
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              Upload a formal JD. Students get a notification when you add or replace
+                              it on an <span className="text-slate-300">open</span> role.
+                            </p>
+                            {selectedJob?.hasJdDocument ? (
+                              <p className="mt-2 text-xs text-emerald-300">
+                                Current file: {selectedJob.jdOriginalName || "job-description.pdf"}
+                              </p>
+                            ) : (
+                              <p className="mt-2 text-xs text-slate-500">No PDF attached yet.</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedJob?.hasJdDocument ? (
+                            <Button type="button" variant="outline" onClick={handleDownloadJd}>
+                              <ExternalLink className="h-4 w-4" />
+                              Download
+                            </Button>
+                          ) : null}
+                          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">
+                            <Upload className="h-4 w-4" />
+                            {jdUploading ? "Uploading…" : "Upload PDF"}
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              className="hidden"
+                              disabled={jdUploading}
+                              onChange={handleJdFile}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
 
                     <div className="flex flex-wrap justify-between gap-3">
                       <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>

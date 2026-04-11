@@ -36,11 +36,30 @@ const jobSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    jdOriginalName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    jdRelativePath: {
+      type: String,
+      default: '',
+      trim: true,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+jobSchema.set('toJSON', {
+  transform(_doc, ret) {
+    const hadFile = Boolean(ret.jdRelativePath);
+    delete ret.jdRelativePath;
+    ret.hasJdDocument = hadFile;
+    return ret;
+  },
+});
 
 const Job = mongoose.model('Job', jobSchema);
 

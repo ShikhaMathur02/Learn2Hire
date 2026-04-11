@@ -3,6 +3,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AdminJobsPage from './pages/AdminJobsPage';
 import CompanyJobsPage from './pages/CompanyJobsPage';
+import CompanyTalentPage from './pages/CompanyTalentPage';
 import Dashboard from './pages/Dashboard';
 import CreateAssessment from './pages/CreateAssessment';
 import JobDetailsPage from './pages/JobDetailsPage';
@@ -41,7 +42,8 @@ function RedirectDashboardLearningCategory() {
 
 function App() {
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route
         path="/login"
@@ -162,6 +164,14 @@ function App() {
         }
       />
       <Route
+        path="/company/talent"
+        element={
+          <ProtectedRoute>
+            <CompanyTalentPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/jobs"
         element={
           <ProtectedRoute>
@@ -195,6 +205,7 @@ function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
 
