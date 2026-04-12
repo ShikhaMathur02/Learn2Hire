@@ -31,6 +31,20 @@ function pathHasWorkspaceNotificationBell(pathname) {
   return false;
 }
 
+/**
+ * Marketing + auth screens: user may still have a session in localStorage, but we do not show
+ * notification UI (floating bell or toasts) here.
+ */
+function pathHidesNotificationChrome(pathname) {
+  if (!pathname) return false;
+  return (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/forgot-password"
+  );
+}
+
 function useNotificationContext() {
   const ctx = useContext(NotificationContext);
   if (!ctx) {
@@ -54,6 +68,8 @@ function NotificationProvider({ children }) {
   const toastTimerRef = useRef(null);
   const prevUnreadRef = useRef(null);
   const initialHandledForEmailRef = useRef(null);
+  const pathnameRef = useRef(location.pathname);
+  pathnameRef.current = location.pathname;
 
   const dismissToast = useCallback(() => {
     if (toastTimerRef.current) {
@@ -111,22 +127,25 @@ function NotificationProvider({ children }) {
       if (n === null) return;
       const next = Math.max(0, Math.floor(n));
 
+      const hideChrome = pathHidesNotificationChrome(pathnameRef.current);
       const prevN = prevUnreadRef.current;
-      if (prevN === null) {
-        if (next > 0) {
-          const key = sessionInitialToastKey(email);
-          if (typeof sessionStorage !== "undefined" && !sessionStorage.getItem(key)) {
-            sessionStorage.setItem(key, "1");
-            showToast(
-              `You have ${next} unread notification${next === 1 ? "" : "s"}. Open the bell to review.`
-            );
+      if (!hideChrome) {
+        if (prevN === null) {
+          if (next > 0) {
+            const key = sessionInitialToastKey(email);
+            if (typeof sessionStorage !== "undefined" && !sessionStorage.getItem(key)) {
+              sessionStorage.setItem(key, "1");
+              showToast(
+                `You have ${next} unread notification${next === 1 ? "" : "s"}. Open the bell to review.`
+              );
+            }
           }
+        } else if (next > prevN) {
+          const added = next - prevN;
+          showToast(
+            added === 1 ? "You have a new notification." : `You have ${added} new notifications.`
+          );
         }
-      } else if (next > prevN) {
-        const added = next - prevN;
-        showToast(
-          added === 1 ? "You have a new notification." : `You have ${added} new notifications.`
-        );
       }
 
       prevUnreadRef.current = next;
@@ -168,6 +187,10 @@ function NotificationProvider({ children }) {
     };
   }, [isAuthenticated, email, fetchUnreadCount, dismissToast]);
 
+  useEffect(() => {
+    if (pathHidesNotificationChrome(location.pathname)) dismissToast();
+  }, [location.pathname, dismissToast]);
+
   const registerTopNavMount = useCallback(() => {
     setTopNavMounts((c) => c + 1);
     return () => setTopNavMounts((c) => Math.max(0, c - 1));
@@ -176,7 +199,10 @@ function NotificationProvider({ children }) {
   const showUnreadDot = unreadCount > 0;
   const shellHasBell = pathHasWorkspaceNotificationBell(location.pathname);
   const showFloatingBell =
-    isAuthenticated && topNavMounts === 0 && !shellHasBell;
+    isAuthenticated &&
+    topNavMounts === 0 &&
+    !shellHasBell &&
+    !pathHidesNotificationChrome(location.pathname);
 
   const openNotifications = useCallback(
     (to = "/notifications") => {
@@ -207,7 +233,7 @@ function NotificationProvider({ children }) {
           onOpen={() => openNotifications("/notifications")}
         />
       ) : null}
-      {notifyToast.open ? (
+      {notifyToast.open && !pathHidesNotificationChrome(location.pathname) ? (
         <div
           className={cn(
             "fixed bottom-4 right-4 z-[100] flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-2xl",

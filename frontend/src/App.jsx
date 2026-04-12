@@ -22,6 +22,7 @@ import LearningSubjectPage from './pages/LearningSubjectPage';
 import MaterialDetailsPage from './pages/MaterialDetailsPage';
 import MyLearningProgressPage from './pages/MyLearningProgressPage';
 import LearningManagePage from './pages/LearningManagePage';
+import { ClearSessionOnMount } from './components/auth/ClearSessionOnMount.jsx';
 import { useAuthSession } from './lib/authSession';
 import { NotificationProvider } from './context/NotificationContext.jsx';
 import './App.css';
@@ -60,12 +61,23 @@ function App() {
     <NotificationProvider>
       <ScrollToTopOnRouteChange />
       <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route
+        path="/"
+        element={
+          <>
+            <ClearSessionOnMount />
+            <LandingPage />
+          </>
+        }
+      />
       <Route
         path="/login"
         element={
           <PublicRoute>
-            <Login />
+            <>
+              <ClearSessionOnMount />
+              <Login />
+            </>
           </PublicRoute>
         }
       />
@@ -73,7 +85,10 @@ function App() {
         path="/signup"
         element={
           <PublicRoute>
-            <Signup />
+            <>
+              <ClearSessionOnMount />
+              <Signup />
+            </>
           </PublicRoute>
         }
       />
@@ -81,7 +96,10 @@ function App() {
         path="/forgot-password"
         element={
           <PublicRoute>
-            <ForgotPassword />
+            <>
+              <ClearSessionOnMount />
+              <ForgotPassword />
+            </>
           </PublicRoute>
         }
       />
