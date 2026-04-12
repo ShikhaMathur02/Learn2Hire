@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { useLayoutEffect } from 'react';
+import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ForgotPassword from './pages/ForgotPassword';
@@ -44,9 +45,19 @@ function RedirectDashboardLearningCategory() {
   return <Navigate to={`/dashboard/learning/subject/${categorySlug}`} replace />;
 }
 
+/** Reset window scroll on client-side navigation (e.g. landing → signup). */
+function ScrollToTopOnRouteChange() {
+  const { pathname } = useLocation();
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 function App() {
   return (
     <NotificationProvider>
+      <ScrollToTopOnRouteChange />
       <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route

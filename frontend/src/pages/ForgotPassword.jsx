@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronLeft } from "lucide-react";
 
 import AuthField from "../components/auth/AuthField";
 import AuthLayout from "../components/auth/AuthLayout";
@@ -145,6 +145,16 @@ function ForgotPassword() {
         </p>
       }
     >
+      <div className="mb-4">
+        <Link
+          to="/login"
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition hover:text-indigo-600"
+        >
+          <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
+          Back to sign in
+        </Link>
+      </div>
+
       {notice ? (
         <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800">
           {notice}
