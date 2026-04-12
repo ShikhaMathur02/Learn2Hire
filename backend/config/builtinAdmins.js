@@ -4,7 +4,7 @@ const BUILTIN_ADMIN_ACCOUNTS = [
   { email: 'admin2@gmail.com', name: 'Admin Two' },
 ];
 
-const BUILTIN_ADMIN_PASSWORD = 'Admin@123';
+const BUILTIN_ADMIN_PASSWORD = 'Admin@12345';
 
 function normalizeAdminEmail(email) {
   return String(email || '').trim().toLowerCase();
