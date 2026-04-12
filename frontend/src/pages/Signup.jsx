@@ -33,6 +33,8 @@ const signupSidePanelBullets = [
 ];
 
 function PasswordRequirementsList({ password }) {
+  if (!password.length) return null;
+
   const rules = [
     { id: "len", label: "At least 8 characters", ok: password.length >= 8 },
     { id: "upper", label: "One uppercase letter (A–Z)", ok: /[A-Z]/.test(password) },
@@ -40,9 +42,13 @@ function PasswordRequirementsList({ password }) {
     { id: "num", label: "One number (0–9)", ok: /\d/.test(password) },
     { id: "special", label: "One special character (e.g. !@#$%)", ok: /[^A-Za-z0-9]/.test(password) },
   ];
+
+  const firstFail = rules.findIndex((r) => !r.ok);
+  const visible = firstFail === -1 ? rules : rules.slice(0, firstFail + 1);
+
   return (
     <ul className="mt-2 space-y-1.5" aria-live="polite">
-      {rules.map((r) => (
+      {visible.map((r) => (
         <li
           key={r.id}
           className={`flex items-start gap-2 text-xs leading-snug ${r.ok ? "text-emerald-700" : "text-rose-600"}`}
@@ -482,7 +488,6 @@ function Signup() {
                 style={selectChevronStyle}
               >
                 <option value="student">Student</option>
-                <option value="alumni">Alumni</option>
                 <option value="faculty">Faculty</option>
                 <option value="college">College</option>
                 <option value="company">Company</option>
