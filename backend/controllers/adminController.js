@@ -11,6 +11,7 @@ const StudentProfile = require('../models/StudentProfile');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
+const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
 
 const validRoles = ['student', 'alumni', 'faculty', 'company', 'admin', 'college'];
 
@@ -155,6 +156,20 @@ exports.updateUserRole = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'User not found',
+      });
+    }
+
+    if (role === 'admin' && !isBuiltinAdminEmail(user.email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only built-in administrator accounts can have the admin role.',
+      });
+    }
+
+    if (user.role === 'admin' && isBuiltinAdminEmail(user.email) && role !== 'admin') {
+      return res.status(400).json({
+        success: false,
+        message: 'Built-in administrator accounts cannot be reassigned to another role.',
       });
     }
 

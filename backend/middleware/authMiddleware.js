@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
 
 /**
  * Protects routes by verifying the JWT token.
@@ -54,6 +55,17 @@ const protect = async (req, res, next) => {
                 : 'Your faculty account was not approved. Contact your college for help.',
           });
         }
+      }
+    }
+
+    if (role === 'admin' && !isBuiltinAdminEmail(user.email)) {
+      const url = String(req.originalUrl || '');
+      if (!url.startsWith('/api/auth/me')) {
+        return res.status(403).json({
+          success: false,
+          message:
+            'This administrator session is not valid. Sign in with an authorized admin account.',
+        });
       }
     }
 

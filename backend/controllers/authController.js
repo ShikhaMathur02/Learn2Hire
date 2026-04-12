@@ -2,6 +2,7 @@ const User = require('../models/User');
 const StudentProfile = require('../models/StudentProfile');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
 
 // Generate JWT token (expires in 7 days)
 const generateToken = (id) => {
@@ -44,11 +45,19 @@ exports.signup = async (req, res) => {
       });
     }
 
-    const validRoles = ['student', 'alumni', 'faculty', 'company', 'admin', 'college'];
+    if (role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message:
+          'Administrator accounts cannot be registered. Use the authorized admin sign-in credentials.',
+      });
+    }
+
+    const validRoles = ['student', 'alumni', 'faculty', 'company', 'college'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: 'Role must be one of: student, alumni, faculty, company, admin, college',
+        message: 'Role must be one of: student, alumni, faculty, company, college',
       });
     }
 
@@ -176,6 +185,13 @@ exports.login = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password',
+      });
+    }
+
+    if (user.role === 'admin' && !isBuiltinAdminEmail(user.email)) {
+      return res.status(403).json({
+        success: false,
+        message: 'This administrator account is not authorized. Use an official admin login.',
       });
     }
 

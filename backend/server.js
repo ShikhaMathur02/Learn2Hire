@@ -12,6 +12,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const learningRoutes = require('./routes/learningRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 const collegeRoutes = require('./routes/collegeRoutes');
+const { ensureBuiltinAdmins } = require('./seed/ensureBuiltinAdmins');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -60,6 +61,7 @@ app.get('/api/health', (req, res) => {
 // Start server only after MongoDB is connected
 const start = async () => {
   await connectDB();
+  await ensureBuiltinAdmins();
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
   });

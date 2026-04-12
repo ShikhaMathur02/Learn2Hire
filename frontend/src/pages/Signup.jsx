@@ -16,7 +16,7 @@ const passwordCriteriaMessage =
 const signupSidePanelBullets = [
   "Study materials matched to your program and branch.",
   "Assessments and progress in one student profile.",
-  "Roles for students, faculty, colleges, and employers.",
+  "Roles for students, faculty, colleges, and employers—admins use dedicated accounts.",
 ];
 
 function Signup() {
@@ -252,7 +252,6 @@ function Signup() {
                 <option value="faculty">Faculty</option>
                 <option value="college">College</option>
                 <option value="company">Company</option>
-                <option value="admin">Admin</option>
               </select>
             </AuthField>
           </>
