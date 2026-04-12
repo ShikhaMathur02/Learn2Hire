@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -73,15 +73,10 @@ function DashboardTopNav({
 }) {
   const isDark = theme === "dark";
   const navigate = useNavigate();
-  const { unreadCount, showUnreadDot, registerTopNavMount, dismissNotifyToast } =
-    useNotifications();
+  const { unreadCount, showUnreadDot, dismissNotifyToast } = useNotifications();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
-
-  useLayoutEffect(() => {
-    return registerTopNavMount();
-  }, [registerTopNavMount]);
 
   const openNotifications = useCallback(
     (fromMenu) => {

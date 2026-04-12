@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Bell } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 import { readApiResponse } from "../lib/api";
 import { useAuthSession } from "../lib/authSession";
@@ -24,16 +24,9 @@ function sessionInitialToastKey(email) {
 
 const NotificationContext = createContext(null);
 
-/** Layouts that already include `DashboardTopNav` (avoid duplicate floating bell on route transitions). */
-function pathHasWorkspaceNotificationBell(pathname) {
-  if (pathname === "/jobs" || pathname.startsWith("/jobs/")) return true;
-  if (pathname === "/notifications" || pathname.startsWith("/notifications/")) return true;
-  return false;
-}
-
 /**
  * Marketing + auth screens: user may still have a session in localStorage, but we do not show
- * notification UI (floating bell or toasts) here.
+ * notification toasts here.
  */
 function pathHidesNotificationChrome(pathname) {
   if (!pathname) return false;
@@ -54,16 +47,14 @@ function useNotificationContext() {
 }
 
 /**
- * Polling, unread badge state, toast when new unread arrive, and floating bell on pages without DashboardTopNav.
+ * Polling and unread state for `DashboardTopNav` (navbar bell). Toasts for new unread when appropriate.
  */
 function NotificationProvider({ children }) {
   const { isAuthenticated, user } = useAuthSession();
-  const navigate = useNavigate();
   const location = useLocation();
   const email = (user?.email || "").trim();
 
   const [unreadCount, setUnreadCount] = useState(0);
-  const [topNavMounts, setTopNavMounts] = useState(0);
   const [notifyToast, setNotifyToast] = useState({ open: false, message: "" });
   const toastTimerRef = useRef(null);
   const prevUnreadRef = useRef(null);
@@ -191,48 +182,21 @@ function NotificationProvider({ children }) {
     if (pathHidesNotificationChrome(location.pathname)) dismissToast();
   }, [location.pathname, dismissToast]);
 
-  const registerTopNavMount = useCallback(() => {
-    setTopNavMounts((c) => c + 1);
-    return () => setTopNavMounts((c) => Math.max(0, c - 1));
-  }, []);
-
   const showUnreadDot = unreadCount > 0;
-  const shellHasBell = pathHasWorkspaceNotificationBell(location.pathname);
-  const showFloatingBell =
-    isAuthenticated &&
-    topNavMounts === 0 &&
-    !shellHasBell &&
-    !pathHidesNotificationChrome(location.pathname);
-
-  const openNotifications = useCallback(
-    (to = "/notifications") => {
-      dismissToast();
-      navigate(to);
-    },
-    [dismissToast, navigate]
-  );
 
   const value = useMemo(
     () => ({
       unreadCount,
       showUnreadDot,
       fetchUnreadCount,
-      registerTopNavMount,
       dismissNotifyToast: dismissToast,
     }),
-    [unreadCount, showUnreadDot, fetchUnreadCount, registerTopNavMount, dismissToast]
+    [unreadCount, showUnreadDot, fetchUnreadCount, dismissToast]
   );
 
   return (
     <NotificationContext.Provider value={value}>
       {children}
-      {showFloatingBell ? (
-        <FloatingNotificationBell
-          unreadCount={unreadCount}
-          showUnreadDot={showUnreadDot}
-          onOpen={() => openNotifications("/notifications")}
-        />
-      ) : null}
       {notifyToast.open && !pathHidesNotificationChrome(location.pathname) ? (
         <div
           className={cn(
@@ -253,28 +217,6 @@ function NotificationProvider({ children }) {
         </div>
       ) : null}
     </NotificationContext.Provider>
-  );
-}
-
-function FloatingNotificationBell({ unreadCount, showUnreadDot, onOpen }) {
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={cn(
-        "fixed right-4 top-16 z-[90] inline-flex h-11 w-11 items-center justify-center overflow-visible rounded-xl border border-white/15 bg-slate-950/90 text-slate-200 shadow-lg backdrop-blur transition hover:border-cyan-400/35 hover:bg-slate-900 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-      )}
-      aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-      title="Notifications"
-    >
-      <Bell className="h-[19px] w-[19px]" aria-hidden />
-      {showUnreadDot ? (
-        <span
-          className="pointer-events-none absolute -right-0.5 -top-0.5 z-10 h-2.5 w-2.5 rounded-full border-2 border-slate-950 bg-red-500 shadow-sm shadow-red-900/50"
-          aria-hidden
-        />
-      ) : null}
-    </button>
   );
 }
 
