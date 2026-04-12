@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Check, ChevronLeft, GraduationCap } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, GraduationCap, X } from "lucide-react";
 
 import AuthField from "../components/auth/AuthField";
 import PasswordInput from "../components/auth/PasswordInput";
@@ -31,6 +31,33 @@ const signupSidePanelBullets = [
   "Assessments and progress in one student profile.",
   "Roles for students, faculty, colleges, and employers—admins use dedicated accounts.",
 ];
+
+function PasswordRequirementsList({ password }) {
+  const rules = [
+    { id: "len", label: "At least 8 characters", ok: password.length >= 8 },
+    { id: "upper", label: "One uppercase letter (A–Z)", ok: /[A-Z]/.test(password) },
+    { id: "lower", label: "One lowercase letter (a–z)", ok: /[a-z]/.test(password) },
+    { id: "num", label: "One number (0–9)", ok: /\d/.test(password) },
+    { id: "special", label: "One special character (e.g. !@#$%)", ok: /[^A-Za-z0-9]/.test(password) },
+  ];
+  return (
+    <ul className="mt-2 space-y-1.5" aria-live="polite">
+      {rules.map((r) => (
+        <li
+          key={r.id}
+          className={`flex items-start gap-2 text-xs leading-snug ${r.ok ? "text-emerald-700" : "text-rose-600"}`}
+        >
+          {r.ok ? (
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
+          ) : (
+            <X className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
+          )}
+          <span>{r.label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function FormAlert({ messages }) {
   if (!messages || messages.length === 0) return null;
@@ -442,6 +469,7 @@ function Signup() {
                 disabled={loading}
                 className={inputClassName}
               />
+              <PasswordRequirementsList password={password} />
             </AuthField>
 
             <AuthField label="Role" htmlFor="role">

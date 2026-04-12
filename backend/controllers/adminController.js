@@ -15,6 +15,7 @@ const bcrypt = require('bcryptjs');
 const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
 const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
 const { createNotification } = require('../utils/notificationService');
+const { isCollegeNameTaken } = require('../utils/collegeNameNormalize');
 
 const validRoles = ['student', 'alumni', 'faculty', 'company', 'admin', 'college'];
 
@@ -787,6 +788,13 @@ exports.createCollegeAccount = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'A user with this email already exists.',
+      });
+    }
+
+    if (await isCollegeNameTaken(User, name)) {
+      return res.status(400).json({
+        success: false,
+        message: 'A college with this name is already registered.',
       });
     }
 

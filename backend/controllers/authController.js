@@ -13,6 +13,7 @@ const {
   humanizeSmtpError,
 } = require('../utils/otpDelivery');
 const { createNotification, notifyPlatformAdmins } = require('../utils/notificationService');
+const { isCollegeNameTaken } = require('../utils/collegeNameNormalize');
 
 // Generate JWT token (expires in 7 days)
 const generateToken = (id) => {
@@ -457,6 +458,14 @@ exports.signup = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'User already exists with this email',
+      });
+    }
+
+    if (role === 'college' && (await isCollegeNameTaken(User, name))) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'A college is already registered with this name. Use a distinct institution name or contact support if this is your campus.',
       });
     }
 
