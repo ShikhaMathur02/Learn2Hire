@@ -1,38 +1,96 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   Activity,
   BarChart3,
   BriefcaseBusiness,
   Building2,
   ClipboardCheck,
+  Factory,
   GraduationCap,
+  ChevronDown,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   Trash2,
+  UserRound,
   Users,
-  Workflow,
-  X,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../../lib/api";
-import { DashboardTopNav } from "../dashboard/DashboardTopNav";
+import {
+  DashboardTopNav,
+  workspaceDashboardHeaderClassName,
+} from "../dashboard/DashboardTopNav";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
+import { cn } from "../../lib/utils";
 
-function MetricCard({ title, value, subtitle, icon: Icon }) {
+/** Persist scroll when opening admin profile/campus routes so browser "back" returns to the same place. */
+const ADMIN_DASHBOARD_SCROLL_KEY = "learn2hire_admin_dashboard_scroll";
+const ADMIN_DASHBOARD_SCROLL_MAX_AGE_MS = 5 * 60 * 1000;
+
+function saveAdminDashboardScrollBeforeNavigate() {
+  try {
+    sessionStorage.setItem(
+      ADMIN_DASHBOARD_SCROLL_KEY,
+      JSON.stringify({ y: window.scrollY, t: Date.now() })
+    );
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function readAndClearAdminDashboardScroll() {
+  try {
+    const raw = sessionStorage.getItem(ADMIN_DASHBOARD_SCROLL_KEY);
+    sessionStorage.removeItem(ADMIN_DASHBOARD_SCROLL_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (typeof p?.y !== "number" || typeof p?.t !== "number") return null;
+    if (Date.now() - p.t > ADMIN_DASHBOARD_SCROLL_MAX_AGE_MS) return null;
+    return Math.max(0, p.y);
+  } catch {
+    return null;
+  }
+}
+
+function MetricCard({ title, value, subtitle, icon: Icon, className, onClick }) {
+  const interactive = typeof onClick === "function";
   return (
-    <Card className="border border-white/10 bg-white/5 shadow-[0_18px_40px_rgba(2,6,23,0.25)]">
-      <CardContent className="p-6">
+    <Card
+      className={cn(
+        "group relative overflow-hidden border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] shadow-[0_20px_50px_-18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition duration-300 hover:border-cyan-400/20 hover:shadow-[0_28px_60px_-20px_rgba(34,211,238,0.12)]",
+        interactive &&
+          "cursor-pointer hover:border-cyan-400/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50",
+        className
+      )}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={interactive ? onClick : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      aria-label={interactive ? `View ${title}: ${subtitle}` : undefined}
+    >
+      <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-cyan-400/10 blur-2xl transition duration-500 group-hover:bg-cyan-400/[0.18]" />
+      <CardContent className="relative p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-slate-400">{title}</p>
-            <h3 className="mt-3 text-3xl font-bold text-white">{value}</h3>
-            <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p>
+            <h3 className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">{value}</h3>
+            <p className="mt-2 text-sm leading-snug text-slate-400">{subtitle}</p>
           </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
-            <Icon className="h-6 w-6" />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 text-cyan-200 ring-1 ring-white/10">
+            <Icon className="h-6 w-6" aria-hidden />
           </div>
         </div>
       </CardContent>
@@ -40,51 +98,88 @@ function MetricCard({ title, value, subtitle, icon: Icon }) {
   );
 }
 
-const roleOptions = ["student", "alumni", "faculty", "company", "admin", "college"];
-
-const emptyStudentProfileForm = {
-  course: "",
-  branch: "",
-  year: "",
-  semester: "",
-  bio: "",
-  studentPhone: "",
-  fatherName: "",
-  motherName: "",
-  fatherPhone: "",
-  motherPhone: "",
-  address: "",
-  city: "",
-  state: "",
-  pincode: "",
-  dateOfBirth: "",
-  bloodGroup: "",
-  emergencyContactName: "",
-  emergencyContactPhone: "",
-};
-
-function studentFormFromPerson(person) {
-  return {
-    course: person.course || "",
-    branch: person.branch || "",
-    year: person.year || "",
-    semester: person.semester || "",
-    bio: person.bio || "",
-    studentPhone: person.studentPhone || "",
-    fatherName: person.fatherName || "",
-    motherName: person.motherName || "",
-    fatherPhone: person.fatherPhone || "",
-    motherPhone: person.motherPhone || "",
-    address: person.address || "",
-    city: person.city || "",
-    state: person.state || "",
-    pincode: person.pincode || "",
-    dateOfBirth: person.dateOfBirth || "",
-    bloodGroup: person.bloodGroup || "",
-    emergencyContactName: person.emergencyContactName || "",
-    emergencyContactPhone: person.emergencyContactPhone || "",
-  };
+/** Consistent shell for directory tables (colleges, companies, faculty). */
+function DirectorySection({ icon: Icon, eyebrow, title, description, children }) {
+  return (
+    <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/55 p-5 shadow-[0_24px_64px_-16px_rgba(15,23,42,0.7)] backdrop-blur-md sm:p-6">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/35 to-transparent" />
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex gap-3.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/25 to-indigo-600/20 text-cyan-100 ring-1 ring-white/10">
+            <Icon className="h-6 w-6" aria-hidden />
+          </div>
+          <div>
+            {eyebrow ? (
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">{eyebrow}</p>
+            ) : null}
+            <h2 className="mt-0.5 text-xl font-bold tracking-tight text-white sm:text-2xl">{title}</h2>
+            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-400">{description}</p>
+          </div>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
 }
+
+/** Large sections (people, jobs, imports) — disclosure to reduce scroll clutter. */
+function CollapsibleSection({ title, subtitle, badge, defaultOpen = false, sectionId, children }) {
+  const location = useLocation();
+  const hash = (location.hash || "").replace(/^#/, "");
+  const matchHash = Boolean(sectionId && hash === sectionId);
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (matchHash) setOpen(true);
+  }, [matchHash]);
+
+  useEffect(() => {
+    if (!matchHash || !sectionId) return undefined;
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(sectionId);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 320);
+    return () => window.clearTimeout(t);
+  }, [matchHash, sectionId]);
+
+  return (
+    <div
+      id={sectionId}
+      className="scroll-mt-28 rounded-3xl border border-white/10 bg-slate-950/50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] backdrop-blur-sm"
+    >
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-6 sm:py-5"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <div className="min-w-0 pr-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-bold tracking-tight text-white sm:text-xl">{title}</h2>
+            {badge != null && badge !== "" ? (
+              <span className="rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-xs font-medium text-cyan-100 ring-1 ring-cyan-400/25">
+                {badge}
+              </span>
+            ) : null}
+          </div>
+          {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
+        </div>
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-slate-400 transition duration-300 ${open ? "rotate-180" : ""}`}
+          aria-hidden
+        />
+      </button>
+      {open ? (
+        <div className="border-t border-white/10 px-5 pb-5 pt-1 sm:px-6">{children}</div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Roles shown in admin charts and filters — alumni excluded (no alumni workspace in admin). */
+const ADMIN_DASHBOARD_ROLES = ["student", "faculty", "company", "admin", "college"];
+
+const DIRECTORY_PREVIEW_ROWS = 5;
 
 const emptyAnalytics = {
   totals: {
@@ -112,7 +207,9 @@ const emptyInsights = {
     totalJobs: 0,
     totalApplications: 0,
     pendingFacultyCount: 0,
+    pendingCollegesCount: 0,
     managedStudentsCount: 0,
+    collegeAccountsTotal: 0,
   },
   roleCounts: {
     student: 0,
@@ -127,10 +224,51 @@ const emptyInsights = {
   people: [],
   jobs: [],
   applications: [],
+  pendingColleges: [],
+  registeredColleges: [],
+  registeredCompanies: [],
+  facultyDirectory: [],
 };
 
 function AdminDashboard({ user, onLogout }) {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const goAdminSubpage = useCallback((to) => {
+    saveAdminDashboardScrollBeforeNavigate();
+    navigate(to);
+  }, [navigate]);
+
+  /** Jump to a dashboard section (opens collapsible when hash matches). */
+  const goToAdminHash = useCallback(
+    (hashKey, navState) => {
+      const h = hashKey.startsWith("#") ? hashKey : `#${hashKey}`;
+      navigate(
+        { pathname: location.pathname, search: location.search, hash: h },
+        navState ? { state: navState } : undefined
+      );
+    },
+    [navigate, location.pathname, location.search]
+  );
+
+  const openAdminPeopleRow = useCallback(
+    (person) => {
+      if (person.role === "college") {
+        goAdminSubpage(`/admin/colleges/${person._id}`);
+      } else {
+        goAdminSubpage(`/admin/users/${person._id}`);
+      }
+    },
+    [goAdminSubpage]
+  );
+
+  useLayoutEffect(() => {
+    const y = readAndClearAdminDashboardScroll();
+    if (y == null) return;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: y, left: 0, behavior: "auto" });
+    });
+  }, []);
   const [analytics, setAnalytics] = useState(emptyAnalytics);
   const [insights, setInsights] = useState(emptyInsights);
   const [loading, setLoading] = useState(true);
@@ -139,19 +277,20 @@ function AdminDashboard({ user, onLogout }) {
   const [peopleSearch, setPeopleSearch] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [tick, setTick] = useState(0);
   const [studentSheetFile, setStudentSheetFile] = useState(null);
   const [materialSheetFile, setMaterialSheetFile] = useState(null);
   const [materialImageFile, setMaterialImageFile] = useState(null);
   const [materialTitle, setMaterialTitle] = useState("");
   const [materialCategoryId, setMaterialCategoryId] = useState("");
   const [importBusy, setImportBusy] = useState(false);
-  const [assessments, setAssessments] = useState([]);
-  const [peopleModal, setPeopleModal] = useState(null);
-  const [savingPeopleModal, setSavingPeopleModal] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState("");
   const [deletingJobId, setDeletingJobId] = useState("");
-  const [deletingAssessmentId, setDeletingAssessmentId] = useState("");
+  const [collegeApprovalBusyId, setCollegeApprovalBusyId] = useState("");
+  const [deletingCollegeId, setDeletingCollegeId] = useState("");
+  /** Directory tables: show 5 rows until expanded. */
+  const [showAllDirColleges, setShowAllDirColleges] = useState(false);
+  const [showAllDirCompanies, setShowAllDirCompanies] = useState(false);
+  const [showAllDirFaculty, setShowAllDirFaculty] = useState(false);
 
   const fetchDashboard = useCallback(
     async ({ silent } = {}) => {
@@ -167,16 +306,14 @@ function AdminDashboard({ user, onLogout }) {
         setError("");
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [analyticsRes, insightsRes, assessmentsRes] = await Promise.all([
+        const [analyticsRes, insightsRes] = await Promise.all([
           fetch("/api/admin/analytics", { cache: "no-store", headers }),
           fetch("/api/admin/insights", { cache: "no-store", headers }),
-          fetch("/api/assessments", { cache: "no-store", headers }),
         ]);
 
-        const [analyticsData, insightsData, assessmentsData] = await Promise.all([
+        const [analyticsData, insightsData] = await Promise.all([
           readApiResponse(analyticsRes),
           readApiResponse(insightsRes),
-          readApiResponse(assessmentsRes),
         ]);
 
         if (analyticsRes.status === 401 || insightsRes.status === 401) {
@@ -191,12 +328,6 @@ function AdminDashboard({ user, onLogout }) {
         }
         if (!insightsRes.ok) {
           throw new Error(insightsData.message || "Failed to load admin insights.");
-        }
-
-        if (assessmentsRes.ok) {
-          setAssessments(assessmentsData.data?.assessments || []);
-        } else {
-          setAssessments([]);
         }
 
         setAnalytics(analyticsData.data || emptyAnalytics);
@@ -217,20 +348,36 @@ function AdminDashboard({ user, onLogout }) {
   }, [fetchDashboard]);
 
   useEffect(() => {
-    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
     const id = window.setInterval(() => {
       fetchDashboard({ silent: true });
     }, 45000);
     return () => window.clearInterval(id);
   }, [fetchDashboard]);
 
+  useEffect(() => {
+    const role = location.state?.adminPeopleRole;
+    if (role && ADMIN_DASHBOARD_ROLES.includes(role)) {
+      setPeopleRoleFilter(role);
+    }
+  }, [location.state, location.hash]);
+
+  useEffect(() => {
+    const h = (location.hash || "").replace(/^#/, "");
+    if (h !== "admin-pending-colleges") return undefined;
+    const t = window.setTimeout(() => {
+      document.getElementById("admin-pending-colleges")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [location.hash]);
+
+  const peopleExcludingAlumni = useMemo(
+    () => (insights.people || []).filter((u) => u.role !== "alumni"),
+    [insights.people]
+  );
+
   const filteredPeople = useMemo(() => {
     const search = peopleSearch.trim().toLowerCase();
-    return (insights.people || []).filter((u) => {
+    return peopleExcludingAlumni.filter((u) => {
       if (peopleRoleFilter !== "all" && u.role !== peopleRoleFilter) return false;
       if (!search) return true;
       const hay = [
@@ -255,13 +402,78 @@ function AdminDashboard({ user, onLogout }) {
         .join(" ");
       return hay.includes(search);
     });
-  }, [insights.people, peopleRoleFilter, peopleSearch]);
+  }, [peopleExcludingAlumni, peopleRoleFilter, peopleSearch]);
 
   const recentJobs = useMemo(() => (insights.jobs || []).slice(0, 8), [insights.jobs]);
   const recentApplications = useMemo(
-    () => (insights.applications || []).slice(0, 10),
+    () =>
+      (insights.applications || [])
+        .filter((a) => a.student?.role !== "alumni")
+        .slice(0, 10),
     [insights.applications]
   );
+
+  const roleBarTotal = useMemo(() => {
+    const c = insights.roleCounts || {};
+    return ADMIN_DASHBOARD_ROLES.reduce((acc, role) => acc + (Number(c[role]) || 0), 0);
+  }, [insights.roleCounts]);
+
+  const registeredCollegesList = useMemo(() => insights.registeredColleges || [], [insights.registeredColleges]);
+
+  /** Same total as Live overview "Colleges" card and role distribution (server countDocuments). */
+  const collegeAccountsTotal = useMemo(
+    () => insights.totals?.collegeAccountsTotal ?? registeredCollegesList.length,
+    [insights.totals?.collegeAccountsTotal, registeredCollegesList.length]
+  );
+  const registeredCompaniesList = useMemo(() => insights.registeredCompanies || [], [insights.registeredCompanies]);
+  const facultyDirectoryList = useMemo(() => insights.facultyDirectory || [], [insights.facultyDirectory]);
+
+  const collegesTableRows = useMemo(
+    () =>
+      showAllDirColleges ? registeredCollegesList : registeredCollegesList.slice(0, DIRECTORY_PREVIEW_ROWS),
+    [registeredCollegesList, showAllDirColleges]
+  );
+  const companiesTableRows = useMemo(
+    () =>
+      showAllDirCompanies ? registeredCompaniesList : registeredCompaniesList.slice(0, DIRECTORY_PREVIEW_ROWS),
+    [registeredCompaniesList, showAllDirCompanies]
+  );
+  const facultyTableRows = useMemo(
+    () =>
+      showAllDirFaculty ? facultyDirectoryList : facultyDirectoryList.slice(0, DIRECTORY_PREVIEW_ROWS),
+    [facultyDirectoryList, showAllDirFaculty]
+  );
+
+  const handleCollegeApproval = async (collegeUserId, decision) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setCollegeApprovalBusyId(collegeUserId);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`/api/admin/colleges/${collegeUserId}/approval`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await readApiResponse(res);
+      if (!res.ok) {
+        throw new Error(data.message || "Could not update college.");
+      }
+      setSuccess(data.message || "Updated.");
+      await fetchDashboard({ silent: true });
+    } catch (err) {
+      setError(err.message || "College approval failed.");
+    } finally {
+      setCollegeApprovalBusyId("");
+    }
+  };
 
   const formatLiveStamp = (iso) => {
     if (!iso) return "—";
@@ -274,80 +486,48 @@ function AdminDashboard({ user, onLogout }) {
     return new Date(iso).toLocaleString();
   };
 
-  const openPeopleProfileModal = (person) => {
-    setPeopleModal({
-      person,
-      role: person.role,
-      student: person.role === "student" ? studentFormFromPerson(person) : null,
-    });
-  };
-
-  const closePeopleProfileModal = () => {
-    setPeopleModal(null);
-  };
-
-  const savePeopleProfileModal = async () => {
-    if (!peopleModal) return;
+  const handleDeleteCollege = async (collegeUserId) => {
+    if (
+      !window.confirm(
+        "Delete this college account? Student and faculty accounts remain, but campus links are cleared. Assessments created by this college login are removed. Continue?"
+      )
+    ) {
+      return;
+    }
     const token = localStorage.getItem("token");
     if (!token) {
       navigate("/login");
       return;
     }
-
-    const { person, role, student } = peopleModal;
-    const userId = person._id;
-
-    setSavingPeopleModal(true);
+    setDeletingCollegeId(collegeUserId);
     setError("");
     setSuccess("");
-
     try {
-      if (role && role !== person.role) {
-        const response = await fetch(`/api/admin/users/${userId}/role`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ role }),
-        });
-        const data = await readApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Failed to update user role.");
-        }
+      const response = await fetch(`/api/admin/colleges/${collegeUserId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await readApiResponse(response);
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to delete college.");
       }
-
-      if (role === "student" && student) {
-        const response = await fetch(`/api/admin/users/${userId}/student-profile`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(student),
-        });
-        const data = await readApiResponse(response);
-        if (!response.ok) {
-          throw new Error(data.message || "Failed to save student profile.");
-        }
-      }
-
-      setSuccess("Profile saved.");
-      closePeopleProfileModal();
+      setSuccess(data.message || "College removed.");
       await fetchDashboard({ silent: true });
     } catch (err) {
-      setError(err.message || "Unable to save.");
+      setError(err.message || "College delete failed.");
     } finally {
-      setSavingPeopleModal(false);
+      setDeletingCollegeId("");
     }
   };
 
   const handleDeleteUser = async (userId, roleLabel) => {
-    if (
-      !window.confirm(
-        `Delete this ${roleLabel} account? This cannot be undone. (Only student/alumni are fully removed automatically.)`
-      )
-    ) {
+    const msg =
+      roleLabel === "faculty"
+        ? "Delete this faculty account? Assessments and study materials they created will be removed. This cannot be undone."
+        : roleLabel === "company"
+          ? "Delete this company account? All their job postings and applications for those jobs will be removed. This cannot be undone."
+          : `Delete this ${roleLabel} account? This cannot be undone. Related learner data will be removed.`;
+    if (!window.confirm(msg)) {
       return;
     }
     const token = localStorage.getItem("token");
@@ -401,34 +581,6 @@ function AdminDashboard({ user, onLogout }) {
       setError(err.message || "Job delete failed.");
     } finally {
       setDeletingJobId("");
-    }
-  };
-
-  const handleDeleteAssessment = async (assessmentId) => {
-    if (!window.confirm("Delete this assessment permanently?")) return;
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-    setDeletingAssessmentId(assessmentId);
-    setError("");
-    setSuccess("");
-    try {
-      const response = await fetch(`/api/assessments/${assessmentId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await readApiResponse(response);
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to delete assessment.");
-      }
-      setSuccess("Assessment deleted.");
-      await fetchDashboard({ silent: true });
-    } catch (err) {
-      setError(err.message || "Assessment delete failed.");
-    } finally {
-      setDeletingAssessmentId("");
     }
   };
 
@@ -523,24 +675,32 @@ function AdminDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
-      <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
-          <DashboardTopNav
-            className="mb-0 rounded-none border-x-0 border-t-0 bg-slate-950/55 px-5 py-3 backdrop-blur-xl sm:px-6 sm:py-4 xl:px-7"
-            workspaceLabel="Admin Workspace"
-            title="Global Platform Control Center"
-            description="Handle everything in one place: every user, every role, colleges, companies, jobs, and applications."
-            user={{ name: user.name, email: user.email, role: user.role }}
-            onLogout={onLogout}
-            actionItems={[
-              { label: "Manage learning", to: "/dashboard/learning/manage", icon: ClipboardCheck },
-              { label: "Create assessment", to: "/assessments/create", icon: BarChart3 },
-              { label: "Manage jobs", to: "/admin/jobs", icon: BriefcaseBusiness },
-              { label: "Go to home", onClick: () => navigate("/") },
-            ]}
-          />
+    <div className="relative min-h-screen text-white">
+      <div
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_100%_70%_at_50%_-15%,rgba(56,189,248,0.14),transparent_55%)]"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_100%_40%,rgba(129,140,248,0.12),transparent_45%)]"
+        aria-hidden
+      />
+      <div className="relative w-full px-3 py-5 sm:px-4 sm:py-7">
+        <DashboardTopNav
+          className={workspaceDashboardHeaderClassName}
+          workspaceLabel="Admin Workspace"
+          title="Platform command center"
+          user={{ name: user.name, email: user.email, role: user.role }}
+          showHistoryBack
+          onLogout={onLogout}
+          actionItems={[
+            { label: "Manage learning", to: "/dashboard/learning/manage", icon: ClipboardCheck },
+            { label: "Create assessment", to: "/assessments/create", icon: BarChart3 },
+            { label: "Manage jobs", to: "/admin/jobs", icon: BriefcaseBusiness },
+            { label: "Go to home", onClick: () => navigate("/") },
+          ]}
+        />
 
+        <div className="mt-4 rounded-[28px] border border-white/10 bg-slate-950/45 shadow-[0_40px_100px_-24px_rgba(0,0,0,0.65)] ring-1 ring-white/5 backdrop-blur-xl">
           <div className="space-y-6 p-5 sm:p-6 xl:p-7">
           {error ? (
             <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
@@ -553,19 +713,29 @@ function AdminDashboard({ user, onLogout }) {
             </div>
           ) : null}
 
-          <div className="mt-5 rounded-3xl border border-cyan-400/20 bg-slate-950/55 p-5 sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <Activity className="h-4 w-4 text-cyan-300" />
-                {tick >= 0 && <span>Live data snapshot: {formatLiveStamp(insights.generatedAt)}</span>}
+          <div className="relative mt-2 overflow-hidden rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-slate-950/80 via-slate-950/50 to-indigo-950/30 p-5 shadow-[0_20px_60px_-24px_rgba(34,211,238,0.15)] sm:p-6">
+            <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" aria-hidden />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-200 ring-1 ring-cyan-400/20">
+                  <Sparkles className="h-5 w-5" aria-hidden />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-cyan-200/90">Live overview</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                    <Activity className="h-3.5 w-3.5 text-cyan-400" aria-hidden />
+                    <span>Updated {formatLiveStamp(insights.generatedAt)}</span>
+                  </p>
+                </div>
               </div>
               <Button
                 variant="default"
+                className="shrink-0 gap-2 shadow-lg shadow-cyan-500/10"
                 onClick={() => fetchDashboard({ silent: false })}
                 disabled={refreshing}
               >
                 <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                {refreshing ? "Refreshing..." : "Refresh"}
+                {refreshing ? "Refreshing..." : "Refresh data"}
               </Button>
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -574,83 +744,244 @@ function AdminDashboard({ user, onLogout }) {
                 value={analytics.totals.totalUsers}
                 subtitle="All people on Learn2Hire"
                 icon={Users}
+                onClick={() => goToAdminHash("admin-section-all-people")}
               />
               <MetricCard
                 title="Colleges"
-                value={insights.roleCounts.college || 0}
-                subtitle="College administrators"
+                value={collegeAccountsTotal}
+                subtitle="Campus accounts (matches roster below)"
                 icon={Building2}
+                onClick={() => goToAdminHash("admin-section-campus-accounts")}
               />
               <MetricCard
                 title="Companies"
                 value={insights.roleCounts.company || 0}
                 subtitle="Recruiting organizations"
-                icon={Workflow}
+                icon={Factory}
+                onClick={() => goToAdminHash("admin-section-companies")}
               />
               <MetricCard
                 title="Open Jobs"
                 value={insights.jobStatusCounts.open || 0}
                 subtitle="Active opportunities"
                 icon={BriefcaseBusiness}
+                onClick={() => goAdminSubpage("/admin/jobs")}
               />
               <MetricCard
                 title="Applications"
                 value={analytics.totals.totalApplications}
-                subtitle="Submitted by students/alumni"
+                subtitle="Submitted by students"
                 icon={BarChart3}
+                onClick={() => goToAdminHash("admin-section-recent-jobs")}
               />
             </div>
           </div>
 
-          <div className="mt-5 grid gap-6 xl:grid-cols-3">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
-              <CardContent className="p-6">
-                <h3 className="text-xl font-bold">Role Distribution</h3>
-                <div className="mt-4 space-y-3">
-                  {roleOptions.map((role) => (
-                    <div
-                      key={role}
-                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3"
-                    >
-                      <span className="capitalize text-slate-300">{role}</span>
-                      <span className="font-semibold text-white">{insights.roleCounts[role] || 0}</span>
+            <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <MetricCard
+                title="Students"
+                value={insights.roleCounts.student || 0}
+                subtitle="Learner accounts"
+                icon={GraduationCap}
+                onClick={() =>
+                  goToAdminHash("admin-section-all-people", { adminPeopleRole: "student" })
+                }
+              />
+              <MetricCard
+                title="Faculty Pending"
+                value={insights.totals.pendingFacultyCount || 0}
+                subtitle="Waiting for approval"
+                icon={ShieldCheck}
+                onClick={() => goToAdminHash("admin-section-faculty")}
+              />
+              <MetricCard
+                title="Colleges Pending"
+                value={insights.totals.pendingCollegesCount || 0}
+                subtitle="Awaiting platform approval"
+                icon={Building2}
+                onClick={() =>
+                  goToAdminHash(
+                    (insights.pendingColleges || []).length > 0
+                      ? "admin-pending-colleges"
+                      : "admin-section-campus-accounts"
+                  )
+                }
+              />
+              <MetricCard
+                title="Managed Students"
+                value={insights.totals.managedStudentsCount || 0}
+                subtitle="Assigned to colleges"
+                icon={Users}
+                onClick={() => goToAdminHash("admin-section-campus-accounts")}
+              />
+              <MetricCard
+                title="Assessments"
+                value={analytics.totals.totalAssessments}
+                subtitle="Published and draft"
+                icon={ClipboardCheck}
+                onClick={() => goAdminSubpage("/assessments")}
+              />
+            </div>
+
+            {(insights.pendingColleges || []).length > 0 ? (
+              <Card
+                id="admin-pending-colleges"
+                className="scroll-mt-28 overflow-hidden border border-amber-400/35 bg-gradient-to-br from-amber-500/[0.12] via-slate-950/40 to-transparent shadow-[0_20px_50px_-20px_rgba(245,158,11,0.15)]"
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/25">
+                      <Building2 className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-bold text-white sm:text-xl">College registrations pending approval</h2>
+                      <p className="mt-0.5 text-sm text-slate-400">
+                        Self-service college sign-ups. Approve so students and faculty can join under that campus.
+                      </p>
                     </div>
-                  ))}
+                  </div>
+                  <ul className="mt-5 space-y-3">
+                    {(insights.pendingColleges || []).map((c) => (
+                      <li
+                        key={c._id}
+                        role="button"
+                        tabIndex={0}
+                        className="flex cursor-pointer flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/55 p-4 transition hover:border-amber-400/30 hover:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between"
+                        onClick={() => goAdminSubpage(`/admin/colleges/${c._id}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            goAdminSubpage(`/admin/colleges/${c._id}`);
+                          }
+                        }}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-semibold text-white">{c.name}</p>
+                          <p className="truncate text-sm text-slate-400">{c.email}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Requested {c.createdAt ? new Date(c.createdAt).toLocaleString() : "—"}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              goAdminSubpage(`/admin/colleges/${c._id}`);
+                            }}
+                          >
+                            View campus
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="success"
+                            className="h-10"
+                            disabled={collegeApprovalBusyId === c._id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCollegeApproval(c._id, "approved");
+                            }}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            className="h-10"
+                            disabled={collegeApprovalBusyId === c._id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCollegeApproval(c._id, "rejected");
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+
+          <div id="admin-insights-grid" className="scroll-mt-28 mt-5 grid gap-6 xl:grid-cols-3">
+            <Card className="overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent shadow-none backdrop-blur-sm">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-bold tracking-tight text-white">Role distribution</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Share of users by role (alumni excluded). Click a row to open matching accounts below.
+                </p>
+                <div className="mt-5 space-y-3">
+                  {ADMIN_DASHBOARD_ROLES.map((role) => {
+                    const count = insights.roleCounts[role] || 0;
+                    const pct = roleBarTotal > 0 ? Math.min(100, Math.round((count / roleBarTotal) * 100)) : 0;
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        className="w-full rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-left transition hover:border-cyan-400/35 hover:bg-slate-900/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                        onClick={() => goToAdminHash("admin-section-all-people", { adminPeopleRole: role })}
+                      >
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="capitalize text-slate-300">{role}</span>
+                          <span className="font-semibold tabular-nums text-white">{count}</span>
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800/80">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-indigo-500 transition-[width] duration-700 ease-out"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent shadow-none backdrop-blur-sm">
               <CardContent className="p-6">
-                <h3 className="text-xl font-bold">Job Status</h3>
-                <div className="mt-4 space-y-3">
+                <h3 className="text-lg font-bold tracking-tight text-white">Job status</h3>
+                <p className="mt-1 text-xs text-slate-500">Posting lifecycle across the platform. Click to manage jobs.</p>
+                <div className="mt-5 space-y-3">
                   {Object.entries(insights.jobStatusCounts || {}).map(([k, v]) => (
-                    <div
+                    <button
                       key={k}
-                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3"
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-left transition hover:border-emerald-400/40 hover:bg-slate-900/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/35"
+                      onClick={() => goAdminSubpage("/admin/jobs")}
                     >
                       <span className="capitalize text-slate-300">{k}</span>
-                      <span className="font-semibold text-white">{v}</span>
-                    </div>
+                      <span className="font-semibold tabular-nums text-white">{v}</span>
+                    </button>
                   ))}
                 </div>
               </CardContent>
             </Card>
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent shadow-none backdrop-blur-sm">
               <CardContent className="p-6">
-                <h3 className="text-xl font-bold">Application Pipeline</h3>
-                <div className="mt-4 space-y-3">
+                <h3 className="text-lg font-bold tracking-tight text-white">Application pipeline</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Student applications by stage (alumni applications are not listed here). Click to review recent activity.
+                </p>
+                <div className="mt-5 space-y-3">
                   {Object.entries(insights.appStatusCounts || {}).map(([k, v]) => (
-                    <div
+                    <button
                       key={k}
-                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3"
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-left transition hover:border-violet-400/40 hover:bg-slate-900/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/35"
+                      onClick={() => goToAdminHash("admin-section-recent-jobs")}
                     >
                       <span className="capitalize text-slate-300">{k}</span>
-                      <span className="font-semibold text-white">{v}</span>
-                    </div>
+                      <span className="font-semibold tabular-nums text-white">{v}</span>
+                    </button>
                   ))}
                 </div>
-                <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Logged in admin</p>
+                <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 to-indigo-500/5 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-200/80">Signed in</p>
                   <p className="mt-2 font-semibold text-white">{user?.name}</p>
                   <p className="text-sm text-slate-400">{user?.email}</p>
                 </div>
@@ -658,8 +989,14 @@ function AdminDashboard({ user, onLogout }) {
             </Card>
           </div>
 
-          <div className="mt-5 grid gap-6 xl:grid-cols-3">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+          <CollapsibleSection
+            title="Bulk imports & materials"
+            subtitle="Student and learning content uploads—collapsed by default to keep the page short."
+            defaultOpen={false}
+            sectionId="admin-section-bulk-imports"
+          >
+          <div className="grid gap-6 xl:grid-cols-3">
+            <Card className="border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm transition hover:border-white/15">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-white">Bulk students (Excel)</h3>
                 <p className="mt-1 text-sm text-slate-400">
@@ -676,7 +1013,7 @@ function AdminDashboard({ user, onLogout }) {
                 </Button>
               </CardContent>
             </Card>
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm transition hover:border-white/15">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-white">Bulk materials (Excel)</h3>
                 <p className="mt-1 text-sm text-slate-400">
@@ -693,7 +1030,7 @@ function AdminDashboard({ user, onLogout }) {
                 </Button>
               </CardContent>
             </Card>
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm transition hover:border-white/15">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-white">Material from image</h3>
                 <input
@@ -724,10 +1061,338 @@ function AdminDashboard({ user, onLogout }) {
               </CardContent>
             </Card>
           </div>
+          </CollapsibleSection>
 
-          <div className="mt-5 rounded-3xl border border-white/10 bg-slate-950/55 p-5 sm:p-6">
+          <CollapsibleSection
+            title="Campus accounts (colleges)"
+            subtitle={
+              collegeAccountsTotal > DIRECTORY_PREVIEW_ROWS
+                ? `Campus roster (${collegeAccountsTotal} total). The table shows the first ${DIRECTORY_PREVIEW_ROWS} rows until you expand — same count as the Colleges card above.`
+                : "Campus roster, approval state, and removal — same count as the Colleges card above."
+            }
+            badge={collegeAccountsTotal ? `${collegeAccountsTotal}` : ""}
+            defaultOpen={false}
+            sectionId="admin-section-campus-accounts"
+          >
+            <DirectorySection
+              icon={Building2}
+              eyebrow="Campuses"
+              title="Campus accounts (colleges)"
+              description="Full roster, approval state, and safe removal—same as before, with a clearer layout."
+            >
+              <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/40">
+                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                  <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3.5 font-semibold">Campus name</th>
+                      <th className="px-4 py-3.5 font-semibold">Login email</th>
+                      <th className="px-4 py-3.5 font-semibold">Platform status</th>
+                      <th className="px-4 py-3.5 font-semibold">Registered</th>
+                      <th className="px-4 py-3.5 font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registeredCollegesList.length ? (
+                      collegesTableRows.map((c) => (
+                        <tr
+                          key={c._id}
+                          className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
+                          onClick={() => goAdminSubpage(`/admin/colleges/${c._id}`)}
+                        >
+                          <td className="px-4 py-3.5 font-medium text-white">{c.name}</td>
+                          <td className="px-4 py-3.5 text-slate-300">{c.email}</td>
+                          <td className="px-4 py-3.5 capitalize text-slate-400">
+                            {c.collegeApprovalStatus === "pending"
+                              ? "pending"
+                              : c.collegeApprovalStatus === "rejected"
+                                ? "rejected"
+                                : "approved"}
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-slate-500">
+                            {c.createdAt ? new Date(c.createdAt).toLocaleString() : "—"}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  goAdminSubpage(`/admin/colleges/${c._id}`);
+                                }}
+                              >
+                                Campus profile
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  goAdminSubpage(`/admin/users/${c._id}`);
+                                }}
+                              >
+                                Login details
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="min-h-9 min-w-[9rem] justify-center gap-1 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteCollege(c._id);
+                                }}
+                                disabled={deletingCollegeId === c._id}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                {deletingCollegeId === c._id ? "…" : "Delete"}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                          No college accounts yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </DirectorySection>
+            {registeredCollegesList.length > DIRECTORY_PREVIEW_ROWS ? (
+              <div className="mt-4 flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setShowAllDirColleges((v) => !v)}
+                >
+                  {showAllDirColleges
+                    ? `Show only first ${DIRECTORY_PREVIEW_ROWS}`
+                    : `Show all ${registeredCollegesList.length} campuses`}
+                </Button>
+              </div>
+            ) : null}
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Company accounts"
+            subtitle="Recruiters and hiring teams. Open the section to preview five rows; show all when needed."
+            badge={registeredCompaniesList.length ? `${registeredCompaniesList.length}` : ""}
+            defaultOpen={false}
+            sectionId="admin-section-companies"
+          >
+            <DirectorySection
+              icon={Factory}
+              eyebrow="Employers"
+              title="Company accounts"
+              description="Recruiters and hiring teams on the platform. Open a profile to adjust roles or review details in one place."
+            >
+              <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/40">
+                <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                  <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3.5 font-semibold">Company name</th>
+                      <th className="px-4 py-3.5 font-semibold">Login email</th>
+                      <th className="px-4 py-3.5 font-semibold">Registered</th>
+                      <th className="px-4 py-3.5 font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registeredCompaniesList.length ? (
+                      companiesTableRows.map((co) => (
+                        <tr
+                          key={co._id}
+                          className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
+                          onClick={() => goAdminSubpage(`/admin/users/${co._id}`)}
+                        >
+                          <td className="px-4 py-3.5 font-medium text-white">{co.name}</td>
+                          <td className="px-4 py-3.5 text-slate-300">{co.email}</td>
+                          <td className="px-4 py-3.5 text-xs text-slate-500">
+                            {co.createdAt ? new Date(co.createdAt).toLocaleString() : "—"}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  goAdminSubpage(`/admin/users/${co._id}`);
+                                }}
+                              >
+                                View profile
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="min-h-9 min-w-[9rem] justify-center gap-1 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteUser(co._id, "company");
+                                }}
+                                disabled={deletingUserId === co._id}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                {deletingUserId === co._id ? "…" : "Delete"}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-10 text-center text-slate-500">
+                          No company accounts yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </DirectorySection>
+            {registeredCompaniesList.length > DIRECTORY_PREVIEW_ROWS ? (
+              <div className="mt-4 flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setShowAllDirCompanies((v) => !v)}
+                >
+                  {showAllDirCompanies
+                    ? `Show only first ${DIRECTORY_PREVIEW_ROWS}`
+                    : `Show all ${registeredCompaniesList.length} companies`}
+                </Button>
+              </div>
+            ) : null}
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Faculty directory"
+            subtitle="Teaching staff by campus and approval. Open to preview five rows; expand the list for the full directory."
+            badge={facultyDirectoryList.length ? `${facultyDirectoryList.length}` : ""}
+            defaultOpen={false}
+            sectionId="admin-section-faculty"
+          >
+            <DirectorySection
+              icon={UserRound}
+              eyebrow="Teaching staff"
+              title="Faculty directory"
+              description="Each row shows the campus they belong to (approved assignment or signup selection) and their approval state."
+            >
+              <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/40">
+                <table className="w-full min-w-[800px] border-collapse text-left text-sm">
+                  <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3.5 font-semibold">Faculty name</th>
+                      <th className="px-4 py-3.5 font-semibold">Email</th>
+                      <th className="px-4 py-3.5 font-semibold">Campus</th>
+                      <th className="px-4 py-3.5 font-semibold">Approval</th>
+                      <th className="px-4 py-3.5 font-semibold">Joined</th>
+                      <th className="px-4 py-3.5 font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {facultyDirectoryList.length ? (
+                      facultyTableRows.map((f) => (
+                        <tr
+                          key={f._id}
+                          className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
+                          onClick={() => goAdminSubpage(`/admin/users/${f._id}`)}
+                        >
+                          <td className="px-4 py-3.5 font-medium text-white">{f.name}</td>
+                          <td className="px-4 py-3.5 text-slate-300">{f.email}</td>
+                          <td className="max-w-[14rem] px-4 py-3.5 text-slate-300">
+                            <span className="line-clamp-2" title={f.campusName || ""}>
+                              {f.campusName || "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-xs capitalize text-slate-400">
+                            {f.facultyApprovalStatus || "approved"}
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-slate-500">
+                            {f.createdAt ? new Date(f.createdAt).toLocaleString() : "—"}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  goAdminSubpage(`/admin/users/${f._id}`);
+                                }}
+                              >
+                                View profile
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="min-h-9 min-w-[9rem] justify-center gap-1 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteUser(f._id, "faculty");
+                                }}
+                                disabled={deletingUserId === f._id}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                {deletingUserId === f._id ? "…" : "Delete"}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                          No faculty accounts yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </DirectorySection>
+            {facultyDirectoryList.length > DIRECTORY_PREVIEW_ROWS ? (
+              <div className="mt-4 flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setShowAllDirFaculty((v) => !v)}
+                >
+                  {showAllDirFaculty
+                    ? `Show only first ${DIRECTORY_PREVIEW_ROWS}`
+                    : `Show all ${facultyDirectoryList.length} faculty`}
+                </Button>
+              </div>
+            ) : null}
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="All people management"
+            subtitle="Search and edit accounts from the latest synced sample. Expand when you need bulk edits."
+            badge={filteredPeople.length ? `${filteredPeople.length} shown` : ""}
+            defaultOpen={false}
+            sectionId="admin-section-all-people"
+          >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-2xl font-bold">All People Management</h2>
               <div className="flex flex-wrap gap-2">
                 <select
                   value={peopleRoleFilter}
@@ -735,7 +1400,7 @@ function AdminDashboard({ user, onLogout }) {
                   className="h-11 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-sm"
                 >
                   <option value="all">All roles</option>
-                  {roleOptions.map((role) => (
+                  {ADMIN_DASHBOARD_ROLES.map((role) => (
                     <option key={role} value={role}>
                       {role}
                     </option>
@@ -749,14 +1414,14 @@ function AdminDashboard({ user, onLogout }) {
                 />
               </div>
             </div>
-            <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10">
-              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                <thead className="bg-slate-900/60 text-xs uppercase tracking-wide text-slate-400">
+            <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/30">
+              <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
                   <tr>
                     <th className="px-3 py-3 font-semibold">Name</th>
                     <th className="px-3 py-3 font-semibold">Email</th>
                     <th className="px-3 py-3 font-semibold">Role</th>
-                    <th className="px-3 py-3 font-semibold">Managed</th>
+                    <th className="px-3 py-3 font-semibold">Campus</th>
                     <th className="px-3 py-3 font-semibold">Faculty</th>
                     <th className="px-3 py-3 font-semibold">Student summary</th>
                     <th className="px-3 py-3 font-semibold">Actions</th>
@@ -771,8 +1436,14 @@ function AdminDashboard({ user, onLogout }) {
                               .filter(Boolean)
                               .join(" · ") || "—"
                           : "—";
+                      const campusName =
+                        person.managedByCollege?.name || person.affiliatedCollege?.name || "";
                       return (
-                        <tr key={person._id} className="border-b border-white/5 last:border-0">
+                        <tr
+                          key={person._id}
+                          className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
+                          onClick={() => openAdminPeopleRow(person)}
+                        >
                           <td className="px-3 py-3 align-top text-white">
                             <span className="block max-w-[10rem] truncate" title={person.name || ""}>
                               {person.name}
@@ -785,11 +1456,8 @@ function AdminDashboard({ user, onLogout }) {
                           </td>
                           <td className="px-3 py-3 align-top capitalize">{person.role}</td>
                           <td className="px-3 py-3 align-top text-slate-400">
-                            <span
-                              className="block max-w-[8rem] truncate text-xs"
-                              title={person.managedByCollege?.name || ""}
-                            >
-                              {person.managedByCollege?.name || "—"}
+                            <span className="block max-w-[10rem] truncate text-xs" title={campusName}>
+                              {campusName || "—"}
                             </span>
                           </td>
                           <td className="px-3 py-3 align-top text-xs capitalize text-slate-400">
@@ -803,28 +1471,111 @@ function AdminDashboard({ user, onLogout }) {
                             </span>
                           </td>
                           <td className="px-3 py-3 align-top">
-                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="text-xs"
-                                onClick={() => openPeopleProfileModal(person)}
-                              >
-                                Open profile
-                              </Button>
-                              {(person.role === "student" || person.role === "alumni") && (
-                                <Button
-                                  type="button"
-                                  variant="destructive"
-                                  size="sm"
-                                  className="justify-center gap-1 text-xs"
-                                  onClick={() => handleDeleteUser(person._id, person.role)}
-                                  disabled={deletingUserId === person._id}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  {deletingUserId === person._id ? "…" : "Delete"}
-                                </Button>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                              {person.role === "college" ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      goAdminSubpage(`/admin/colleges/${person._id}`);
+                                    }}
+                                  >
+                                    Campus profile
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      goAdminSubpage(`/admin/users/${person._id}`);
+                                    }}
+                                  >
+                                    Login details
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    className="min-h-9 min-w-[9rem] justify-center gap-1 text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteCollege(person._id);
+                                    }}
+                                    disabled={deletingCollegeId === person._id}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    {deletingCollegeId === person._id ? "…" : "Delete"}
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      goAdminSubpage(`/admin/users/${person._id}`);
+                                    }}
+                                  >
+                                    View profile
+                                  </Button>
+                                  {person.role === "student" && (
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="sm"
+                                      className="min-h-9 min-w-[9rem] justify-center gap-1 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteUser(person._id, person.role);
+                                      }}
+                                      disabled={deletingUserId === person._id}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      {deletingUserId === person._id ? "…" : "Delete"}
+                                    </Button>
+                                  )}
+                                  {person.role === "faculty" && (
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="sm"
+                                      className="min-h-9 min-w-[9rem] justify-center gap-1 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteUser(person._id, "faculty");
+                                      }}
+                                      disabled={deletingUserId === person._id}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      {deletingUserId === person._id ? "…" : "Delete"}
+                                    </Button>
+                                  )}
+                                  {person.role === "company" && (
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="sm"
+                                      className="min-h-9 min-w-[9rem] justify-center gap-1 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteUser(person._id, "company");
+                                      }}
+                                      disabled={deletingUserId === person._id}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      {deletingUserId === person._id ? "…" : "Delete"}
+                                    </Button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </td>
@@ -841,77 +1592,15 @@ function AdminDashboard({ user, onLogout }) {
                 </tbody>
               </table>
             </div>
-          </div>
+          </CollapsibleSection>
 
-          <div className="mt-5 rounded-3xl border border-white/10 bg-slate-950/55 p-5 sm:p-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-bold">Assessments (admin)</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  Create, review, or remove assessments.{" "}
-                  <Link to="/assessments/create" className="text-cyan-300 underline">
-                    New assessment
-                  </Link>
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
-              <table className="w-full min-w-[640px] table-fixed text-left text-sm">
-                <thead className="bg-slate-900/60 text-xs uppercase tracking-wide text-slate-400">
-                  <tr>
-                    <th className="px-3 py-2">Title</th>
-                    <th className="w-[18%] px-3 py-2">Status</th>
-                    <th className="w-[22%] px-3 py-2">Created by</th>
-                    <th className="w-[14%] px-3 py-2">Open</th>
-                    <th className="w-[12%] px-3 py-2">Delete</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assessments.length ? (
-                    assessments.map((a) => (
-                      <tr key={a._id} className="border-b border-white/5">
-                        <td className="px-3 py-2 text-white">
-                          <span className="line-clamp-2">{a.title}</span>
-                        </td>
-                        <td className="px-3 py-2 capitalize text-slate-300">{a.status}</td>
-                        <td className="px-3 py-2 text-xs text-slate-400">
-                          {a.createdBy?.name || "—"}
-                        </td>
-                        <td className="px-3 py-2">
-                          <Link
-                            to={`/assessments/${a._id}`}
-                            className="text-xs text-cyan-300 underline"
-                          >
-                            View
-                          </Link>
-                        </td>
-                        <td className="px-3 py-2">
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            className="h-8 gap-1 px-2 text-xs"
-                            onClick={() => handleDeleteAssessment(a._id)}
-                            disabled={deletingAssessmentId === a._id}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="px-3 py-8 text-center text-slate-500">
-                        No assessments loaded.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-6 xl:grid-cols-2">
+          <CollapsibleSection
+            title="Recent jobs & applications"
+            subtitle="Latest postings and who applied—expand to review or remove a job."
+            defaultOpen={true}
+            sectionId="admin-section-recent-jobs"
+          >
+          <div className="grid gap-6 xl:grid-cols-2">
             <Card className="border border-white/10 bg-white/5 shadow-none">
               <CardContent className="p-6">
                 <h2 className="text-xl font-bold">Recent Jobs</h2>
@@ -921,32 +1610,44 @@ function AdminDashboard({ user, onLogout }) {
                     recentJobs.map((job) => (
                       <div
                         key={job._id}
-                        className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:flex-row sm:items-stretch sm:justify-between"
                       >
-                        <div className="min-w-0">
+                        <Link
+                          to={`/jobs/${job._id}`}
+                          className="min-w-0 flex-1 rounded-xl p-1 text-left transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                          onClick={() => saveAdminDashboardScrollBeforeNavigate()}
+                        >
                           <p className="font-semibold text-white">{job.title}</p>
                           <p className="mt-1 text-sm text-slate-400">
                             {job.createdBy?.name || "Company"} · {job.location || "Remote"} ·{" "}
                             <span className="capitalize">{job.status}</span>
                           </p>
-                          <Link
-                            to={`/jobs/${job._id}`}
-                            className="mt-2 inline-block text-xs text-cyan-300 underline"
+                          <p className="mt-2 text-xs font-medium text-cyan-300">View job posting →</p>
+                        </Link>
+                        <div className="flex shrink-0 flex-col gap-2 sm:items-end sm:justify-center">
+                          {job.createdBy?._id ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="w-full min-w-[9rem] sm:w-auto"
+                              onClick={() => goAdminSubpage(`/admin/users/${job.createdBy._id}`)}
+                            >
+                              Company account
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => handleDeleteJob(job._id)}
+                            disabled={deletingJobId === job._id}
                           >
-                            Open job
-                          </Link>
+                            <Trash2 className="h-4 w-4" />
+                            {deletingJobId === job._id ? "…" : "Delete"}
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="shrink-0 gap-1"
-                          onClick={() => handleDeleteJob(job._id)}
-                          disabled={deletingJobId === job._id}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          {deletingJobId === job._id ? "…" : "Delete"}
-                        </Button>
                       </div>
                     ))
                   ) : (
@@ -961,21 +1662,75 @@ function AdminDashboard({ user, onLogout }) {
             <Card className="border border-white/10 bg-white/5 shadow-none">
               <CardContent className="p-6">
                 <h2 className="text-xl font-bold">Recent Applications</h2>
-                <p className="mt-1 text-sm text-slate-400">Latest student/alumni application activity.</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Latest student applications (alumni applications are not shown here).
+                </p>
                 <div className="mt-4 space-y-3">
                   {recentApplications.length ? (
                     recentApplications.map((item) => (
                       <div
                         key={item._id}
-                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                        role="button"
+                        tabIndex={0}
+                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-left transition hover:border-cyan-400/25 hover:bg-slate-900/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                        onClick={() => {
+                          if (item.job?._id) {
+                            saveAdminDashboardScrollBeforeNavigate();
+                            goAdminSubpage(`/jobs/${item.job._id}`);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            if (item.job?._id) {
+                              saveAdminDashboardScrollBeforeNavigate();
+                              goAdminSubpage(`/jobs/${item.job._id}`);
+                            }
+                          }
+                        }}
                       >
-                        <p className="font-semibold text-white">
-                          {item.student?.name || "Applicant"} → {item.job?.title || "Job"}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-400">
-                          {item.job?.createdBy?.name || "Company"} ·{" "}
-                          <span className="capitalize">{item.status}</span>
-                        </p>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-white">
+                              {item.student?.name || "Applicant"} → {item.job?.title || "Job"}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-400">
+                              {item.job?.createdBy?.name || "Company"} ·{" "}
+                              <span className="capitalize">{item.status}</span>
+                            </p>
+                            <p className="mt-2 text-xs text-cyan-300/90">Click for job details →</p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            {item.student?._id ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  goAdminSubpage(`/admin/users/${item.student._id}`);
+                                }}
+                              >
+                                Applicant profile
+                              </Button>
+                            ) : null}
+                            {item.job?.createdBy?._id ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  goAdminSubpage(`/admin/users/${item.job.createdBy._id}`);
+                                }}
+                              >
+                                Company
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
                     ))
                   ) : (
@@ -987,242 +1742,10 @@ function AdminDashboard({ user, onLogout }) {
               </CardContent>
             </Card>
           </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              title="Students"
-              value={insights.roleCounts.student || 0}
-              subtitle="Learner accounts"
-              icon={GraduationCap}
-            />
-            <MetricCard
-              title="Faculty Pending"
-              value={insights.totals.pendingFacultyCount || 0}
-              subtitle="Waiting for approval"
-              icon={ShieldCheck}
-            />
-            <MetricCard
-              title="Managed Students"
-              value={insights.totals.managedStudentsCount || 0}
-              subtitle="Assigned to colleges"
-              icon={Users}
-            />
-            <MetricCard
-              title="Assessments"
-              value={analytics.totals.totalAssessments}
-              subtitle="Published and draft"
-              icon={ClipboardCheck}
-            />
-          </div>
+          </CollapsibleSection>
           </div>
         </div>
       </div>
-
-      {peopleModal ? (
-        <div
-          className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="people-profile-title"
-        >
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            aria-label="Close profile editor"
-            onClick={closePeopleProfileModal}
-          />
-          <div className="relative z-10 flex max-h-[92vh] w-full max-w-2xl flex-col rounded-t-3xl border border-white/10 bg-slate-950 shadow-2xl sm:rounded-3xl">
-            <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
-              <div className="min-w-0">
-                <h2 id="people-profile-title" className="text-lg font-bold text-white">
-                  {peopleModal.person.name}
-                </h2>
-                <p className="mt-1 truncate text-sm text-slate-400">{peopleModal.person.email}</p>
-              </div>
-              <button
-                type="button"
-                className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
-                onClick={closePeopleProfileModal}
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
-              <label className="block text-xs font-medium text-slate-400">Role</label>
-              <select
-                value={peopleModal.role}
-                onChange={(e) => {
-                  const nextRole = e.target.value;
-                  setPeopleModal((m) => ({
-                    ...m,
-                    role: nextRole,
-                    student:
-                      nextRole === "student"
-                        ? m.student ?? studentFormFromPerson(m.person)
-                        : null,
-                  }));
-                }}
-                className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 text-sm text-white"
-              >
-                {roleOptions.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-2 text-xs text-slate-500">
-                Saving applies role changes and, for students, the full academic and contact record
-                below.
-              </p>
-
-              {peopleModal.role === "student" && peopleModal.student ? (
-                <div className="mt-6 space-y-5">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">Academic cohort</h3>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {[
-                        ["course", "Program / course"],
-                        ["branch", "Branch"],
-                        ["year", "Year"],
-                        ["semester", "Semester"],
-                      ].map(([key, label]) => (
-                        <div key={key}>
-                          <label className="text-xs text-slate-400">{label}</label>
-                          <input
-                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
-                            value={peopleModal.student[key]}
-                            onChange={(e) =>
-                              setPeopleModal((m) => ({
-                                ...m,
-                                student: { ...m.student, [key]: e.target.value },
-                              }))
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">Bio</h3>
-                    <textarea
-                      className="mt-2 min-h-[80px] w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
-                      value={peopleModal.student.bio}
-                      onChange={(e) =>
-                        setPeopleModal((m) => ({
-                          ...m,
-                          student: { ...m.student, bio: e.target.value },
-                        }))
-                      }
-                      placeholder="Short bio"
-                    />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">Parents &amp; contacts</h3>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {[
-                        ["studentPhone", "Student phone"],
-                        ["fatherName", "Father name"],
-                        ["fatherPhone", "Father phone"],
-                        ["motherName", "Mother name"],
-                        ["motherPhone", "Mother phone"],
-                      ].map(([key, label]) => (
-                        <div key={key} className={key === "studentPhone" ? "sm:col-span-2" : ""}>
-                          <label className="text-xs text-slate-400">{label}</label>
-                          <input
-                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
-                            value={peopleModal.student[key]}
-                            onChange={(e) =>
-                              setPeopleModal((m) => ({
-                                ...m,
-                                student: { ...m.student, [key]: e.target.value },
-                              }))
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">Address</h3>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <div className="sm:col-span-2">
-                        <label className="text-xs text-slate-400">Street / address</label>
-                        <input
-                          className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
-                          value={peopleModal.student.address}
-                          onChange={(e) =>
-                            setPeopleModal((m) => ({
-                              ...m,
-                              student: { ...m.student, address: e.target.value },
-                            }))
-                          }
-                        />
-                      </div>
-                      {[
-                        ["city", "City"],
-                        ["state", "State"],
-                        ["pincode", "PIN / ZIP"],
-                      ].map(([key, label]) => (
-                        <div key={key}>
-                          <label className="text-xs text-slate-400">{label}</label>
-                          <input
-                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
-                            value={peopleModal.student[key]}
-                            onChange={(e) =>
-                              setPeopleModal((m) => ({
-                                ...m,
-                                student: { ...m.student, [key]: e.target.value },
-                              }))
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-200">Other</h3>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {[
-                        ["dateOfBirth", "Date of birth (YYYY-MM-DD)"],
-                        ["bloodGroup", "Blood group"],
-                        ["emergencyContactName", "Emergency contact name"],
-                        ["emergencyContactPhone", "Emergency contact phone"],
-                      ].map(([key, label]) => (
-                        <div key={key}>
-                          <label className="text-xs text-slate-400">{label}</label>
-                          <input
-                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
-                            value={peopleModal.student[key]}
-                            onChange={(e) =>
-                              setPeopleModal((m) => ({
-                                ...m,
-                                student: { ...m.student, [key]: e.target.value },
-                              }))
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <div className="flex flex-col-reverse gap-2 border-t border-white/10 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-              <Button type="button" variant="outline" onClick={closePeopleProfileModal}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={savePeopleProfileModal}
-                disabled={savingPeopleModal}
-              >
-                {savingPeopleModal ? "Saving…" : "Save changes"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -13,6 +13,7 @@ const learningRoutes = require('./routes/learningRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 const collegeRoutes = require('./routes/collegeRoutes');
 const { ensureBuiltinAdmins } = require('./seed/ensureBuiltinAdmins');
+const { isSmtpConfigured } = require('./utils/otpDelivery');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -64,6 +65,20 @@ const start = async () => {
   await ensureBuiltinAdmins();
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
+    if (isSmtpConfigured()) {
+      console.log(
+        `[Learn2Hire] SMTP configured (${process.env.SMTP_HOST}) — signup OTP emails will be sent.`
+      );
+    } else {
+      console.warn(
+        '[Learn2Hire] SMTP not configured (SMTP_HOST / SMTP_USER / SMTP_PASS). Signup OTP requests will fail until you set them.'
+      );
+    }
+    if (String(process.env.OTP_ECHO_TO_CLIENT || '').toLowerCase() === 'true') {
+      console.log(
+        '[Learn2Hire] OTP_ECHO_TO_CLIENT=true — signup codes are also returned in API responses (disable in production).'
+      );
+    }
   });
 };
 

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
 import AuthField from "../components/auth/AuthField";
+import PasswordInput from "../components/auth/PasswordInput";
 import AuthLayout from "../components/auth/AuthLayout";
 import { Button } from "../components/ui/button";
 import { notifyAuthChange } from "../lib/authSession";
@@ -122,9 +123,8 @@ function Login() {
         </AuthField>
 
         <AuthField label="Password" htmlFor="password" error={errors.password}>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onBlur={validate}
@@ -134,6 +134,15 @@ function Login() {
             className={inputClassName}
           />
         </AuthField>
+
+        <div className="flex justify-end">
+          <Link
+            to="/forgot-password"
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
         <Button
           type="submit"

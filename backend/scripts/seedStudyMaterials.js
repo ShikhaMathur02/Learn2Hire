@@ -1354,7 +1354,7 @@ const materials = [
     category: 'aptitude',
     title: 'GeeksforGeeks — Aptitude preparation hub',
     summary:
-      'In-app aptitude game plan: quant topics, reasoning, and timed practice — GFG for extra question banks.',
+      'Quant and logical reasoning basics, data interpretation, and timed practice tips.',
     content:
       '### Quant building blocks\n' +
       '- **Percentages**, **ratios**, **proportions**, **profit/loss**, **SI/CI**, **time-speed-distance**, **time-work**, **permutations/combinations** basics.\n\n' +

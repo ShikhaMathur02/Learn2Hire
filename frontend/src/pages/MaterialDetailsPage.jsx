@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 
 import SiteHeader from '../components/landing/SiteHeader';
+import { DarkWorkspaceShell } from '../components/layout/DarkWorkspaceShell';
+import { facultyNavItems } from '../config/facultyNavItems';
+import { studentNavItems } from '../config/studentNavItems';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { readApiResponse } from '../lib/api';
@@ -45,6 +48,7 @@ function youtubeEmbedUrl(url) {
 function MaterialDetailsPage() {
   const { slug } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const sessionStartedAtRef = useRef(Date.now());
   const token = localStorage.getItem('token');
   const storedUser = localStorage.getItem('user');
@@ -288,21 +292,69 @@ function MaterialDetailsPage() {
     ? '/dashboard/learning#learning-explore-catalog'
     : '/learning#learning-explore-catalog';
 
+  const roleLower = String(parsedUser?.role || '').toLowerCase();
+  const useFacultyNav = ['faculty', 'admin', 'college'].includes(roleLower);
+  const workspaceLabel =
+    roleLower === 'faculty'
+      ? 'Faculty Workspace'
+      : roleLower === 'college'
+        ? 'College Workspace'
+        : roleLower === 'admin'
+          ? 'Admin Workspace'
+          : 'Student Workspace';
+  const shellNavItems = useFacultyNav ? facultyNavItems : studentNavItems;
+
+  const handleLogout = useCallback(() => {
+    clearAuthSession();
+    navigate('/login');
+  }, [navigate]);
+
+  const handleNavSection = useCallback(
+    (id) => {
+      if (useFacultyNav) {
+        navigate('/dashboard', { state: { facultySection: id } });
+        return;
+      }
+      if (id === 'learning') {
+        navigate('/dashboard/learning#learning-explore-catalog');
+        window.requestAnimationFrame(() => {
+          document
+            .getElementById('learning-explore-catalog')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        return;
+      }
+      navigate('/dashboard', { state: { studentSection: id } });
+    },
+    [useFacultyNav, navigate]
+  );
+
+  const shellUser = {
+    name: parsedUser?.name || 'Account',
+    email: parsedUser?.email || '',
+    role: parsedUser?.role || 'student',
+  };
+
+  const shellTitle = material?.title || (loading ? 'Loading…' : 'Study material');
+  /** Keep top nav compact; full summary stays on the page body. */
+  const shellDescription = loading ? 'Fetching this topic from the learning library.' : undefined;
+
   if (!slug) {
     return <Navigate to="/" replace />;
   }
 
-  return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_18%,#ffffff_38%,#f8fafc_100%)] text-slate-900">
-      <SiteHeader />
+  const mainClassName = isDashboardTopicRoute
+    ? 'w-full px-2 pb-8 pt-2 sm:px-1 sm:pt-3'
+    : 'w-full px-3 pb-6 pt-24 sm:px-4';
 
-      <main className="w-full px-3 pb-6 pt-24 sm:px-4">
-        <Button asChild variant="default" className="mb-6">
-          <Link to={learningHubPath}>
-            <ArrowLeft className="h-4 w-4" />
-            Back to Learning Hub
-          </Link>
-        </Button>
+  const pageMain = (
+    <main className={mainClassName}>
+      <Button asChild variant="default" className="mb-6">
+        <Link to={learningHubPath}>
+          <ArrowLeft className="h-4 w-4" />
+          Back to Learning Hub
+        </Link>
+      </Button>
 
         {loading ? (
           <div className="flex h-52 items-center justify-center rounded-[32px] border border-slate-200 bg-white shadow-sm">
@@ -742,6 +794,32 @@ function MaterialDetailsPage() {
           </div>
         )}
       </main>
+  );
+
+  if (isDashboardTopicRoute) {
+    return (
+      <DarkWorkspaceShell
+        title={shellTitle}
+        description={shellDescription}
+        workspaceLabel={workspaceLabel}
+        brandSubtitle={workspaceLabel}
+        navItems={shellNavItems}
+        activeSection={useFacultyNav ? undefined : 'learning'}
+        onNavSectionSelect={handleNavSection}
+        user={shellUser}
+        onLogout={handleLogout}
+        headerIcon={Sparkles}
+        showHistoryBack={false}
+      >
+        {pageMain}
+      </DarkWorkspaceShell>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_18%,#ffffff_38%,#f8fafc_100%)] text-slate-900">
+      <SiteHeader />
+      {pageMain}
     </div>
   );
 }

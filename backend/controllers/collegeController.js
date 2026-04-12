@@ -82,11 +82,16 @@ exports.getPendingFaculty = async (req, res) => {
       });
     }
 
-    const pending = await User.find({
+    const query = {
       role: 'faculty',
       facultyApprovalStatus: 'pending',
-    })
-      .select('name email facultyApprovalStatus managedByCollege createdAt')
+    };
+    if (normalizeRole(req.user.role) === 'college') {
+      query.affiliatedCollege = req.user._id;
+    }
+
+    const pending = await User.find(query)
+      .select('name email facultyApprovalStatus affiliatedCollege managedByCollege createdAt')
       .sort({ createdAt: -1 })
       .limit(200);
 
@@ -150,8 +155,33 @@ exports.createRosterUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const collegeId =
+    let collegeId =
       normalizeRole(req.user.role) === 'college' ? req.user._id : null;
+
+    if (normalizeRole(req.user.role) === 'admin') {
+      const rawCid = req.body.collegeId;
+      if (!rawCid || !mongoose.Types.ObjectId.isValid(String(rawCid))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Admin must specify collegeId (approved college user id) when adding roster accounts.',
+        });
+      }
+      const collegeUser = await User.findById(rawCid);
+      if (!collegeUser || collegeUser.role !== 'college') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid collegeId. Must be an existing college account.',
+        });
+      }
+      const cst = collegeUser.collegeApprovalStatus;
+      if (cst === 'pending' || cst === 'rejected') {
+        return res.status(400).json({
+          success: false,
+          message: 'That college is not approved yet; choose an approved college.',
+        });
+      }
+      collegeId = collegeUser._id;
+    }
 
     const doc = {
       name: name.trim(),
@@ -159,6 +189,7 @@ exports.createRosterUser = async (req, res) => {
       password: hashedPassword,
       role: targetRole,
       managedByCollege: collegeId,
+      affiliatedCollege: collegeId,
     };
 
     if (targetRole === 'faculty') {
@@ -225,8 +256,12 @@ exports.setFacultyApproval = async (req, res) => {
     }
 
     user.facultyApprovalStatus = decision;
-    if (decision === 'approved' && normalizeRole(req.user.role) === 'college') {
-      user.managedByCollege = req.user._id;
+    if (decision === 'approved') {
+      if (normalizeRole(req.user.role) === 'college') {
+        user.managedByCollege = req.user._id;
+      } else {
+        user.managedByCollege = user.affiliatedCollege || user.managedByCollege;
+      }
     }
     await user.save();
 

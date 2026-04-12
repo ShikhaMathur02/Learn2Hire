@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -10,33 +10,14 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { readApiResponse } from "../../lib/api";
+import { useNotifications } from "../../context/NotificationContext";
 import { cn } from "../../lib/utils";
 import { NavDropdown } from "../ui/nav-dropdown";
 
-const UNREAD_POLL_MS = 45_000;
-const NOTIF_TOAST_MS = 5_000;
-
-/** Last unread count at which the user dismissed the bell badge (per login email). */
-function notifDismissSnapKey(email) {
-  return `learn2hire_notif_dismiss_snap::${email || "anon"}`;
-}
-
-function readDismissSnap(email) {
-  const raw = sessionStorage.getItem(notifDismissSnapKey(email));
-  if (raw === null || raw === "") return -1;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : -1;
-}
-
-function coerceUnreadCount(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const n = Number(value);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
+/** Sticky header treatment for full-width role dashboards (matches workspace shell). */
+export const workspaceDashboardHeaderClassName = cn(
+  "shrink-0 mb-4 rounded-2xl border border-white/10 bg-gradient-to-b from-slate-950/90 via-slate-950/80 to-slate-950/65 px-4 py-0 shadow-[0_20px_50px_-24px_rgba(0,0,0,0.55)] ring-1 ring-white/5 backdrop-blur-xl sm:px-6 xl:px-7"
+);
 
 function initialsFromName(name) {
   if (!name || typeof name !== "string") return "?";
@@ -67,7 +48,7 @@ function initialsFromName(name) {
  * @param {boolean} [props.showNavMenuAtLarge=false] — when true, keep hamburger visible on `lg+`
  * @param {boolean} [props.navMenuLeading=false] — when true, place the menu control first on the left (before the brand tile)
  * @param {string} [props.navMenuAriaLabel] — accessible name for the menu control
- * @param {boolean} [props.showHistoryBack=false] — themed control that runs browser history back (SPA)
+ * @param {boolean} [props.showHistoryBack=false] — arrow control that navigates one step back (React Router history)
  * @param {() => void} [props.onNavMenuClick]
  */
 function DashboardTopNav({
@@ -92,124 +73,23 @@ function DashboardTopNav({
 }) {
   const isDark = theme === "dark";
   const navigate = useNavigate();
-  const navUserEmail = (user?.email || "").trim();
-  const dismissSnapKey = notifDismissSnapKey(navUserEmail);
+  const { unreadCount, showUnreadDot, registerTopNavMount, dismissNotifyToast } =
+    useNotifications();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
-  const toastTimerRef = useRef(null);
 
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [dismissSnap, setDismissSnap] = useState(() => readDismissSnap(navUserEmail));
-  const [notifyToast, setNotifyToast] = useState({ open: false, message: "" });
-
-  const dismissToast = useCallback(() => {
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = null;
-    }
-    setNotifyToast({ open: false, message: "" });
-  }, []);
-
-  const fetchUnreadCount = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    const htmlMsg =
-      "Notifications API returned HTML instead of JSON. Restart the backend server and refresh the page.";
-
-    try {
-      let response = await fetch("/api/notifications/unread-count", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
-      let data = await readApiResponse(response, htmlMsg);
-
-      if (response.status === 401) return;
-
-      let n = coerceUnreadCount(data?.data?.unreadCount);
-      if (n === null) n = coerceUnreadCount(data?.unreadCount);
-
-      if (!response.ok || n === null) {
-        response = await fetch("/api/notifications", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        });
-        data = await readApiResponse(response, htmlMsg);
-        if (response.status === 401 || !response.ok) return;
-        n = coerceUnreadCount(data?.data?.unreadCount);
-        if (n === null) n = coerceUnreadCount(data?.unreadCount);
-      }
-
-      if (n !== null) setUnreadCount(Math.max(0, Math.floor(n)));
-    } catch {
-      /* ignore polling errors */
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchUnreadCount();
-    const id = setInterval(fetchUnreadCount, UNREAD_POLL_MS);
-    const onFocus = () => fetchUnreadCount();
-    const onVis = () => {
-      if (document.visibilityState === "visible") fetchUnreadCount();
-    };
-    const onNotifChanged = () => fetchUnreadCount();
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("learn2hire-notifications-changed", onNotifChanged);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("learn2hire-notifications-changed", onNotifChanged);
-    };
-  }, [fetchUnreadCount]);
-
-  useEffect(() => {
-    setDismissSnap(readDismissSnap(navUserEmail));
-  }, [navUserEmail]);
-
-  useEffect(() => {
-    setDismissSnap((prev) => {
-      const p = Number.isFinite(prev) ? prev : -1;
-      const next = Math.min(p, unreadCount);
-      if (next !== p) {
-        sessionStorage.setItem(dismissSnapKey, String(next));
-      }
-      return next;
-    });
-  }, [unreadCount, dismissSnapKey]);
-
-  useEffect(() => () => dismissToast(), [dismissToast]);
-
-  const effectiveDismissSnap = Number.isFinite(dismissSnap) ? dismissSnap : -1;
-  const showUnreadDot = unreadCount > 0 && unreadCount > effectiveDismissSnap;
+  useLayoutEffect(() => {
+    return registerTopNavMount();
+  }, [registerTopNavMount]);
 
   const openNotifications = useCallback(
     (fromMenu) => {
       if (fromMenu) setMenuOpen(false);
-      sessionStorage.setItem(dismissSnapKey, String(unreadCount));
-      setDismissSnap(unreadCount);
-
-      if (unreadCount > 0) {
-        const message = `You have ${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}.`;
-        setNotifyToast({ open: true, message });
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        toastTimerRef.current = setTimeout(() => {
-          dismissToast();
-        }, NOTIF_TOAST_MS);
-      } else {
-        dismissToast();
-      }
-
+      dismissNotifyToast();
       navigate(notificationsTo);
     },
-    [dismissSnapKey, dismissToast, navigate, notificationsTo, unreadCount]
+    [dismissNotifyToast, navigate, notificationsTo]
   );
 
   useEffect(() => {
@@ -277,8 +157,8 @@ function DashboardTopNav({
           ? "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-400/35 hover:bg-white/10 hover:text-white"
           : "border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-300 hover:bg-white hover:text-slate-900"
       )}
-      aria-label="Go back"
-      title="Back"
+      aria-label="Go back one page"
+      title="Previous page"
     >
       <ArrowLeft className="h-5 w-5" aria-hidden />
     </button>
@@ -287,11 +167,11 @@ function DashboardTopNav({
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 mb-6 border-b backdrop-blur-xl",
+        "sticky top-0 z-50 mb-6 border-b backdrop-blur-xl",
         isDark &&
           (bleed
-            ? "-mx-3 border-white/10 bg-slate-950/80 px-3 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.65)] sm:-mx-4 sm:px-4"
-            : "border-white/10 bg-slate-950/80 px-3 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.5)] sm:px-4"),
+            ? "-mx-3 border-white/10 bg-gradient-to-b from-slate-950/90 via-slate-950/75 to-slate-950/60 px-3 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.65)] ring-1 ring-white/5 sm:-mx-4 sm:px-4"
+            : "border-white/10 bg-gradient-to-b from-slate-950/90 via-slate-950/80 to-slate-950/65 px-3 shadow-[0_20px_50px_-24px_rgba(0,0,0,0.55)] ring-1 ring-white/5 sm:px-4"),
         !isDark &&
           "border-slate-200/90 bg-white/95 px-3 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)] sm:px-4",
         className
@@ -560,38 +440,6 @@ function DashboardTopNav({
         ) : null}
       </div>
 
-      {notifyToast.open ? (
-        <div
-          className={cn(
-            "fixed bottom-4 right-4 z-[100] flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-2xl",
-            isDark
-              ? "border-white/10 bg-slate-900 text-slate-100 ring-1 ring-black/50"
-              : "border-slate-200 bg-white text-slate-900 shadow-slate-900/10"
-          )}
-          role="status"
-        >
-          <Bell
-            className={cn(
-              "mt-0.5 h-5 w-5 shrink-0",
-              isDark ? "text-cyan-300/90" : "text-indigo-600"
-            )}
-            aria-hidden
-          />
-          <p className="min-w-0 flex-1 text-sm leading-snug">{notifyToast.message}</p>
-          <button
-            type="button"
-            onClick={dismissToast}
-            className={cn(
-              "shrink-0 rounded-md px-2 py-1 text-xs font-semibold transition",
-              isDark
-                ? "text-slate-300 hover:bg-white/10 hover:text-white"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            )}
-          >
-            Cancel
-          </button>
-        </div>
-      ) : null}
     </header>
   );
 }

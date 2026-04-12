@@ -1,43 +1,73 @@
-/** Shared cohort picklists for faculty publishing and student profiles (API normalizes case for matching). */
+/** Cohort picklists aligned with signup (`studentCohortFieldOptions.js`). */
+
+import {
+  STUDENT_COHORT_BRANCH_OPTIONS,
+  STUDENT_COHORT_PROGRAM_OPTIONS,
+  STUDENT_COHORT_SEMESTER_OPTIONS,
+  STUDENT_COHORT_YEAR_OPTIONS,
+} from "./studentCohortFieldOptions";
+
+export {
+  STUDENT_COHORT_BRANCH_OPTIONS,
+  STUDENT_COHORT_PROGRAM_OPTIONS,
+  STUDENT_COHORT_SEMESTER_OPTIONS,
+  STUDENT_COHORT_YEAR_OPTIONS,
+} from "./studentCohortFieldOptions";
 
 export const COHORT_OTHER = "__other__";
 
-/** Broad program tracks; each has specific degrees stored in the profile `course` field. */
-export const COHORT_PROGRAM_GROUPS = [
-  {
-    id: "engineering",
-    label: "Engineering",
-    degrees: ["B.Tech", "Diploma"],
-  },
-  {
-    id: "management",
-    label: "Management",
-    degrees: ["BCA", "MCA", "BBA", "MBA"],
-  },
-  {
-    id: "nursing",
-    label: "Nursing",
-    degrees: ["B.Sc"],
-  },
-  {
-    id: "pharmacy",
-    label: "Pharmacy",
-    degrees: ["B.Pharma", "D.Pharma"],
-  },
-];
+export const COHORT_BRANCH_PRESETS = [...STUDENT_COHORT_BRANCH_OPTIONS];
+export const COHORT_YEAR_PRESETS = [...STUDENT_COHORT_YEAR_OPTIONS];
+export const COHORT_SEMESTER_PRESETS = [...STUDENT_COHORT_SEMESTER_OPTIONS];
 
-/** Specialization (CSE, EE, …) — only used with Engineering degrees; stored in `branch`. */
-export const COHORT_BRANCH_PRESETS = ["CSE", "ME", "EE", "ECE", "Civil", "IT", "AIML"];
+/** Program / degree labels (same as signup “Program”). */
+export const ALL_COHORT_DEGREE_PRESETS = [...STUDENT_COHORT_PROGRAM_OPTIONS];
 
-export const COHORT_YEAR_PRESETS = ["1", "2", "3", "4"];
+const LEGACY_YEAR_NUM = {
+  "1": "1st year",
+  "2": "2nd year",
+  "3": "3rd year",
+  "4": "4th year",
+  "5": "5th year",
+};
 
-export const COHORT_SEMESTER_PRESETS = ["1", "2", "3", "4", "5", "6", "7", "8"];
-
-/** Every preset degree label across all programs (for canonicalization). */
-export const ALL_COHORT_DEGREE_PRESETS = COHORT_PROGRAM_GROUPS.flatMap((g) => g.degrees);
+const LEGACY_SEMESTER_NUM = {
+  "1": "Semester 1",
+  "2": "Semester 2",
+  "3": "Semester 3",
+  "4": "Semester 4",
+  "5": "Semester 5",
+  "6": "Semester 6",
+  "7": "Semester 7",
+  "8": "Semester 8",
+  "9": "Semester 9",
+  "10": "Semester 10",
+};
 
 function norm(v) {
   return String(v ?? "").trim().toLowerCase();
+}
+
+/** Map legacy stored year (e.g. "1") to signup labels ("1st year"). */
+export function alignCohortYearToSignupOptions(value) {
+  const v = String(value ?? "").trim();
+  if (!v) return "";
+  if (LEGACY_YEAR_NUM[v]) return LEGACY_YEAR_NUM[v];
+  const lc = v.toLowerCase();
+  const hit = Object.entries(LEGACY_YEAR_NUM).find(([k]) => k === lc);
+  if (hit) return hit[1];
+  return v;
+}
+
+/** Map legacy stored semester (e.g. "1") to signup labels ("Semester 1"). */
+export function alignCohortSemesterToSignupOptions(value) {
+  const v = String(value ?? "").trim();
+  if (!v) return "";
+  if (LEGACY_SEMESTER_NUM[v]) return LEGACY_SEMESTER_NUM[v];
+  const lc = v.toLowerCase();
+  const hit = Object.entries(LEGACY_SEMESTER_NUM).find(([k]) => k === lc);
+  if (hit) return hit[1];
+  return v;
 }
 
 /** Map stored value to the canonical preset label when it matches case-insensitively. */
@@ -49,40 +79,29 @@ export function canonicalizeCohortPreset(presets, value) {
   return hit ?? v;
 }
 
-export function degreesForProgram(programId) {
-  const g = COHORT_PROGRAM_GROUPS.find((p) => p.id === programId);
-  return g ? g.degrees : [];
+/** @deprecated No program groups; use STUDENT_COHORT_PROGRAM_OPTIONS. */
+export const COHORT_PROGRAM_GROUPS = [];
+
+/** @deprecated Use a single program dropdown. */
+export function degreesForProgram() {
+  return ALL_COHORT_DEGREE_PRESETS;
 }
 
-/** Program id from a known preset degree, or "". */
-export function programIdForDegree(degreeValue) {
-  const d = norm(degreeValue);
-  if (!d) return "";
-  for (const g of COHORT_PROGRAM_GROUPS) {
-    if (g.degrees.some((x) => norm(x) === d)) return g.id;
-  }
+/** @deprecated */
+export function programIdForDegree() {
   return "";
 }
 
-/** B.Tech / Diploma require a branch (CSE, ME, …). Must match backend `cohortRequiresBranch`. */
+/**
+ * Must match backend `cohortRequiresBranch` in learningController.js — engineering-style
+ * degrees need a branch for cohort targeting.
+ */
 export function cohortDegreeRequiresBranch(degreeValue) {
   const d = norm(degreeValue);
   return d === "b.tech" || d === "diploma";
 }
 
-/**
- * Resolve program for UI when loading legacy profiles (unknown degree but engineering branch, etc.).
- */
-export function inferCohortProgramId(course, branch) {
-  const c = canonicalizeCohortPreset(ALL_COHORT_DEGREE_PRESETS, course);
-  const fromDeg = programIdForDegree(c);
-  if (fromDeg) return fromDeg;
-  const b = String(branch ?? "").trim();
-  if (
-    b &&
-    COHORT_BRANCH_PRESETS.some((x) => norm(x) === norm(b))
-  ) {
-    return "engineering";
-  }
+/** @deprecated */
+export function inferCohortProgramId() {
   return "";
 }

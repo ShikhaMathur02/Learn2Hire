@@ -16,13 +16,11 @@ import {
   ALL_COHORT_DEGREE_PRESETS,
   COHORT_BRANCH_PRESETS,
   COHORT_OTHER,
-  COHORT_PROGRAM_GROUPS,
   COHORT_SEMESTER_PRESETS,
   COHORT_YEAR_PRESETS,
+  alignCohortSemesterToSignupOptions,
+  alignCohortYearToSignupOptions,
   canonicalizeCohortPreset,
-  cohortDegreeRequiresBranch,
-  degreesForProgram,
-  inferCohortProgramId,
 } from "../../lib/cohortPresets";
 import { clearAuthSession } from "../../lib/authSession";
 import { studentNavItems } from "../../config/studentNavItems";
@@ -108,7 +106,6 @@ function StudentDashboard({ user, onLogout }) {
   const [cohortBranch, setCohortBranch] = useState("");
   const [cohortYear, setCohortYear] = useState("");
   const [cohortSemester, setCohortSemester] = useState("");
-  const [cohortProgramId, setCohortProgramId] = useState("");
   const [cohortCustomCourse, setCohortCustomCourse] = useState(false);
   const [cohortCustomBranch, setCohortCustomBranch] = useState(false);
   const [cohortCustomYear, setCohortCustomYear] = useState(false);
@@ -137,13 +134,14 @@ function StudentDashboard({ user, onLogout }) {
   const applyCohortFromProfileFields = useCallback((course, branch, year, semester) => {
     const c = canonicalizeCohortPreset(ALL_COHORT_DEGREE_PRESETS, course);
     const b = canonicalizeCohortPreset(COHORT_BRANCH_PRESETS, branch);
-    const y = canonicalizeCohortPreset(COHORT_YEAR_PRESETS, year);
-    const s = canonicalizeCohortPreset(COHORT_SEMESTER_PRESETS, semester);
+    const yAligned = alignCohortYearToSignupOptions(year);
+    const y = canonicalizeCohortPreset(COHORT_YEAR_PRESETS, yAligned);
+    const sAligned = alignCohortSemesterToSignupOptions(semester);
+    const s = canonicalizeCohortPreset(COHORT_SEMESTER_PRESETS, sAligned);
     setCohortCourse(c);
     setCohortBranch(b);
     setCohortYear(y);
     setCohortSemester(s);
-    setCohortProgramId(inferCohortProgramId(course, branch));
     setCohortCustomCourse(Boolean(c && !ALL_COHORT_DEGREE_PRESETS.includes(c)));
     setCohortCustomBranch(Boolean(b && !COHORT_BRANCH_PRESETS.includes(b)));
     setCohortCustomYear(Boolean(y && !COHORT_YEAR_PRESETS.includes(y)));
@@ -335,10 +333,6 @@ function StudentDashboard({ user, onLogout }) {
   const recentLearningMaterials = learningProgress.slice(0, 3);
   const topSuggestedJobs = suggestedJobs.slice(0, 3);
 
-  const showCohortBranchField =
-    cohortDegreeRequiresBranch(cohortCourse) ||
-    (cohortCustomCourse && cohortProgramId === "engineering");
-
   const saveCohort = async () => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -346,12 +340,9 @@ function StudentDashboard({ user, onLogout }) {
     setCohortMessage("");
     try {
       const trim = (s) => (typeof s === "string" ? s.trim() : "");
-      const needsEngBranch =
-        cohortDegreeRequiresBranch(cohortCourse) ||
-        (cohortCustomCourse && cohortProgramId === "engineering");
       const cohortPayload = {
         course: trim(cohortCourse),
-        branch: needsEngBranch ? trim(cohortBranch) : "",
+        branch: trim(cohortBranch),
         year: trim(cohortYear),
         semester: trim(cohortSemester),
       };
@@ -859,50 +850,24 @@ function StudentDashboard({ user, onLogout }) {
         <CardContent className="p-6">
           <SectionTitle
             title="Program, cohort & contact details"
-            description="Pick your program track and degree the same way faculty do (engineering, management, nursing, pharmacy). Branch is only for B.Tech / Diploma. Parent and address details help placement records."
+            description="Use the same program, branch, year, and semester lists as signup so your profile matches faculty cohort labels on materials."
           />
           <div className="mt-6 space-y-4">
             <p className="text-xs text-slate-500">
-              Engineering students choose a branch (CSE, EE, …). Other programs leave branch empty.
+              Values are stored exactly as chosen and matched to cohort-targeted study materials (case-insensitive).
             </p>
             <div className="flex flex-wrap gap-4">
               <div className="min-w-[160px] flex-1">
-                <label className="text-xs font-medium text-slate-400" htmlFor="st-prog-select">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-program-select">
                   Program
                 </label>
                 <select
-                  id="st-prog-select"
+                  id="st-program-select"
                   className={COHORT_FIELD_CLASS}
-                  value={cohortProgramId}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setCohortProgramId(v);
-                    setCohortCourse("");
-                    setCohortCustomCourse(false);
-                    setCohortBranch("");
-                    setCohortCustomBranch(false);
-                  }}
-                >
-                  <option value="">Select program…</option>
-                  {COHORT_PROGRAM_GROUPS.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="min-w-[160px] flex-1">
-                <label className="text-xs font-medium text-slate-400" htmlFor="st-degree-select">
-                  Course / degree
-                </label>
-                <select
-                  id="st-degree-select"
-                  className={COHORT_FIELD_CLASS}
-                  disabled={!cohortProgramId}
                   value={
                     !cohortCourse
                       ? ""
-                      : degreesForProgram(cohortProgramId).includes(cohortCourse)
+                      : ALL_COHORT_DEGREE_PRESETS.includes(cohortCourse)
                         ? cohortCourse
                         : COHORT_OTHER
                   }
@@ -917,86 +882,78 @@ function StudentDashboard({ user, onLogout }) {
                     } else {
                       setCohortCustomCourse(false);
                       setCohortCourse(v);
-                      if (!cohortDegreeRequiresBranch(v)) {
-                        setCohortBranch("");
-                        setCohortCustomBranch(false);
-                      }
                     }
                   }}
                 >
-                  <option value="">
-                    {cohortProgramId ? "Select degree…" : "Choose a program first"}
-                  </option>
-                  {degreesForProgram(cohortProgramId).map((d) => (
-                    <option key={d} value={d}>
-                      {d === "B.Sc" ? "B.Sc (Nursing)" : d}
+                  <option value="">Select program</option>
+                  {ALL_COHORT_DEGREE_PRESETS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
                     </option>
                   ))}
                   <option value={COHORT_OTHER}>Other…</option>
                 </select>
                 {cohortCustomCourse ? (
                   <input
-                    id="st-degree-custom"
+                    id="st-program-custom"
                     className={COHORT_FIELD_CLASS}
                     value={cohortCourse}
                     onChange={(e) => setCohortCourse(e.target.value)}
-                    placeholder="e.g. M.E."
-                    aria-label="Custom degree"
+                    placeholder="e.g. B.Arch"
+                    aria-label="Custom program"
                   />
                 ) : null}
               </div>
-              {showCohortBranchField ? (
-                <div className="min-w-[160px] flex-1">
-                  <label className="text-xs font-medium text-slate-400" htmlFor="st-branch-select">
-                    Branch
-                  </label>
-                  <select
-                    id="st-branch-select"
-                    className={COHORT_FIELD_CLASS}
-                    value={
-                      !cohortBranch
-                        ? ""
-                        : COHORT_BRANCH_PRESETS.includes(cohortBranch)
-                          ? cohortBranch
-                          : COHORT_OTHER
+              <div className="min-w-[160px] flex-1">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-branch-select">
+                  Branch
+                </label>
+                <select
+                  id="st-branch-select"
+                  className={COHORT_FIELD_CLASS}
+                  value={
+                    !cohortBranch
+                      ? ""
+                      : COHORT_BRANCH_PRESETS.includes(cohortBranch)
+                        ? cohortBranch
+                        : COHORT_OTHER
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") {
+                      setCohortBranch("");
+                      setCohortCustomBranch(false);
+                    } else if (v === COHORT_OTHER) {
+                      setCohortCustomBranch(true);
+                      setCohortBranch("");
+                    } else {
+                      setCohortCustomBranch(false);
+                      setCohortBranch(v);
                     }
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v === "") {
-                        setCohortBranch("");
-                        setCohortCustomBranch(false);
-                      } else if (v === COHORT_OTHER) {
-                        setCohortCustomBranch(true);
-                        setCohortBranch("");
-                      } else {
-                        setCohortCustomBranch(false);
-                        setCohortBranch(v);
-                      }
-                    }}
-                  >
-                    <option value="">Select branch…</option>
-                    {COHORT_BRANCH_PRESETS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                    <option value={COHORT_OTHER}>Other…</option>
-                  </select>
-                  {cohortCustomBranch ? (
-                    <input
-                      id="st-branch"
-                      className={COHORT_FIELD_CLASS}
-                      value={cohortBranch}
-                      onChange={(e) => setCohortBranch(e.target.value)}
-                      placeholder="e.g. Aerospace"
-                      aria-label="Custom branch"
-                    />
-                  ) : null}
-                </div>
-              ) : null}
+                  }}
+                >
+                  <option value="">Select branch</option>
+                  {COHORT_BRANCH_PRESETS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                  <option value={COHORT_OTHER}>Other…</option>
+                </select>
+                {cohortCustomBranch ? (
+                  <input
+                    id="st-branch-custom"
+                    className={COHORT_FIELD_CLASS}
+                    value={cohortBranch}
+                    onChange={(e) => setCohortBranch(e.target.value)}
+                    placeholder="e.g. Aerospace"
+                    aria-label="Custom branch"
+                  />
+                ) : null}
+              </div>
               <div className="min-w-[140px] flex-1">
                 <label className="text-xs font-medium text-slate-400" htmlFor="st-year-select">
-                  Year (1–4)
+                  Year
                 </label>
                 <select
                   id="st-year-select"
@@ -1022,10 +979,10 @@ function StudentDashboard({ user, onLogout }) {
                     }
                   }}
                 >
-                  <option value="">Select year…</option>
+                  <option value="">Select year</option>
                   {COHORT_YEAR_PRESETS.map((y) => (
                     <option key={y} value={y}>
-                      Year {y}
+                      {y}
                     </option>
                   ))}
                   <option value={COHORT_OTHER}>Other…</option>
@@ -1036,7 +993,7 @@ function StudentDashboard({ user, onLogout }) {
                     className={COHORT_FIELD_CLASS}
                     value={cohortYear}
                     onChange={(e) => setCohortYear(e.target.value)}
-                    placeholder="e.g. 5 or 2024–28"
+                    placeholder="e.g. 5th year"
                     aria-label="Custom year"
                   />
                 ) : null}
@@ -1069,10 +1026,10 @@ function StudentDashboard({ user, onLogout }) {
                     }
                   }}
                 >
-                  <option value="">Not set / all terms</option>
+                  <option value="">Select semester</option>
                   {COHORT_SEMESTER_PRESETS.map((s) => (
                     <option key={s} value={s}>
-                      Semester {s}
+                      {s}
                     </option>
                   ))}
                   <option value={COHORT_OTHER}>Other…</option>
@@ -1083,7 +1040,7 @@ function StudentDashboard({ user, onLogout }) {
                     className={COHORT_FIELD_CLASS}
                     value={cohortSemester}
                     onChange={(e) => setCohortSemester(e.target.value)}
-                    placeholder="e.g. 9"
+                    placeholder="e.g. Semester 11"
                     aria-label="Custom semester"
                   />
                 ) : null}

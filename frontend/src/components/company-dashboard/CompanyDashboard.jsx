@@ -9,7 +9,10 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { DashboardTopNav } from "../dashboard/DashboardTopNav";
+import {
+  DashboardTopNav,
+  workspaceDashboardHeaderClassName,
+} from "../dashboard/DashboardTopNav";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { readApiResponse } from "../../lib/api";
@@ -223,21 +226,21 @@ function CompanyDashboard({ user, onLogout }) {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
       <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
-          <DashboardTopNav
-            className="mb-0 rounded-none border-x-0 border-t-0 bg-slate-950/55 px-5 py-3 backdrop-blur-xl sm:px-6 sm:py-4 xl:px-7"
-            workspaceLabel="Company Workspace"
-            title={`Welcome, ${user.name}`}
-            description="Create job posts, monitor applicant activity, and track hiring progress in one place."
-            user={{ name: user.name, email: user.email, role: user.role }}
-            onLogout={onLogout}
-            actionItems={[
-              { label: "Manage jobs", to: "/company/jobs" },
-              { label: "Talent pool", to: "/company/talent" },
-              { label: "Go to home", onClick: () => navigate("/") },
-            ]}
-          />
+        <DashboardTopNav
+          className={workspaceDashboardHeaderClassName}
+          workspaceLabel="Company Workspace"
+          title={`Welcome, ${user.name}`}
+          description="Create job posts, monitor applicant activity, and track hiring progress in one place."
+          user={{ name: user.name, email: user.email, role: user.role }}
+          onLogout={onLogout}
+          actionItems={[
+            { label: "Manage jobs", to: "/company/jobs" },
+            { label: "Talent pool", to: "/company/talent" },
+            { label: "Go to home", onClick: () => navigate("/") },
+          ]}
+        />
 
+        <div className="mt-4 rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
           <div className="space-y-6 p-5 sm:p-6 xl:p-7">
           {error ? (
             <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">

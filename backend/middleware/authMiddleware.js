@@ -58,6 +58,22 @@ const protect = async (req, res, next) => {
       }
     }
 
+    if (role === 'college') {
+      const cst = user.collegeApprovalStatus;
+      if (cst === 'pending' || cst === 'rejected') {
+        const url = String(req.originalUrl || '');
+        if (!url.startsWith('/api/auth/me')) {
+          return res.status(403).json({
+            success: false,
+            message:
+              cst === 'pending'
+                ? 'Your college account is awaiting approval from a Learn2Hire administrator.'
+                : 'Your college account was not approved. Contact support for help.',
+          });
+        }
+      }
+    }
+
     if (role === 'admin' && !isBuiltinAdminEmail(user.email)) {
       const url = String(req.originalUrl || '');
       if (!url.startsWith('/api/auth/me')) {
@@ -111,6 +127,13 @@ const optionalProtect = async (req, res, next) => {
       if (role === 'faculty') {
         const st = user.facultyApprovalStatus;
         if (st === 'pending' || st === 'rejected') {
+          req.user = undefined;
+        } else {
+          req.user = user;
+        }
+      } else if (role === 'college') {
+        const cst = user.collegeApprovalStatus;
+        if (cst === 'pending' || cst === 'rejected') {
           req.user = undefined;
         } else {
           req.user = user;

@@ -1,7 +1,10 @@
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
 import AdminJobsPage from './pages/AdminJobsPage';
+import AdminCollegeDetailPage from './pages/AdminCollegeDetailPage';
+import AdminUserProfilePage from './pages/AdminUserProfilePage';
 import CompanyJobsPage from './pages/CompanyJobsPage';
 import CompanyTalentPage from './pages/CompanyTalentPage';
 import Dashboard from './pages/Dashboard';
@@ -18,6 +21,7 @@ import MaterialDetailsPage from './pages/MaterialDetailsPage';
 import MyLearningProgressPage from './pages/MyLearningProgressPage';
 import LearningManagePage from './pages/LearningManagePage';
 import { useAuthSession } from './lib/authSession';
+import { NotificationProvider } from './context/NotificationContext.jsx';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -42,7 +46,7 @@ function RedirectDashboardLearningCategory() {
 
 function App() {
   return (
-    <>
+    <NotificationProvider>
       <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route
@@ -58,6 +62,14 @@ function App() {
         element={
           <PublicRoute>
             <Signup />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <PublicRoute>
+            <ForgotPassword />
           </PublicRoute>
         }
       />
@@ -156,6 +168,22 @@ function App() {
         }
       />
       <Route
+        path="/admin/users/:userId"
+        element={
+          <ProtectedRoute>
+            <AdminUserProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/colleges/:collegeId"
+        element={
+          <ProtectedRoute>
+            <AdminCollegeDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/company/jobs"
         element={
           <ProtectedRoute>
@@ -205,7 +233,7 @@ function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-    </>
+    </NotificationProvider>
   );
 }
 
