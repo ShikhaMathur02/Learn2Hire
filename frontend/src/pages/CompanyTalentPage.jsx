@@ -229,7 +229,7 @@ function CompanyTalentPage() {
                       className={`${inputClass} mt-1`}
                       value={filterQ}
                       onChange={(e) => setFilterQ(e.target.value)}
-                      placeholder="Name, bio, cohort, tools…"
+                      placeholder="Name, bio, course, tools…"
                     />
                   </div>
                   <div className="w-full lg:w-56">
@@ -262,11 +262,18 @@ function CompanyTalentPage() {
                 <div className="space-y-3">
                   {talent.length ? (
                     talent.map((row) => (
-                      <button
+                      <div
                         key={row.userId}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => openDetail(row.userId)}
-                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openDetail(row.userId);
+                          }
+                        }}
+                        className={`w-full cursor-pointer rounded-2xl border p-4 text-left transition outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
                           detailUserId === row.userId
                             ? "border-cyan-400/50 bg-cyan-500/10"
                             : "border-white/10 bg-slate-900/50 hover:border-white/20"
@@ -281,7 +288,7 @@ function CompanyTalentPage() {
                             <p className="truncate text-xs text-slate-400">{row.email}</p>
                             <p className="mt-1 text-xs text-slate-500">
                               {[row.course, row.branch, row.year].filter(Boolean).join(" · ") ||
-                                "Cohort not set"}
+                                "Course not set"}
                             </p>
                             {row.toolsAndTechnologies?.length ? (
                               <p className="mt-2 line-clamp-2 text-xs text-slate-400">
@@ -289,9 +296,17 @@ function CompanyTalentPage() {
                                 {row.toolsAndTechnologies.length > 6 ? "…" : ""}
                               </p>
                             ) : null}
+                            <Link
+                              to={`/dashboard/learners/${row.userId}`}
+                              className="mt-2 inline-block text-xs font-medium text-cyan-300 underline-offset-4 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              Open profile page
+                            </Link>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     ))
                   ) : (
                     <p className="text-sm text-slate-500">No matching learners right now.</p>

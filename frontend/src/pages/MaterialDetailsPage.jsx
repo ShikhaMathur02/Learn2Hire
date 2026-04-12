@@ -785,7 +785,7 @@ function MaterialDetailsPage() {
           <div className="rounded-[32px] border border-slate-200 bg-white p-8 text-center shadow-sm">
             <p className="text-sm text-slate-600">
               We could not load this study material. It may have been removed, or your account may not
-              have access (for example, cohort-only content). Return to the learning hub and pick another
+              have access (for example, course-only content). Return to the learning hub and pick another
               topic.
             </p>
             <Button asChild className="mt-6">

@@ -834,6 +834,7 @@ function CollegeDashboard({ user, onLogout }) {
                       <th className="px-4 py-3 font-medium">Email</th>
                       <th className="px-4 py-3 font-medium">Role</th>
                       <th className="px-4 py-3 font-medium">Faculty status</th>
+                      <th className="px-4 py-3 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -848,11 +849,22 @@ function CollegeDashboard({ user, onLogout }) {
                               ? u.facultyApprovalStatus || "approved"
                               : "—"}
                           </td>
+                          <td className="px-4 py-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-9 min-w-[8.5rem] justify-center text-xs"
+                              onClick={() => navigate(`/dashboard/learners/${u._id}`)}
+                            >
+                              View profile
+                            </Button>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
                           No roster accounts yet. Use the form above to add students or faculty.
                         </td>
                       </tr>

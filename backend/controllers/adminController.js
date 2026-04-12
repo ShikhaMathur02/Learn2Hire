@@ -16,6 +16,10 @@ const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
 const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
 const { createNotification } = require('../utils/notificationService');
 const { isCollegeNameTaken } = require('../utils/collegeNameNormalize');
+const {
+  CONTACT_PROFILE_KEYS,
+  validateStudentProfileContactFields,
+} = require('../utils/studentProfileFieldValidation');
 
 const validRoles = ['student', 'alumni', 'faculty', 'company', 'admin', 'college'];
 
@@ -612,29 +616,41 @@ exports.patchStudentCohort = async (req, res) => {
     const body = req.body || {};
     const t = (v) => (typeof v === 'string' ? v.trim() : '');
 
+    const contactPick = {};
+    for (const k of CONTACT_PROFILE_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(body, k)) contactPick[k] = body[k];
+    }
+    let normalizedContact = {};
+    if (Object.keys(contactPick).length) {
+      const contactCheck = validateStudentProfileContactFields(contactPick);
+      if (!contactCheck.ok) {
+        return res.status(400).json({
+          success: false,
+          message: contactCheck.errors.join(' '),
+        });
+      }
+      normalizedContact = contactCheck.normalized;
+    }
+
+    const setDoc = {
+      course: t(body.course),
+      branch: t(body.branch),
+      year: t(body.year),
+      semester: t(body.semester),
+      bio: t(body.bio),
+      address: t(body.address),
+      city: t(body.city),
+      state: t(body.state),
+      bloodGroup: t(body.bloodGroup),
+      emergencyContactName: '',
+      emergencyContactPhone: '',
+      ...normalizedContact,
+    };
+
     const profile = await StudentProfile.findOneAndUpdate(
       { user: id },
       {
-        $set: {
-          course: t(body.course),
-          branch: t(body.branch),
-          year: t(body.year),
-          semester: t(body.semester),
-          bio: t(body.bio),
-          studentPhone: t(body.studentPhone),
-          fatherName: t(body.fatherName),
-          motherName: t(body.motherName),
-          fatherPhone: t(body.fatherPhone),
-          motherPhone: t(body.motherPhone),
-          address: t(body.address),
-          city: t(body.city),
-          state: t(body.state),
-          pincode: t(body.pincode),
-          dateOfBirth: t(body.dateOfBirth),
-          bloodGroup: t(body.bloodGroup),
-          emergencyContactName: t(body.emergencyContactName),
-          emergencyContactPhone: t(body.emergencyContactPhone),
-        },
+        $set: setDoc,
         $setOnInsert: { user: id },
       },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }

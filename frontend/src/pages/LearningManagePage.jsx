@@ -284,7 +284,7 @@ function LearningManagePage() {
 
       if (audience === "cohort") {
         if (!targetCourse.trim()) {
-          throw new Error("Select a program for cohort materials.");
+          throw new Error("Select a program for course-targeted materials.");
         }
         const needsEngBranch = cohortDegreeRequiresBranch(targetCourse);
         if (needsEngBranch && !targetBranch.trim()) {
@@ -391,7 +391,7 @@ function LearningManagePage() {
                 Add study material
               </h1>
               <p className="mt-2 max-w-xl text-sm text-slate-400">
-                Publish to the whole catalog, or restrict to a cohort by matching each student&apos;s program,
+                Publish to the whole catalog, or restrict to a course by matching each student&apos;s program,
                 degree, branch (engineering only), year, and semester on their profile.
               </p>
             </div>
@@ -736,7 +736,7 @@ function LearningManagePage() {
                     <div>
                       <p className="text-sm font-semibold text-white">Who can see this?</p>
                       <p className="mt-1 text-xs text-slate-400">
-                        Cohort materials match{" "}
+                        Course-targeted materials match{" "}
                         <span className="text-slate-200">degree, branch (engineering only), year,</span>{" "}
                         and <span className="text-slate-200">semester</span> on each student&apos;s
                         profile (values are compared in a normalized form).
@@ -768,7 +768,7 @@ function LearningManagePage() {
                     <div className="mt-4 space-y-4">
                                            <p className="text-xs text-slate-500">
                         Use the same program, branch, year, and semester lists as student signup. B.Tech
-                        and Diploma cohorts require a branch. Year and semester must match what students
+                        and Diploma courses require a branch. Year and semester must match what students
                         select on their profile (compared in normalized form).
                       </p>
                       <div className="flex flex-wrap gap-4">

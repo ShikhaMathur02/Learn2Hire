@@ -11,6 +11,8 @@ const {
   sendSignupOtpEmail,
   sendPasswordResetOtpEmail,
   humanizeSmtpError,
+  isSmtpConfigured,
+  smtpNotConfiguredClientMessage,
 } = require('../utils/otpDelivery');
 const { createNotification, notifyPlatformAdmins } = require('../utils/notificationService');
 const { isCollegeNameTaken } = require('../utils/collegeNameNormalize');
@@ -186,6 +188,43 @@ exports.verifySignupOtp = async (req, res) => {
   }
 };
 
+// @desc    Verify password-reset OTP (check only; code stays valid until reset completes)
+// @route   POST /api/auth/verify-password-reset-otp
+// @access  Public
+exports.verifyPasswordResetOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const norm = normalizeEmail(email);
+
+    if (!norm || !isValidEmail(norm)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Enter a valid email address.',
+      });
+    }
+
+    const otpStr = String(otp || '').trim();
+    const result = await validateEmailOtpCode(norm, otpStr, 'password_reset');
+    if (!result.ok) {
+      return res.status(result.status).json({
+        success: false,
+        message: result.message,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      verified: true,
+      message: 'Code is correct. You can set your new password below.',
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
 // @desc    Request email OTP for signup
 // @route   POST /api/auth/request-signup-otp
 // @access  Public
@@ -206,6 +245,15 @@ exports.requestSignupOtp = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'An account with this email already exists. Try signing in.',
+      });
+    }
+
+    const echoSignup = shouldReturnOtpInApiResponse();
+    if (!isSmtpConfigured() && !echoSignup) {
+      return res.status(503).json({
+        success: false,
+        code: 'SMTP_NOT_CONFIGURED',
+        message: smtpNotConfiguredClientMessage(),
       });
     }
 
@@ -233,31 +281,36 @@ exports.requestSignupOtp = async (req, res) => {
       attempts: 0,
     });
 
-    try {
-      await sendSignupOtpEmail(norm, code);
-    } catch (mailErr) {
-      await EmailOtp.deleteMany({ email: norm, purpose: 'signup' });
-      console.error('[Learn2Hire] OTP email failed:', mailErr.message || mailErr);
-      if (mailErr.response) {
-        console.error('[Learn2Hire] SMTP response:', mailErr.response);
+    if (isSmtpConfigured()) {
+      try {
+        await sendSignupOtpEmail(norm, code);
+      } catch (mailErr) {
+        await EmailOtp.deleteMany({ email: norm, purpose: 'signup' });
+        console.error('[Learn2Hire] OTP email failed:', mailErr.message || mailErr);
+        if (mailErr.response) {
+          console.error('[Learn2Hire] SMTP response:', mailErr.response);
+        }
+        const message =
+          mailErr.smtpClientMessage || humanizeSmtpError(mailErr);
+        return res.status(502).json({
+          success: false,
+          message,
+        });
       }
-      const message =
-        mailErr.smtpClientMessage || humanizeSmtpError(mailErr);
-      return res.status(502).json({
-        success: false,
-        message,
-      });
+    } else {
+      console.warn(
+        '[Learn2Hire] SMTP not configured; returning signup OTP in API only (OTP_ECHO_TO_CLIENT=true).'
+      );
     }
 
-    const echo = shouldReturnOtpInApiResponse();
     res.status(200).json({
       success: true,
       /** Same address they typed on signup — OTP is always delivered here, not to SMTP_USER. */
       sentTo: norm,
-      message: echo
+      message: echoSignup
         ? `Verification code generated for ${norm} (debug: code also below).`
         : `Verification code sent to ${norm}. Check that inbox (and spam).`,
-      ...(echo ? { devCode: code } : {}),
+      ...(echoSignup ? { devCode: code } : {}),
     });
   } catch (err) {
     res.status(500).json({
@@ -267,9 +320,9 @@ exports.requestSignupOtp = async (req, res) => {
   }
 };
 
-const PASSWORD_RESET_ROLES = ['student', 'faculty', 'college'];
+const PASSWORD_RESET_ROLES = ['student', 'alumni', 'faculty', 'college', 'company'];
 
-// @desc    Request password reset code (student, faculty, college only; email)
+// @desc    Request password reset code (student, alumni, faculty, college, company; not admin)
 // @route   POST /api/auth/request-password-reset-otp
 // @access  Public
 exports.requestPasswordResetOtp = async (req, res) => {
@@ -296,6 +349,15 @@ exports.requestPasswordResetOtp = async (req, res) => {
       return genericOk();
     }
 
+    const echoReset = shouldReturnOtpInApiResponse();
+    if (!isSmtpConfigured() && !echoReset) {
+      return res.status(503).json({
+        success: false,
+        code: 'SMTP_NOT_CONFIGURED',
+        message: smtpNotConfiguredClientMessage(),
+      });
+    }
+
     const last = await EmailOtp.findOne({ email: norm, purpose: 'password_reset' }).sort({
       createdAt: -1,
     });
@@ -320,26 +382,31 @@ exports.requestPasswordResetOtp = async (req, res) => {
       attempts: 0,
     });
 
-    try {
-      await sendPasswordResetOtpEmail(norm, code);
-    } catch (mailErr) {
-      await EmailOtp.deleteMany({ email: norm, purpose: 'password_reset' });
-      console.error('[Learn2Hire] password reset email failed:', mailErr.message || mailErr);
-      const message = mailErr.smtpClientMessage || humanizeSmtpError(mailErr);
-      return res.status(502).json({
-        success: false,
-        message,
-      });
+    if (isSmtpConfigured()) {
+      try {
+        await sendPasswordResetOtpEmail(norm, code);
+      } catch (mailErr) {
+        await EmailOtp.deleteMany({ email: norm, purpose: 'password_reset' });
+        console.error('[Learn2Hire] password reset email failed:', mailErr.message || mailErr);
+        const message = mailErr.smtpClientMessage || humanizeSmtpError(mailErr);
+        return res.status(502).json({
+          success: false,
+          message,
+        });
+      }
+    } else {
+      console.warn(
+        '[Learn2Hire] SMTP not configured; returning password-reset OTP in API only (OTP_ECHO_TO_CLIENT=true).'
+      );
     }
 
-    const echo = shouldReturnOtpInApiResponse();
     res.status(200).json({
       success: true,
       sentTo: norm,
-      message: echo
+      message: echoReset
         ? `Reset code generated for ${norm} (debug: code also below).`
         : `Verification code sent to ${norm}. Check that inbox (and spam).`,
-      ...(echo ? { devCode: code } : {}),
+      ...(echoReset ? { devCode: code } : {}),
     });
   } catch (err) {
     res.status(500).json({
@@ -349,7 +416,7 @@ exports.requestPasswordResetOtp = async (req, res) => {
   }
 };
 
-// @desc    Set new password using email + reset code (student, faculty, college)
+// @desc    Set new password using email + reset code (same roles as request-password-reset-otp)
 // @route   POST /api/auth/reset-password
 // @access  Public
 exports.resetPassword = async (req, res) => {
@@ -767,6 +834,7 @@ exports.login = async (req, res) => {
           collegeApprovalStatus: user.collegeApprovalStatus,
           affiliatedCollege: user.affiliatedCollege,
           managedByCollege: user.managedByCollege,
+          profilePhoto: user.profilePhoto || '',
         },
         token,
       },
@@ -797,6 +865,7 @@ exports.getMe = async (req, res) => {
           collegeApprovalStatus: user.collegeApprovalStatus,
           managedByCollege: user.managedByCollege,
           affiliatedCollege: user.affiliatedCollege,
+          profilePhoto: user.profilePhoto || '',
         },
       },
     });

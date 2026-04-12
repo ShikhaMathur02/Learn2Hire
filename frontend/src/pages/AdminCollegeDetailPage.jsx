@@ -317,8 +317,9 @@ function AdminCollegeDetailPage() {
                       <tr>
                         <th className="px-3 py-2">Name</th>
                         <th className="px-3 py-2">Email</th>
-                        <th className="px-3 py-2">Program / cohort</th>
+                        <th className="px-3 py-2">Program / course</th>
                         <th className="px-3 py-2">Contact</th>
+                        <th className="px-3 py-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -336,12 +337,23 @@ function AdminCollegeDetailPage() {
                               <td className="px-3 py-2 text-xs text-slate-400">
                                 {p?.studentPhone || p?.city || "—"}
                               </td>
+                              <td className="px-3 py-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9 min-w-[8rem] justify-center text-xs"
+                                  onClick={() => navigate(`/dashboard/learners/${s._id}`)}
+                                >
+                                  View profile
+                                </Button>
+                              </td>
                             </tr>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan={4} className="px-3 py-8 text-center text-slate-500">
+                          <td colSpan={5} className="px-3 py-8 text-center text-slate-500">
                             No students are linked to this campus.
                           </td>
                         </tr>
@@ -366,6 +378,7 @@ function AdminCollegeDetailPage() {
                         <th className="px-3 py-2">Email</th>
                         <th className="px-3 py-2">Approval</th>
                         <th className="px-3 py-2">Joined</th>
+                        <th className="px-3 py-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -380,11 +393,22 @@ function AdminCollegeDetailPage() {
                             <td className="px-3 py-2 text-xs text-slate-500">
                               {f.createdAt ? new Date(f.createdAt).toLocaleString() : "—"}
                             </td>
+                            <td className="px-3 py-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9 min-w-[8rem] justify-center text-xs"
+                                onClick={() => navigate(`/dashboard/learners/${f._id}`)}
+                              >
+                                View profile
+                              </Button>
+                            </td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="px-3 py-8 text-center text-slate-500">
+                          <td colSpan={5} className="px-3 py-8 text-center text-slate-500">
                             No faculty linked to this campus.
                           </td>
                         </tr>

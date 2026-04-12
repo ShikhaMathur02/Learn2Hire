@@ -6,6 +6,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import AdminJobsPage from './pages/AdminJobsPage';
 import AdminCollegeDetailPage from './pages/AdminCollegeDetailPage';
 import AdminUserProfilePage from './pages/AdminUserProfilePage';
+import LearnerSummaryPage from './pages/LearnerSummaryPage';
 import CompanyJobsPage from './pages/CompanyJobsPage';
 import CompanyTalentPage from './pages/CompanyTalentPage';
 import Dashboard from './pages/Dashboard';
@@ -89,6 +90,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/learners/:userId"
+        element={
+          <ProtectedRoute>
+            <LearnerSummaryPage />
           </ProtectedRoute>
         }
       />

@@ -921,13 +921,13 @@ exports.createMaterial = async (req, res) => {
       if (!tc || !ty) {
         return res.status(400).json({
           success: false,
-          message: 'Cohort materials require course and year.',
+          message: 'Course-targeted materials require course and year.',
         });
       }
       if (cohortRequiresBranch(tc) && !tb) {
         return res.status(400).json({
           success: false,
-          message: 'Engineering cohorts (B.Tech / Diploma) require a branch such as CSE or EE.',
+          message: 'Engineering courses (B.Tech / Diploma) require a branch such as CSE or EE.',
         });
       }
     }
@@ -1055,13 +1055,13 @@ exports.updateMaterial = async (req, res) => {
       if (!tc || !ty) {
         return res.status(400).json({
           success: false,
-          message: 'Cohort materials require course and year.',
+          message: 'Course-targeted materials require course and year.',
         });
       }
       if (cohortRequiresBranch(tc) && !tb) {
         return res.status(400).json({
           success: false,
-          message: 'Engineering cohorts (B.Tech / Diploma) require a branch such as CSE or EE.',
+          message: 'Engineering courses (B.Tech / Diploma) require a branch such as CSE or EE.',
         });
       }
       material.targetCourse = tc;

@@ -4,12 +4,18 @@ import {
   BookOpenCheck,
   ClipboardList,
   LoaderCircle,
+  Pencil,
   Sparkles,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { facultyNavItems } from "../../config/facultyNavItems";
+import {
+  PROFILE_PHOTO_MAX_BYTES,
+  persistUserProfilePhotoInLocalStorage,
+} from "../../lib/avatarUtils";
 import { DarkWorkspaceShell } from "../layout/DarkWorkspaceShell";
+import { ProfileAvatarBlock } from "../profile/ProfileAvatarBlock";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 
@@ -70,6 +76,10 @@ function FacultyDashboard({ user, onLogout }) {
   const [submissionsByAssessment, setSubmissionsByAssessment] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [profileEditMode, setProfileEditMode] = useState(false);
+  const [profilePhotoError, setProfilePhotoError] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [photoCacheBust, setPhotoCacheBust] = useState(0);
 
   useEffect(() => {
     const sid = location.state?.facultySection;
@@ -109,6 +119,7 @@ function FacultyDashboard({ user, onLogout }) {
 
         const currentUser = meData.data?.user || user;
         setMe(currentUser);
+        setPhotoCacheBust(0);
 
         const assessmentsRes = await fetch("/api/assessments", { headers });
         const assessmentsData = await assessmentsRes.json();
@@ -151,6 +162,60 @@ function FacultyDashboard({ user, onLogout }) {
 
     fetchData();
   }, [user]);
+
+  const handleAvatarUpload = async (file) => {
+    const token = localStorage.getItem("token");
+    if (!token || !file) return;
+    setProfilePhotoError("");
+    if (file.size > PROFILE_PHOTO_MAX_BYTES) {
+      setProfilePhotoError(
+        "Profile photo must be 25 MB or smaller. Choose a smaller image and try again."
+      );
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("photo", file);
+      const res = await fetch("/api/profile/photo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not upload photo.");
+      const path = data.data?.profilePhoto || "";
+      setPhotoCacheBust(Date.now());
+      setMe((m) => ({ ...m, profilePhoto: path }));
+      persistUserProfilePhotoInLocalStorage(path);
+    } catch (e) {
+      setProfilePhotoError(e.message || "Photo upload failed.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setProfilePhotoError("");
+    setAvatarUploading(true);
+    try {
+      const res = await fetch("/api/profile/photo", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not remove photo.");
+      setPhotoCacheBust(0);
+      setMe((m) => ({ ...m, profilePhoto: "" }));
+      persistUserProfilePhotoInLocalStorage("");
+    } catch (e) {
+      setProfilePhotoError(e.message || "Remove photo failed.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const totalSubmissions = useMemo(
     () =>
@@ -303,26 +368,104 @@ function FacultyDashboard({ user, onLogout }) {
   );
 
   const renderProfile = () => (
-    <Card className="border border-white/10 bg-white/5 shadow-none">
-      <CardContent className="p-6">
-        <SectionTitle
-          title="Faculty Profile"
-          description="Current account details loaded from the backend."
-        />
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-            <p className="text-sm text-slate-400">Name</p>
-            <p className="mt-2 text-base font-semibold text-white">{me.name}</p>
+    <Card className="overflow-hidden border border-white/10 bg-white/5 shadow-none">
+      <CardContent className="p-0">
+        {!profileEditMode ? (
+          <>
+            <div className="relative bg-gradient-to-br from-violet-600/35 via-slate-900 to-slate-950 px-6 py-8 sm:px-8">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+                  <ProfileAvatarBlock
+                    name={me.name}
+                    profilePhoto={me.profilePhoto}
+                    photoCacheBust={photoCacheBust}
+                    frameClass="h-32 w-32 sm:h-36 sm:w-36"
+                  />
+                  <div className="text-center sm:text-left">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-violet-200/90">
+                      Faculty
+                    </p>
+                    <h2 className="mt-1 text-2xl font-bold text-white sm:text-3xl">{me.name}</h2>
+                    <p className="mt-1 break-all text-sm text-slate-300">{me.email}</p>
+                    <p className="mt-2 text-sm capitalize text-slate-400">Role: {me.role}</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  className="h-11 shrink-0 gap-2 self-start border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  onClick={() => {
+                    setError("");
+                    setProfilePhotoError("");
+                    setProfileEditMode(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit details
+                </Button>
+              </div>
+            </div>
+            <div className="p-6 sm:p-8">
+              <p className="text-sm text-slate-400">
+                Tap <strong className="text-slate-200">Edit details</strong> to upload or change your profile
+                photo. Without a photo we show your initials.
+              </p>
+            </div>
+          </>
+        ) : (
+          <div className="p-6 sm:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <SectionTitle
+                title="Edit faculty profile"
+                description="Update your profile photo. Name and email are tied to your account."
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0 border-white/20 text-white hover:bg-white/10"
+                onClick={() => {
+                  setProfileEditMode(false);
+                  setError("");
+                  setProfilePhotoError("");
+                }}
+              >
+                Done
+              </Button>
+            </div>
+            {profilePhotoError ? (
+              <div
+                className="mt-4 rounded-xl border border-rose-400/35 bg-rose-500/15 px-4 py-3 text-sm text-rose-100"
+                role="alert"
+              >
+                {profilePhotoError}
+              </div>
+            ) : null}
+            <div className="mt-8 flex flex-col gap-6 border-t border-white/10 pt-8 sm:flex-row sm:items-start">
+              <ProfileAvatarBlock
+                name={me.name}
+                profilePhoto={me.profilePhoto}
+                photoCacheBust={photoCacheBust}
+                editable
+                uploading={avatarUploading}
+                onFileSelected={handleAvatarUpload}
+                onRemovePhoto={handleAvatarRemove}
+              />
+              <div className="grid flex-1 gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                  <p className="text-sm text-slate-400">Name</p>
+                  <p className="mt-2 text-base font-semibold text-white">{me.name}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                  <p className="text-sm text-slate-400">Email</p>
+                  <p className="mt-2 text-base font-semibold text-white">{me.email}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 md:col-span-2">
+                  <p className="text-sm text-slate-400">Role</p>
+                  <p className="mt-2 text-base font-semibold capitalize text-white">{me.role}</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-            <p className="text-sm text-slate-400">Email</p>
-            <p className="mt-2 text-base font-semibold text-white">{me.email}</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 md:col-span-2">
-            <p className="text-sm text-slate-400">Role</p>
-            <p className="mt-2 text-base font-semibold capitalize text-white">{me.role}</p>
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

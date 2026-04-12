@@ -30,7 +30,6 @@ export const STUDENT_COHORT_YEAR_OPTIONS = [
   "2nd year",
   "3rd year",
   "4th year",
-  "5th year",
 ];
 
 export const STUDENT_COHORT_SEMESTER_OPTIONS = [
@@ -42,6 +41,4 @@ export const STUDENT_COHORT_SEMESTER_OPTIONS = [
   "Semester 6",
   "Semester 7",
   "Semester 8",
-  "Semester 9",
-  "Semester 10",
 ];

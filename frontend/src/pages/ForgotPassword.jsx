@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, ChevronLeft } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft } from "lucide-react";
 
 import AuthField from "../components/auth/AuthField";
 import AuthLayout from "../components/auth/AuthLayout";
@@ -24,6 +24,8 @@ function ForgotPassword() {
   const [codeSent, setCodeSent] = useState(false);
   const [requestLoading, setRequestLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [otpVerifyLoading, setOtpVerifyLoading] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
 
   useEffect(() => {
     const fromQuery = searchParams.get("email");
@@ -31,6 +33,10 @@ function ForgotPassword() {
       setEmail(decodeURIComponent(fromQuery.trim()));
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    setOtpVerified(false);
+  }, [otp, email]);
 
   const inputClassName =
     "h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:bg-slate-50";
@@ -71,10 +77,44 @@ function ForgotPassword() {
       if (data.devCode) {
         setNotice((prev) => `${prev} (Dev: code is ${data.devCode})`);
       }
+      setOtpVerified(false);
     } catch {
       setError("Something went wrong. Try again.");
     } finally {
       setRequestLoading(false);
+    }
+  };
+
+  const verifyResetOtp = async () => {
+    setError("");
+    setNotice("");
+    if (!email.trim() || !emailPattern.test(email)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    if (!/^\d{6}$/.test(String(otp || "").trim())) {
+      setError("Enter the full 6-digit code from your email.");
+      return;
+    }
+    setOtpVerifyLoading(true);
+    try {
+      const res = await fetch("/api/auth/verify-password-reset-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), otp: otp.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setOtpVerified(false);
+        setError(data.message || "That code is not valid. Try again or request a new code.");
+        return;
+      }
+      setOtpVerified(true);
+    } catch {
+      setOtpVerified(false);
+      setError("Something went wrong. Try again.");
+    } finally {
+      setOtpVerifyLoading(false);
     }
   };
 
@@ -85,6 +125,10 @@ function ForgotPassword() {
 
     if (!email.trim() || !emailPattern.test(email)) {
       setError("Enter a valid email address.");
+      return;
+    }
+    if (!otpVerified) {
+      setError('Click "Verify code" first to confirm the 6-digit code from your email.');
       return;
     }
     if (!/^\d{6}$/.test(String(otp || "").trim())) {
@@ -135,7 +179,7 @@ function ForgotPassword() {
     <AuthLayout
       badge="Reset password"
       title="Forgot your password?"
-      subtitle="For student, faculty, and college accounts. We email a 6-digit code and a link back to this page."
+      subtitle="We email a 6-digit code. Enter it here, tap Verify code, then choose a new password."
       footer={
         <p>
           Remember your password?{" "}
@@ -211,9 +255,36 @@ function ForgotPassword() {
             value={otp}
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
             placeholder="6-digit code"
-            disabled={resetLoading}
+            disabled={resetLoading || otpVerifyLoading}
             className={inputClassName}
           />
+          <div className="mt-2">
+            <Button
+              type="button"
+              variant="success"
+              disabled={
+                resetLoading ||
+                otpVerifyLoading ||
+                !email.trim() ||
+                !emailPattern.test(email) ||
+                !/^\d{6}$/.test(String(otp || "").trim())
+              }
+              onClick={verifyResetOtp}
+              className="h-11 w-full justify-center rounded-lg text-sm sm:w-auto sm:min-w-[10rem]"
+            >
+              {otpVerifyLoading ? "Checking…" : "Verify code"}
+            </Button>
+          </div>
+          {otpVerified ? (
+            <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+              <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Code is correct—you can set your new password below.
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-slate-600">
+              Paste the code from your email, then click Verify code before updating your password.
+            </p>
+          )}
         </AuthField>
 
         <AuthField label="New password" htmlFor="fp-new">
@@ -244,7 +315,7 @@ function ForgotPassword() {
 
         <Button
           type="submit"
-          disabled={resetLoading}
+          disabled={resetLoading || !otpVerified}
           className="h-11 w-full justify-center rounded-lg text-sm"
         >
           {resetLoading ? "Updating…" : "Update password"}

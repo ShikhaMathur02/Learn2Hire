@@ -57,6 +57,12 @@ const userSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    /** Public URL path to profile image, e.g. /uploads/avatars/<id>.jpg (students & faculty). */
+    profilePhoto: {
+      type: String,
+      default: '',
+      trim: true,
+    },
   },
   {
     timestamps: true,

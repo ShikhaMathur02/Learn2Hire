@@ -42,11 +42,13 @@ const protect = async (req, res, next) => {
     const role = String(user.role || '')
       .trim()
       .toLowerCase();
-    if (role === 'faculty') {
+       if (role === 'faculty') {
       const st = user.facultyApprovalStatus;
       if (st === 'pending' || st === 'rejected') {
         const url = String(req.originalUrl || '');
-        if (!url.startsWith('/api/auth/me')) {
+        const allowedWhilePending =
+          url.startsWith('/api/auth/me') || url.startsWith('/api/profile/photo');
+        if (!allowedWhilePending) {
           return res.status(403).json({
             success: false,
             message:

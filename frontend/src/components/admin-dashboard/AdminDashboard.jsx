@@ -239,6 +239,11 @@ function AdminDashboard({ user, onLogout }) {
     navigate(to);
   }, [navigate]);
 
+  const goLearnerSummary = useCallback((id) => {
+    saveAdminDashboardScrollBeforeNavigate();
+    navigate(`/dashboard/learners/${id}`);
+  }, [navigate]);
+
   /** Jump to a dashboard section (opens collapsible when hash matches). */
   const goToAdminHash = useCallback(
     (hashKey, navState) => {
@@ -256,10 +261,10 @@ function AdminDashboard({ user, onLogout }) {
       if (person.role === "college") {
         goAdminSubpage(`/admin/colleges/${person._id}`);
       } else {
-        goAdminSubpage(`/admin/users/${person._id}`);
+        goLearnerSummary(person._id);
       }
     },
-    [goAdminSubpage]
+    [goAdminSubpage, goLearnerSummary]
   );
 
   useLayoutEffect(() => {
@@ -1212,7 +1217,7 @@ function AdminDashboard({ user, onLogout }) {
                         <tr
                           key={co._id}
                           className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
-                          onClick={() => goAdminSubpage(`/admin/users/${co._id}`)}
+                          onClick={() => goLearnerSummary(co._id)}
                         >
                           <td className="px-4 py-3.5 font-medium text-white">{co.name}</td>
                           <td className="px-4 py-3.5 text-slate-300">{co.email}</td>
@@ -1228,10 +1233,22 @@ function AdminDashboard({ user, onLogout }) {
                                 className="min-h-9 min-w-[9rem] justify-center text-xs"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  goAdminSubpage(`/admin/users/${co._id}`);
+                                  goLearnerSummary(co._id);
                                 }}
                               >
                                 View profile
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="soft"
+                                className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  goAdminSubpage(`/admin/users/${co._id}`);
+                                }}
+                              >
+                                Admin record
                               </Button>
                               <Button
                                 type="button"
@@ -1310,7 +1327,7 @@ function AdminDashboard({ user, onLogout }) {
                         <tr
                           key={f._id}
                           className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
-                          onClick={() => goAdminSubpage(`/admin/users/${f._id}`)}
+                          onClick={() => goLearnerSummary(f._id)}
                         >
                           <td className="px-4 py-3.5 font-medium text-white">{f.name}</td>
                           <td className="px-4 py-3.5 text-slate-300">{f.email}</td>
@@ -1334,10 +1351,22 @@ function AdminDashboard({ user, onLogout }) {
                                 className="min-h-9 min-w-[9rem] justify-center text-xs"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  goAdminSubpage(`/admin/users/${f._id}`);
+                                  goLearnerSummary(f._id);
                                 }}
                               >
                                 View profile
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="soft"
+                                className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  goAdminSubpage(`/admin/users/${f._id}`);
+                                }}
+                              >
+                                Admin record
                               </Button>
                               <Button
                                 type="button"
@@ -1423,7 +1452,7 @@ function AdminDashboard({ user, onLogout }) {
                     <th className="px-3 py-3 font-semibold">Role</th>
                     <th className="px-3 py-3 font-semibold">Campus</th>
                     <th className="px-3 py-3 font-semibold">Faculty</th>
-                    <th className="px-3 py-3 font-semibold">Student summary</th>
+                    <th className="px-3 py-3 font-semibold">Course details</th>
                     <th className="px-3 py-3 font-semibold">Actions</th>
                   </tr>
                 </thead>
@@ -1522,10 +1551,22 @@ function AdminDashboard({ user, onLogout }) {
                                     className="min-h-9 min-w-[9rem] justify-center text-xs"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      goAdminSubpage(`/admin/users/${person._id}`);
+                                      goLearnerSummary(person._id);
                                     }}
                                   >
                                     View profile
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="soft"
+                                    className="min-h-9 min-w-[9rem] justify-center text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      goAdminSubpage(`/admin/users/${person._id}`);
+                                    }}
+                                  >
+                                    Admin record
                                   </Button>
                                   {person.role === "student" && (
                                     <Button
@@ -1709,7 +1750,7 @@ function AdminDashboard({ user, onLogout }) {
                                 className="text-xs"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  goAdminSubpage(`/admin/users/${item.student._id}`);
+                                  goLearnerSummary(item.student._id);
                                 }}
                               >
                                 Applicant profile

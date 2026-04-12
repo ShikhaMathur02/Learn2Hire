@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, ChevronLeft, GraduationCap, X } from "lucide-react";
 
 import AuthField from "../components/auth/AuthField";
@@ -92,12 +92,12 @@ function FormAlert({ messages }) {
 
 function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("student");
   const [course, setCourse] = useState("");
-  const [courseCustom, setCourseCustom] = useState("");
   const [branch, setBranch] = useState("");
   const [branchCustom, setBranchCustom] = useState("");
   const [year, setYear] = useState("");
@@ -118,6 +118,13 @@ function Signup() {
   useEffect(() => {
     if (role !== "student") setStudentStep(1);
   }, [role]);
+
+  useEffect(() => {
+    const q = searchParams.get("email");
+    if (q && typeof q === "string") {
+      setEmail(decodeURIComponent(q.trim()));
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     setOtpVerified(false);
@@ -189,7 +196,7 @@ function Signup() {
     }
 
     if (includeStudentAcademic && role === "student") {
-      const courseValue = course === COHORT_OTHER ? courseCustom.trim() : course.trim();
+      const courseValue = course.trim();
       const branchValue = branch === COHORT_OTHER ? branchCustom.trim() : branch.trim();
       if (!courseValue) nextErrors.course = "Select your program.";
       if (!branchValue) nextErrors.branch = "Select your branch.";
@@ -342,7 +349,7 @@ function Signup() {
         payload.collegeId = collegeId.trim();
       }
       if (role === "student") {
-        payload.course = course === COHORT_OTHER ? courseCustom.trim() : course.trim();
+        payload.course = course.trim();
         payload.branch = branch === COHORT_OTHER ? branchCustom.trim() : branch.trim();
         payload.year = year.trim();
         payload.semester = semester.trim();
@@ -423,7 +430,7 @@ function Signup() {
       sidePanelImageAlt="Learn2Hire platform illustration"
       sidePanelEyebrow="Why Learn2Hire"
       sidePanelHeading="Learning and placements, organized for your campus."
-      sidePanelDescription="Keep materials, mocks, and drives in one place—aligned to how your cohort is set up."
+      sidePanelDescription="Keep materials, mocks, and drives in one place—aligned to how your course is set up."
       sidePanelBullets={signupSidePanelBullets}
       footer={
         <p>
@@ -619,11 +626,7 @@ function Signup() {
                 <select
                   id="course"
                   value={course}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setCourse(v);
-                    if (v !== COHORT_OTHER) setCourseCustom("");
-                  }}
+                  onChange={(e) => setCourse(e.target.value)}
                   disabled={loading}
                   className={selectClassName}
                   style={selectChevronStyle}
@@ -634,21 +637,7 @@ function Signup() {
                       {p}
                     </option>
                   ))}
-                  <option value={COHORT_OTHER}>Other…</option>
                 </select>
-                {course === COHORT_OTHER ? (
-                  <input
-                    id="course-custom"
-                    type="text"
-                    value={courseCustom}
-                    onChange={(e) => setCourseCustom(e.target.value)}
-                    disabled={loading}
-                    placeholder="Type your program (e.g. B.Arch)"
-                    className={`${selectClassName} mt-2`}
-                    style={selectChevronStyle}
-                    autoComplete="off"
-                  />
-                ) : null}
               </AuthField>
               <AuthField label="Branch" htmlFor="branch">
                 <select

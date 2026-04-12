@@ -27,7 +27,10 @@ function humanizeSmtpError(err) {
   const combined = `${msg} ${response} ${code}`.toLowerCase();
 
   if (msg.includes('smtp is not configured')) {
-    return 'Email is not configured on the server. Set SMTP_HOST, SMTP_USER, and SMTP_PASS.';
+    return (
+      'Email is not configured on the server. Set SMTP_HOST (or SMTP_SERVICE), SMTP_USER, and SMTP_PASS in backend/.env. ' +
+      'For local development without mail, set OTP_ECHO_TO_CLIENT=true (never in production).'
+    );
   }
 
   if (
@@ -118,11 +121,41 @@ function fromAddress() {
   return `"${name}" <${user}>`;
 }
 
+const frontendBaseUrl = () =>
+  String(process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+/** Table-based button — renders reliably in Gmail, Outlook, Apple Mail. */
+function emailPrimaryButtonHtml(href, label) {
+  const safeHref = String(href || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;');
+  const safeLabel = String(label || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:20px 0;border-collapse:separate;">
+  <tr>
+    <td style="border-radius:8px;background-color:#4f46e5;">
+      <a href="${safeHref}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:14px 24px;color:#ffffff!important;font-weight:600;font-size:15px;line-height:1.25;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">
+        ${safeLabel}
+      </a>
+    </td>
+  </tr>
+</table>`.trim();
+}
+
+function signupPageUrl(email) {
+  return `${frontendBaseUrl()}/signup?email=${encodeURIComponent(email)}`;
+}
+
 /**
  * Sends signup OTP via SMTP. Throws if configuration is missing or send fails.
  */
 async function sendSignupOtpEmail(to, code) {
   const transporter = createTransporter();
+  const openSignup = signupPageUrl(to);
+  const openSignupAttr = openSignup.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
   const subject = 'Your Learn2Hire verification code';
   const text = [
@@ -132,6 +165,9 @@ async function sendSignupOtpEmail(to, code) {
     '',
     `Your verification code is: ${code}`,
     '',
+    'NEXT STEP — open this link in your browser, paste the code, then tap the green "Verify" button on the page:',
+    openSignup,
+    '',
     'It expires in 10 minutes. If you did not request this, you can ignore this email.',
   ].join('\n');
 
@@ -140,7 +176,10 @@ async function sendSignupOtpEmail(to, code) {
     <p>You requested a code to sign up for Learn2Hire using <strong>${to}</strong>.</p>
     <p>Your verification code is:</p>
     <p style="font-size: 1.5rem; font-weight:700; letter-spacing: 0.2em; font-family: monospace;">${code}</p>
-    <p style="color: #555; font-size: 0.9rem;">It expires in 10 minutes. If you did not request this, you can ignore this email.</p>
+    <p style="margin:16px 0 8px;font-weight:600;font-size:15px;color:#111827;font-family:Arial,Helvetica,sans-serif;">Verify this code on the website</p>
+    ${emailPrimaryButtonHtml(openSignup, 'Go to signup — then tap Verify')}
+    <p style="color:#6b7280;font-size:13px;line-height:1.5;margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;">If the button does not work, copy this link into your browser:<br/><a href="${openSignupAttr}" style="color:#4f46e5;word-break:break-all;">${openSignup}</a></p>
+    <p style="color:#555;font-size:0.9rem;line-height:1.5;font-family:Arial,Helvetica,sans-serif;">On the signup page: paste the code into <strong>Email verification code</strong>, then press the green <strong>Verify</strong> button. The code expires in 10 minutes. If you did not request this, you can ignore this email.</p>
   `.trim();
 
   try {
@@ -158,8 +197,7 @@ async function sendSignupOtpEmail(to, code) {
 }
 
 function passwordResetPageUrl(email) {
-  const base = String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
-  return `${base}/forgot-password?email=${encodeURIComponent(email)}`;
+  return `${frontendBaseUrl()}/forgot-password?email=${encodeURIComponent(email)}`;
 }
 
 /**
@@ -168,6 +206,7 @@ function passwordResetPageUrl(email) {
 async function sendPasswordResetOtpEmail(to, code) {
   const transporter = createTransporter();
   const openAppLink = passwordResetPageUrl(to);
+  const openAppLinkAttr = openAppLink.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
   const subject = 'Reset your Learn2Hire password';
   const text = [
@@ -177,7 +216,7 @@ async function sendPasswordResetOtpEmail(to, code) {
     '',
     `Your verification code is: ${code}`,
     '',
-    `Open the reset page in your browser (you will enter this code there):`,
+    `Open the reset page, enter the code, click "Verify code", then set a new password:`,
     openAppLink,
     '',
     'This code expires in 10 minutes. If you did not request a reset, ignore this email.',
@@ -188,8 +227,10 @@ async function sendPasswordResetOtpEmail(to, code) {
     <p>We received a request to reset the password for <strong>${to}</strong> on Learn2Hire.</p>
     <p>Your verification code is:</p>
     <p style="font-size: 1.5rem; font-weight:700; letter-spacing: 0.2em; font-family: monospace;">${code}</p>
-    <p><a href="${openAppLink}" style="color: #4f46e5;">Open the password reset page</a> and enter the code above.</p>
-    <p style="color: #555; font-size: 0.9rem;">This code expires in 10 minutes. If you did not request a reset, you can ignore this email.</p>
+    <p style="margin:16px 0 8px;font-weight:600;font-size:15px;color:#111827;font-family:Arial,Helvetica,sans-serif;">Check your code on the website</p>
+    ${emailPrimaryButtonHtml(openAppLink, 'Go to reset page — then tap Verify code')}
+    <p style="color:#6b7280;font-size:13px;line-height:1.5;margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;">If the button does not work, copy this link:<br/><a href="${openAppLinkAttr}" style="color:#4f46e5;word-break:break-all;">${openAppLink}</a></p>
+    <p style="color:#555;font-size:0.9rem;line-height:1.5;font-family:Arial,Helvetica,sans-serif;">Enter the code, tap <strong>Verify code</strong>, then set a new password and tap <strong>Update password</strong>. This code expires in 10 minutes. If you did not request a reset, you can ignore this email.</p>
   `.trim();
 
   try {
@@ -206,9 +247,19 @@ async function sendPasswordResetOtpEmail(to, code) {
   }
 }
 
+/** User-facing message when OTP email cannot be sent because SMTP env vars are missing. */
+function smtpNotConfiguredClientMessage() {
+  return (
+    'Email is not configured on the server. In the backend folder, copy .env.example to .env, set SMTP_HOST (or SMTP_SERVICE), SMTP_USER, and SMTP_PASS, then restart the API. ' +
+    'Gmail needs an App Password, not your normal password. Signup and password reset use the same SMTP. ' +
+    'For local development without mail, set OTP_ECHO_TO_CLIENT=true in backend/.env (never in production).'
+  );
+}
+
 module.exports = {
   isSmtpConfigured,
   humanizeSmtpError,
+  smtpNotConfiguredClientMessage,
   sendSignupOtpEmail,
   sendPasswordResetOtpEmail,
 };

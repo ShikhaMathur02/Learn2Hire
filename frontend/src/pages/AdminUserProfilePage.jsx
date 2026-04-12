@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { readApiResponse } from "../lib/api";
+import { digitsOnly, validateStudentProfileExtraFields } from "../lib/studentProfileValidation";
 import {
   DashboardTopNav,
   workspaceDashboardHeaderClassName,
@@ -37,8 +38,6 @@ const emptyStudentForm = {
   pincode: "",
   dateOfBirth: "",
   bloodGroup: "",
-  emergencyContactName: "",
-  emergencyContactPhone: "",
 };
 
 function studentFormFromProfile(sp) {
@@ -60,8 +59,6 @@ function studentFormFromProfile(sp) {
     pincode: sp.pincode || "",
     dateOfBirth: sp.dateOfBirth || "",
     bloodGroup: sp.bloodGroup || "",
-    emergencyContactName: sp.emergencyContactName || "",
-    emergencyContactPhone: sp.emergencyContactPhone || "",
   };
 }
 
@@ -187,13 +184,19 @@ export default function AdminUserProfilePage() {
       }
 
       if ((editRole === "student" || editRole === "alumni") && studentForm) {
+        const contactCheck = validateStudentProfileExtraFields(studentForm);
+        if (!contactCheck.ok) {
+          setError(contactCheck.errors.join(" "));
+          return;
+        }
+        const studentPayload = { ...studentForm, ...contactCheck.normalized };
         const res = await fetch(`/api/admin/users/${userId}/student-profile`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(studentForm),
+          body: JSON.stringify(studentPayload),
         });
         const data = await readApiResponse(res);
         if (!res.ok) throw new Error(data.message || "Profile save failed.");
@@ -514,10 +517,14 @@ export default function AdminUserProfilePage() {
                           <label className="text-xs text-slate-400">{label}</label>
                           <input
                             className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            inputMode={key.endsWith("Phone") ? "numeric" : undefined}
+                            placeholder={key.endsWith("Phone") ? "10–15 digits" : undefined}
                             value={studentForm[key]}
-                            onChange={(e) =>
-                              setStudentForm((f) => ({ ...f, [key]: e.target.value }))
-                            }
+                            onChange={(e) => {
+                              let v = e.target.value;
+                              if (key.endsWith("Phone")) v = digitsOnly(v).slice(0, 15);
+                              setStudentForm((f) => ({ ...f, [key]: v }));
+                            }}
                           />
                         </div>
                       ))}
@@ -545,10 +552,15 @@ export default function AdminUserProfilePage() {
                           <label className="text-xs text-slate-400">{label}</label>
                           <input
                             className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            inputMode={key === "pincode" ? "numeric" : undefined}
+                            maxLength={key === "pincode" ? 6 : undefined}
+                            placeholder={key === "pincode" ? "6 digits" : undefined}
                             value={studentForm[key]}
-                            onChange={(e) =>
-                              setStudentForm((f) => ({ ...f, [key]: e.target.value }))
-                            }
+                            onChange={(e) => {
+                              let v = e.target.value;
+                              if (key === "pincode") v = v.replace(/\D/g, "").slice(0, 6);
+                              setStudentForm((f) => ({ ...f, [key]: v }));
+                            }}
                           />
                         </div>
                       ))}
@@ -558,15 +570,14 @@ export default function AdminUserProfilePage() {
                     <h3 className="text-sm font-semibold text-slate-200">Other</h3>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       {[
-                        ["dateOfBirth", "Date of birth (YYYY-MM-DD)"],
+                        ["dateOfBirth", "Date of birth"],
                         ["bloodGroup", "Blood group"],
-                        ["emergencyContactName", "Emergency contact name"],
-                        ["emergencyContactPhone", "Emergency contact phone"],
                       ].map(([key, label]) => (
                         <div key={key}>
                           <label className="text-xs text-slate-400">{label}</label>
                           <input
                             className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            type={key === "dateOfBirth" ? "date" : "text"}
                             value={studentForm[key]}
                             onChange={(e) =>
                               setStudentForm((f) => ({ ...f, [key]: e.target.value }))
