@@ -8,6 +8,7 @@
     "dev": "node server.js",
     "seed:subjects": "node scripts/seedLearningSubjects.js",
     "seed:materials": "node scripts/seedStudyMaterials.js",
+    "seed:colleges": "node scripts/seedNamedColleges.js",
     "seed:learning": "node scripts/seedLearningSubjects.js && node scripts/seedStudyMaterials.js",
     "verify:learning": "node scripts/verifyLearningContent.js"
   },
@@ -19,6 +20,7 @@
     "mongodb": "^6.8.0",
     "mongoose": "^8.5.0",
     "multer": "^2.1.1",
+    "nodemailer": "^6.10.1",
     "xlsx": "^0.18.5"
   }
 }

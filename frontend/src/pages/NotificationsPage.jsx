@@ -6,7 +6,10 @@ import { readApiResponse } from "../lib/api";
 import { studentNavItems } from "../config/studentNavItems";
 import { clearAuthSession } from "../lib/authSession";
 import { DarkWorkspaceShell } from "../components/layout/DarkWorkspaceShell";
-import { DashboardTopNav } from "../components/dashboard/DashboardTopNav";
+import {
+  DashboardTopNav,
+  workspaceDashboardHeaderClassName,
+} from "../components/dashboard/DashboardTopNav";
 import { Button } from "../components/ui/button";
 import { NavDropdown } from "../components/ui/nav-dropdown";
 import { Card, CardContent } from "../components/ui/card";
@@ -399,7 +402,7 @@ function NotificationsPage() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
       <div className="p-3 sm:p-4">
         <DashboardTopNav
-          theme="dark"
+          className={workspaceDashboardHeaderClassName}
           workspaceLabel={workspaceLabelForRole(viewerRole)}
           title="Notifications"
           description="Keep track of job updates, applications, and assessment activity."

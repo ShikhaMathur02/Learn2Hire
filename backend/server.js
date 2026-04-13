@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const path = require('path');
 const express = require('express');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
@@ -13,6 +14,7 @@ const learningRoutes = require('./routes/learningRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 const collegeRoutes = require('./routes/collegeRoutes');
 const { ensureBuiltinAdmins } = require('./seed/ensureBuiltinAdmins');
+const { isSmtpConfigured } = require('./utils/otpDelivery');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,6 +28,17 @@ app.use('/api', (req, res, next) => {
 
 // Parse JSON body (required for signup/login, profile, assessment, submission APIs)
 app.use(express.json());
+
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, 'uploads'), {
+    setHeaders(res, filePath) {
+      if (String(filePath).toLowerCase().includes('avatars')) {
+        res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+      }
+    },
+  })
+);
 
 // Auth routes: signup & login
 app.use('/api/auth', authRoutes);
@@ -64,6 +77,22 @@ const start = async () => {
   await ensureBuiltinAdmins();
   app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
+    if (isSmtpConfigured()) {
+      const host = process.env.SMTP_HOST || process.env.SMTP_SERVICE || 'service';
+      console.log(
+        `[Learn2Hire] SMTP configured (${host}) — signup and password-reset OTP emails will be sent.`
+      );
+    } else {
+      console.warn(
+        '[Learn2Hire] SMTP not configured. Copy backend/.env.example → backend/.env, set SMTP_HOST (or SMTP_SERVICE), SMTP_USER, SMTP_PASS, restart this server. ' +
+          'Without that, signup OTP returns HTTP 503 unless OTP_ECHO_TO_CLIENT=true (local dev only).'
+      );
+    }
+    if (String(process.env.OTP_ECHO_TO_CLIENT || '').toLowerCase() === 'true') {
+      console.log(
+        '[Learn2Hire] OTP_ECHO_TO_CLIENT=true — OTP codes are included in API JSON (local dev; disable in production).'
+      );
+    }
   });
 };
 

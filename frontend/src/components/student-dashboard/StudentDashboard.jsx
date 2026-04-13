@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -7,26 +7,34 @@ import {
   ClipboardList,
   Gauge,
   LoaderCircle,
+  Pencil,
   Sparkles,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../../lib/api";
 import {
+  digitsOnly,
+  validateStudentProfileExtraFields,
+} from "../../lib/studentProfileValidation";
+import {
+  PROFILE_PHOTO_MAX_BYTES,
+  persistUserProfilePhotoInLocalStorage,
+} from "../../lib/avatarUtils";
+import {
   ALL_COHORT_DEGREE_PRESETS,
   COHORT_BRANCH_PRESETS,
   COHORT_OTHER,
-  COHORT_PROGRAM_GROUPS,
   COHORT_SEMESTER_PRESETS,
   COHORT_YEAR_PRESETS,
+  alignCohortSemesterToSignupOptions,
+  alignCohortYearToSignupOptions,
   canonicalizeCohortPreset,
-  cohortDegreeRequiresBranch,
-  degreesForProgram,
-  inferCohortProgramId,
 } from "../../lib/cohortPresets";
 import { clearAuthSession } from "../../lib/authSession";
 import { studentNavItems } from "../../config/studentNavItems";
 import { DarkWorkspaceShell } from "../layout/DarkWorkspaceShell";
+import { ProfileAvatarBlock } from "../profile/ProfileAvatarBlock";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import dashboardProgressImg from "../../assets/illustrations/progress-banner.png";
@@ -108,13 +116,23 @@ function StudentDashboard({ user, onLogout }) {
   const [cohortBranch, setCohortBranch] = useState("");
   const [cohortYear, setCohortYear] = useState("");
   const [cohortSemester, setCohortSemester] = useState("");
-  const [cohortProgramId, setCohortProgramId] = useState("");
   const [cohortCustomCourse, setCohortCustomCourse] = useState(false);
   const [cohortCustomBranch, setCohortCustomBranch] = useState(false);
   const [cohortCustomYear, setCohortCustomYear] = useState(false);
   const [cohortCustomSemester, setCohortCustomSemester] = useState(false);
   const [cohortSaving, setCohortSaving] = useState(false);
   const [cohortMessage, setCohortMessage] = useState("");
+  /** Shown at the top of the edit-profile card (e.g. photo too large). */
+  const [profilePhotoError, setProfilePhotoError] = useState("");
+  const [profileEditMode, setProfileEditMode] = useState(false);
+  const [showFullProfileReadonly, setShowFullProfileReadonly] = useState(false);
+  /** Bumped after a successful photo upload so the browser reloads the image (cache bust). */
+  const [photoCacheBust, setPhotoCacheBust] = useState(0);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  /** When non-null, overrides profile.user.profilePhoto until next full fetch. */
+  const [photoOverride, setPhotoOverride] = useState(null);
+  /** Ignore late / duplicate profile loads (e.g. React Strict Mode or overlapping fetches). */
+  const profileLoadGenerationRef = useRef(0);
   const [extraProfile, setExtraProfile] = useState({
     bio: "",
     toolsAndTechnologies: "",
@@ -130,20 +148,19 @@ function StudentDashboard({ user, onLogout }) {
     pincode: "",
     dateOfBirth: "",
     bloodGroup: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
   });
 
   const applyCohortFromProfileFields = useCallback((course, branch, year, semester) => {
     const c = canonicalizeCohortPreset(ALL_COHORT_DEGREE_PRESETS, course);
     const b = canonicalizeCohortPreset(COHORT_BRANCH_PRESETS, branch);
-    const y = canonicalizeCohortPreset(COHORT_YEAR_PRESETS, year);
-    const s = canonicalizeCohortPreset(COHORT_SEMESTER_PRESETS, semester);
+    const yAligned = alignCohortYearToSignupOptions(year);
+    const y = canonicalizeCohortPreset(COHORT_YEAR_PRESETS, yAligned);
+    const sAligned = alignCohortSemesterToSignupOptions(semester);
+    const s = canonicalizeCohortPreset(COHORT_SEMESTER_PRESETS, sAligned);
     setCohortCourse(c);
     setCohortBranch(b);
     setCohortYear(y);
     setCohortSemester(s);
-    setCohortProgramId(inferCohortProgramId(course, branch));
     setCohortCustomCourse(Boolean(c && !ALL_COHORT_DEGREE_PRESETS.includes(c)));
     setCohortCustomBranch(Boolean(b && !COHORT_BRANCH_PRESETS.includes(b)));
     setCohortCustomYear(Boolean(y && !COHORT_YEAR_PRESETS.includes(y)));
@@ -169,6 +186,7 @@ function StudentDashboard({ user, onLogout }) {
     }
 
     const fetchData = async () => {
+      const loadGen = ++profileLoadGenerationRef.current;
       setLoading(true);
       setError("");
 
@@ -208,6 +226,8 @@ function StudentDashboard({ user, onLogout }) {
           return;
         }
 
+        if (loadGen !== profileLoadGenerationRef.current) return;
+
         const profileData = await readApiResponse(profileRes);
         const assessmentsData = await readApiResponse(assessmentsRes);
         const submissionsData = await readApiResponse(submissionsRes);
@@ -241,8 +261,12 @@ function StudentDashboard({ user, onLogout }) {
           );
         }
 
+        if (loadGen !== profileLoadGenerationRef.current) return;
+
         const nextProfile = profileData.data?.profile ?? null;
         setProfile(nextProfile);
+        setPhotoOverride(null);
+        setPhotoCacheBust(0);
         if (nextProfile) {
           applyCohortFromProfileFields(
             nextProfile.course,
@@ -267,8 +291,6 @@ function StudentDashboard({ user, onLogout }) {
             pincode: nextProfile.pincode || "",
             dateOfBirth: nextProfile.dateOfBirth || "",
             bloodGroup: nextProfile.bloodGroup || "",
-            emergencyContactName: nextProfile.emergencyContactName || "",
-            emergencyContactPhone: nextProfile.emergencyContactPhone || "",
           });
         } else {
           applyCohortFromProfileFields("", "", "", "");
@@ -287,8 +309,6 @@ function StudentDashboard({ user, onLogout }) {
             pincode: "",
             dateOfBirth: "",
             bloodGroup: "",
-            emergencyContactName: "",
-            emergencyContactPhone: "",
           });
         }
         setAssessments(assessmentsData.data?.assessments ?? []);
@@ -306,16 +326,28 @@ function StudentDashboard({ user, onLogout }) {
         );
         setLearningProgress(learningProgressData.data?.progress ?? []);
       } catch (err) {
-        setError(err.message || "Unable to load dashboard data right now.");
+        if (loadGen === profileLoadGenerationRef.current) {
+          setError(err.message || "Unable to load dashboard data right now.");
+        }
       } finally {
-        setLoading(false);
+        if (loadGen === profileLoadGenerationRef.current) {
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
   }, [navigate, applyCohortFromProfileFields]);
 
-  const displayUser = profile?.user || user;
+  const displayUser = useMemo(() => {
+    const base = profile?.user || user;
+    const photo =
+      photoOverride !== null
+        ? photoOverride
+        : (base && base.profilePhoto) || user?.profilePhoto || "";
+    return { ...base, profilePhoto: photo || "" };
+  }, [profile?.user, user, photoOverride]);
+
   const skills = profile?.skills || [];
   const stats = profile?.stats || {
     coursesEnrolled: 0,
@@ -335,23 +367,77 @@ function StudentDashboard({ user, onLogout }) {
   const recentLearningMaterials = learningProgress.slice(0, 3);
   const topSuggestedJobs = suggestedJobs.slice(0, 3);
 
-  const showCohortBranchField =
-    cohortDegreeRequiresBranch(cohortCourse) ||
-    (cohortCustomCourse && cohortProgramId === "engineering");
+  const handleAvatarUpload = async (file) => {
+    const token = localStorage.getItem("token");
+    if (!token || !file) return;
+    setProfilePhotoError("");
+    if (file.size > PROFILE_PHOTO_MAX_BYTES) {
+      setProfilePhotoError("Profile photo must be 25 MB or smaller. Choose a smaller image and try again.");
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("photo", file);
+      const res = await fetch("/api/profile/photo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await readApiResponse(res);
+      if (!res.ok) throw new Error(data.message || "Could not upload photo.");
+      const path = data.data?.profilePhoto || "";
+      setPhotoOverride(path);
+      setPhotoCacheBust(Date.now());
+      setProfile((p) => (p && p.user ? { ...p, user: { ...p.user, profilePhoto: path } } : p));
+      persistUserProfilePhotoInLocalStorage(path);
+    } catch (e) {
+      setProfilePhotoError(e.message || "Photo upload failed.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setProfilePhotoError("");
+    setAvatarUploading(true);
+    try {
+      const res = await fetch("/api/profile/photo", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await readApiResponse(res);
+      if (!res.ok) throw new Error(data.message || "Could not remove photo.");
+      setPhotoOverride("");
+      setPhotoCacheBust(0);
+      setProfile((p) => (p && p.user ? { ...p, user: { ...p.user, profilePhoto: "" } } : p));
+      persistUserProfilePhotoInLocalStorage("");
+    } catch (e) {
+      setProfilePhotoError(e.message || "Remove photo failed.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const saveCohort = async () => {
     const token = localStorage.getItem("token");
     if (!token) return;
     setCohortSaving(true);
     setCohortMessage("");
+    setProfilePhotoError("");
     try {
       const trim = (s) => (typeof s === "string" ? s.trim() : "");
-      const needsEngBranch =
-        cohortDegreeRequiresBranch(cohortCourse) ||
-        (cohortCustomCourse && cohortProgramId === "engineering");
+      const contactValidation = validateStudentProfileExtraFields(extraProfile);
+      if (!contactValidation.ok) {
+        setCohortMessage(contactValidation.errors.join(" "));
+        return;
+      }
+      const n = contactValidation.normalized;
       const cohortPayload = {
         course: trim(cohortCourse),
-        branch: needsEngBranch ? trim(cohortBranch) : "",
+        branch: trim(cohortBranch),
         year: trim(cohortYear),
         semester: trim(cohortSemester),
       };
@@ -359,19 +445,17 @@ function StudentDashboard({ user, onLogout }) {
         bio: trim(extraProfile.bio),
         toolsAndTechnologies: trim(extraProfile.toolsAndTechnologies),
         visibleToCompanies: Boolean(extraProfile.visibleToCompanies),
-        studentPhone: trim(extraProfile.studentPhone),
-        fatherName: trim(extraProfile.fatherName),
-        motherName: trim(extraProfile.motherName),
-        fatherPhone: trim(extraProfile.fatherPhone),
-        motherPhone: trim(extraProfile.motherPhone),
+        studentPhone: n.studentPhone ?? "",
+        fatherName: n.fatherName ?? "",
+        motherName: n.motherName ?? "",
+        fatherPhone: n.fatherPhone ?? "",
+        motherPhone: n.motherPhone ?? "",
         address: trim(extraProfile.address),
         city: trim(extraProfile.city),
         state: trim(extraProfile.state),
-        pincode: trim(extraProfile.pincode),
-        dateOfBirth: trim(extraProfile.dateOfBirth),
+        pincode: n.pincode ?? "",
+        dateOfBirth: n.dateOfBirth ?? "",
         bloodGroup: trim(extraProfile.bloodGroup),
-        emergencyContactName: trim(extraProfile.emergencyContactName),
-        emergencyContactPhone: trim(extraProfile.emergencyContactPhone),
       };
       const payload = { ...cohortPayload, ...detailPayload };
       const hasStoredProfile = profile && profile._id && !profile.isAutoGenerated;
@@ -413,8 +497,6 @@ function StudentDashboard({ user, onLogout }) {
             pincode: updated.pincode || "",
             dateOfBirth: updated.dateOfBirth || "",
             bloodGroup: updated.bloodGroup || "",
-            emergencyContactName: updated.emergencyContactName || "",
-            emergencyContactPhone: updated.emergencyContactPhone || "",
           });
         }
       } else {
@@ -457,12 +539,11 @@ function StudentDashboard({ user, onLogout }) {
             pincode: created.pincode || "",
             dateOfBirth: created.dateOfBirth || "",
             bloodGroup: created.bloodGroup || "",
-            emergencyContactName: created.emergencyContactName || "",
-            emergencyContactPhone: created.emergencyContactPhone || "",
           });
         }
       }
-      setCohortMessage("Profile saved. Cohort fields should match how faculty labels class materials.");
+      setProfileEditMode(false);
+      setCohortMessage("Profile saved. Course fields should match how faculty labels class materials.");
     } catch (err) {
       setCohortMessage(err.message || "Could not save.");
     } finally {
@@ -782,14 +863,248 @@ function StudentDashboard({ user, onLogout }) {
     </div>
   );
 
-  const renderProfile = () => (
-    <div className="space-y-5">
+  const renderProfile = () => {
+    const pv = (v) => (v != null && String(v).trim() !== "" ? String(v).trim() : null);
+    const cohortLineCompact =
+      [cohortCourse, cohortBranch, cohortYear, cohortSemester].filter(Boolean).join(" · ") || null;
+
+    const profileSummaryCard = !profileEditMode ? (
+      <Card className="overflow-hidden border border-white/10 bg-white/5 shadow-none">
+        <CardContent className="p-0">
+          <div className="relative bg-gradient-to-br from-indigo-600/35 via-slate-900 to-slate-950 px-6 py-8 sm:px-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+                <ProfileAvatarBlock
+                  name={displayUser.name}
+                  profilePhoto={displayUser.profilePhoto}
+                  photoCacheBust={photoCacheBust}
+                  frameClass="h-28 w-28 sm:h-32 sm:w-32"
+                />
+                <div className="text-center sm:text-left">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-indigo-200/90">
+                    Student profile
+                  </p>
+                  <h2 className="mt-1 text-2xl font-bold text-white sm:text-3xl">{displayUser.name}</h2>
+                  <p className="mt-1 break-all text-sm text-slate-300">{displayUser.email}</p>
+                  <p className="mt-3 text-sm text-slate-400">
+                    <span className="text-slate-500">Course:</span> {cohortLineCompact || "Not set yet"}
+                  </p>
+                  {pv(extraProfile.bio) ? (
+                    <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-slate-200">
+                      {extraProfile.bio}
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">No bio yet — add one when you edit.</p>
+                  )}
+                  {pv(extraProfile.toolsAndTechnologies) ? (
+                    <p className="mt-2 line-clamp-2 text-xs text-slate-500">
+                      <span className="font-medium text-slate-400">Tools:</span>{" "}
+                      {extraProfile.toolsAndTechnologies}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-xs text-slate-500">
+                    Talent pool:{" "}
+                    <span className="text-slate-300">
+                      {extraProfile.visibleToCompanies ? "Visible" : "Hidden"}
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                className="h-11 shrink-0 gap-2 self-start border-white/20 bg-white/10 text-white hover:bg-white/20"
+                onClick={() => {
+                  setCohortMessage("");
+                  setProfilePhotoError("");
+                  setShowFullProfileReadonly(false);
+                  setProfileEditMode(true);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                Edit details
+              </Button>
+            </div>
+          </div>
+          <div className="border-t border-white/10 px-6 py-4 sm:px-8">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-white/20 text-white hover:bg-white/10"
+              onClick={() => setShowFullProfileReadonly((v) => !v)}
+            >
+              {showFullProfileReadonly ? "Hide full saved record" : "Show full saved record"}
+            </Button>
+            <p className="mt-2 text-xs text-slate-500">
+              Contact and address fields stay here until you expand or open edit.
+            </p>
+          </div>
+          {showFullProfileReadonly ? (
+          <div className="space-y-8 border-t border-white/10 p-6 sm:p-8">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">About &amp; visibility</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 sm:col-span-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Bio</p>
+                  <p className="mt-1 text-sm leading-relaxed text-white">{pv(extraProfile.bio) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 sm:col-span-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Tools &amp; technologies
+                  </p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.toolsAndTechnologies) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 sm:col-span-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Visible to companies (talent pool)
+                  </p>
+                  <p className="mt-1 text-sm text-white">
+                    {extraProfile.visibleToCompanies ? "Yes" : "No"}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">Program &amp; course</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Program</p>
+                  <p className="mt-1 text-sm text-white">{pv(cohortCourse) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Branch</p>
+                  <p className="mt-1 text-sm text-white">{pv(cohortBranch) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Year</p>
+                  <p className="mt-1 text-sm text-white">{pv(cohortYear) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Semester</p>
+                  <p className="mt-1 text-sm text-white">{pv(cohortSemester) || "—"}</p>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">Contact &amp; family</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Your mobile</p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.studentPhone) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Father&apos;s name
+                  </p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.fatherName) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Father&apos;s phone
+                  </p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.fatherPhone) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Mother&apos;s name
+                  </p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.motherName) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Mother&apos;s phone
+                  </p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.motherPhone) || "—"}</p>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">Address &amp; other details</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 sm:col-span-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Address</p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.address) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">City</p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.city) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">State</p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.state) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">PIN code</p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.pincode) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Date of birth
+                  </p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.dateOfBirth) || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Blood group</p>
+                  <p className="mt-1 text-sm text-white">{pv(extraProfile.bloodGroup) || "—"}</p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-indigo-400/25 bg-indigo-500/10 px-4 py-3">
+              <p className="text-sm text-indigo-100/90">
+                Profile photo: use <strong>Edit details</strong>, then upload your picture (or keep the
+                default initials).
+              </p>
+            </div>
+          </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    ) : null;
+
+    const profileEditBioCard = profileEditMode ? (
       <Card className="border border-white/10 bg-white/5 shadow-none">
         <CardContent className="p-6">
-          <SectionTitle
-            title="Profile"
-            description="Your account details from the student profile API."
-          />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <SectionTitle
+              title="Edit profile"
+              description="Update how you appear to faculty and recruiters. Save changes at the bottom of the form."
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0 border-white/20 text-white hover:bg-white/10"
+              onClick={() => {
+                setProfileEditMode(false);
+                setCohortMessage("");
+                setProfilePhotoError("");
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+          {profilePhotoError ? (
+            <div
+              className="mt-4 rounded-xl border border-rose-400/35 bg-rose-500/15 px-4 py-3 text-sm text-rose-100"
+              role="alert"
+            >
+              {profilePhotoError}
+            </div>
+          ) : null}
+          <div className="mt-6 flex flex-col gap-6 border-b border-white/10 pb-6 lg:flex-row lg:items-start">
+            <ProfileAvatarBlock
+              name={displayUser.name}
+              profilePhoto={displayUser.profilePhoto}
+              photoCacheBust={photoCacheBust}
+              editable
+              uploading={avatarUploading}
+              onFileSelected={handleAvatarUpload}
+              onRemovePhoto={handleAvatarRemove}
+              frameClass="h-28 w-28 sm:h-32 sm:w-32"
+            />
+            <p className="max-w-md text-sm text-slate-400">
+              Upload a clear photo (optional). If you remove it, we show initials from your name.
+            </p>
+          </div>
           {profile ? (
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
@@ -848,61 +1163,42 @@ function StudentDashboard({ user, onLogout }) {
             <div className="mt-6">
               <EmptyState
                 title="No profile record yet"
-                description="Create a profile via POST /api/profile or continue learning — skills can still update from your study progress."
+                description="Fill in the sections below and click Save profile to create your record."
               />
             </div>
           )}
         </CardContent>
       </Card>
+    ) : null;
 
+    return (
+    <div className="space-y-5">
+      {profileSummaryCard}
+      {profileEditBioCard}
+
+      {profileEditMode ? (
       <Card className="border border-white/10 bg-white/5 shadow-none">
         <CardContent className="p-6">
           <SectionTitle
-            title="Program, cohort & contact details"
-            description="Pick your program track and degree the same way faculty do (engineering, management, nursing, pharmacy). Branch is only for B.Tech / Diploma. Parent and address details help placement records."
+            title="Program, course & contact details"
+            description="Use the same program, branch, year, and semester lists as signup so your profile matches faculty course labels on materials."
           />
           <div className="mt-6 space-y-4">
             <p className="text-xs text-slate-500">
-              Engineering students choose a branch (CSE, EE, …). Other programs leave branch empty.
+              Values are stored exactly as chosen and matched to course-targeted study materials (case-insensitive).
             </p>
             <div className="flex flex-wrap gap-4">
               <div className="min-w-[160px] flex-1">
-                <label className="text-xs font-medium text-slate-400" htmlFor="st-prog-select">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-program-select">
                   Program
                 </label>
                 <select
-                  id="st-prog-select"
+                  id="st-program-select"
                   className={COHORT_FIELD_CLASS}
-                  value={cohortProgramId}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setCohortProgramId(v);
-                    setCohortCourse("");
-                    setCohortCustomCourse(false);
-                    setCohortBranch("");
-                    setCohortCustomBranch(false);
-                  }}
-                >
-                  <option value="">Select program…</option>
-                  {COHORT_PROGRAM_GROUPS.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="min-w-[160px] flex-1">
-                <label className="text-xs font-medium text-slate-400" htmlFor="st-degree-select">
-                  Course / degree
-                </label>
-                <select
-                  id="st-degree-select"
-                  className={COHORT_FIELD_CLASS}
-                  disabled={!cohortProgramId}
                   value={
                     !cohortCourse
                       ? ""
-                      : degreesForProgram(cohortProgramId).includes(cohortCourse)
+                      : ALL_COHORT_DEGREE_PRESETS.includes(cohortCourse)
                         ? cohortCourse
                         : COHORT_OTHER
                   }
@@ -917,86 +1213,78 @@ function StudentDashboard({ user, onLogout }) {
                     } else {
                       setCohortCustomCourse(false);
                       setCohortCourse(v);
-                      if (!cohortDegreeRequiresBranch(v)) {
-                        setCohortBranch("");
-                        setCohortCustomBranch(false);
-                      }
                     }
                   }}
                 >
-                  <option value="">
-                    {cohortProgramId ? "Select degree…" : "Choose a program first"}
-                  </option>
-                  {degreesForProgram(cohortProgramId).map((d) => (
-                    <option key={d} value={d}>
-                      {d === "B.Sc" ? "B.Sc (Nursing)" : d}
+                  <option value="">Select program</option>
+                  {ALL_COHORT_DEGREE_PRESETS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
                     </option>
                   ))}
                   <option value={COHORT_OTHER}>Other…</option>
                 </select>
                 {cohortCustomCourse ? (
                   <input
-                    id="st-degree-custom"
+                    id="st-program-custom"
                     className={COHORT_FIELD_CLASS}
                     value={cohortCourse}
                     onChange={(e) => setCohortCourse(e.target.value)}
-                    placeholder="e.g. M.E."
-                    aria-label="Custom degree"
+                    placeholder="e.g. B.Arch"
+                    aria-label="Custom program"
                   />
                 ) : null}
               </div>
-              {showCohortBranchField ? (
-                <div className="min-w-[160px] flex-1">
-                  <label className="text-xs font-medium text-slate-400" htmlFor="st-branch-select">
-                    Branch
-                  </label>
-                  <select
-                    id="st-branch-select"
-                    className={COHORT_FIELD_CLASS}
-                    value={
-                      !cohortBranch
-                        ? ""
-                        : COHORT_BRANCH_PRESETS.includes(cohortBranch)
-                          ? cohortBranch
-                          : COHORT_OTHER
+              <div className="min-w-[160px] flex-1">
+                <label className="text-xs font-medium text-slate-400" htmlFor="st-branch-select">
+                  Branch
+                </label>
+                <select
+                  id="st-branch-select"
+                  className={COHORT_FIELD_CLASS}
+                  value={
+                    !cohortBranch
+                      ? ""
+                      : COHORT_BRANCH_PRESETS.includes(cohortBranch)
+                        ? cohortBranch
+                        : COHORT_OTHER
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") {
+                      setCohortBranch("");
+                      setCohortCustomBranch(false);
+                    } else if (v === COHORT_OTHER) {
+                      setCohortCustomBranch(true);
+                      setCohortBranch("");
+                    } else {
+                      setCohortCustomBranch(false);
+                      setCohortBranch(v);
                     }
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v === "") {
-                        setCohortBranch("");
-                        setCohortCustomBranch(false);
-                      } else if (v === COHORT_OTHER) {
-                        setCohortCustomBranch(true);
-                        setCohortBranch("");
-                      } else {
-                        setCohortCustomBranch(false);
-                        setCohortBranch(v);
-                      }
-                    }}
-                  >
-                    <option value="">Select branch…</option>
-                    {COHORT_BRANCH_PRESETS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                    <option value={COHORT_OTHER}>Other…</option>
-                  </select>
-                  {cohortCustomBranch ? (
-                    <input
-                      id="st-branch"
-                      className={COHORT_FIELD_CLASS}
-                      value={cohortBranch}
-                      onChange={(e) => setCohortBranch(e.target.value)}
-                      placeholder="e.g. Aerospace"
-                      aria-label="Custom branch"
-                    />
-                  ) : null}
-                </div>
-              ) : null}
+                  }}
+                >
+                  <option value="">Select branch</option>
+                  {COHORT_BRANCH_PRESETS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                  <option value={COHORT_OTHER}>Other…</option>
+                </select>
+                {cohortCustomBranch ? (
+                  <input
+                    id="st-branch-custom"
+                    className={COHORT_FIELD_CLASS}
+                    value={cohortBranch}
+                    onChange={(e) => setCohortBranch(e.target.value)}
+                    placeholder="e.g. Aerospace"
+                    aria-label="Custom branch"
+                  />
+                ) : null}
+              </div>
               <div className="min-w-[140px] flex-1">
                 <label className="text-xs font-medium text-slate-400" htmlFor="st-year-select">
-                  Year (1–4)
+                  Year
                 </label>
                 <select
                   id="st-year-select"
@@ -1022,10 +1310,10 @@ function StudentDashboard({ user, onLogout }) {
                     }
                   }}
                 >
-                  <option value="">Select year…</option>
+                  <option value="">Select year</option>
                   {COHORT_YEAR_PRESETS.map((y) => (
                     <option key={y} value={y}>
-                      Year {y}
+                      {y}
                     </option>
                   ))}
                   <option value={COHORT_OTHER}>Other…</option>
@@ -1036,7 +1324,7 @@ function StudentDashboard({ user, onLogout }) {
                     className={COHORT_FIELD_CLASS}
                     value={cohortYear}
                     onChange={(e) => setCohortYear(e.target.value)}
-                    placeholder="e.g. 5 or 2024–28"
+                    placeholder="e.g. 5th year"
                     aria-label="Custom year"
                   />
                 ) : null}
@@ -1069,10 +1357,10 @@ function StudentDashboard({ user, onLogout }) {
                     }
                   }}
                 >
-                  <option value="">Not set / all terms</option>
+                  <option value="">Select semester</option>
                   {COHORT_SEMESTER_PRESETS.map((s) => (
                     <option key={s} value={s}>
-                      Semester {s}
+                      {s}
                     </option>
                   ))}
                   <option value={COHORT_OTHER}>Other…</option>
@@ -1083,7 +1371,7 @@ function StudentDashboard({ user, onLogout }) {
                     className={COHORT_FIELD_CLASS}
                     value={cohortSemester}
                     onChange={(e) => setCohortSemester(e.target.value)}
-                    placeholder="e.g. 9"
+                    placeholder="e.g. Semester 11"
                     aria-label="Custom semester"
                   />
                 ) : null}
@@ -1103,12 +1391,17 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-phone"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.studentPhone}
                   onChange={(e) =>
-                    setExtraProfile((p) => ({ ...p, studentPhone: e.target.value }))
+                    setExtraProfile((p) => ({
+                      ...p,
+                      studentPhone: digitsOnly(e.target.value).slice(0, 15),
+                    }))
                   }
-                  placeholder="+91 …"
+                  placeholder="10–15 digits only"
                 />
               </div>
               <div>
@@ -1130,11 +1423,16 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-father-phone"
+                  inputMode="numeric"
                   className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.fatherPhone}
                   onChange={(e) =>
-                    setExtraProfile((p) => ({ ...p, fatherPhone: e.target.value }))
+                    setExtraProfile((p) => ({
+                      ...p,
+                      fatherPhone: digitsOnly(e.target.value).slice(0, 15),
+                    }))
                   }
+                  placeholder="10–15 digits only"
                 />
               </div>
               <div>
@@ -1156,18 +1454,23 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-mother-phone"
+                  inputMode="numeric"
                   className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.motherPhone}
                   onChange={(e) =>
-                    setExtraProfile((p) => ({ ...p, motherPhone: e.target.value }))
+                    setExtraProfile((p) => ({
+                      ...p,
+                      motherPhone: digitsOnly(e.target.value).slice(0, 15),
+                    }))
                   }
+                  placeholder="10–15 digits only"
                 />
               </div>
             </div>
           </div>
 
           <div className="mt-8 border-t border-white/10 pt-6">
-            <h3 className="text-sm font-semibold text-slate-200">Address &amp; emergency</h3>
+            <h3 className="text-sm font-semibold text-slate-200">Address &amp; other details</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="text-xs font-medium text-slate-400" htmlFor="st-address">
@@ -1210,11 +1513,17 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-pin"
+                  inputMode="numeric"
+                  maxLength={6}
                   className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.pincode}
                   onChange={(e) =>
-                    setExtraProfile((p) => ({ ...p, pincode: e.target.value }))
+                    setExtraProfile((p) => ({
+                      ...p,
+                      pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
+                    }))
                   }
+                  placeholder="6 digits"
                 />
               </div>
               <div>
@@ -1223,12 +1532,12 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-dob"
+                  type="date"
                   className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.dateOfBirth}
                   onChange={(e) =>
                     setExtraProfile((p) => ({ ...p, dateOfBirth: e.target.value }))
                   }
-                  placeholder="YYYY-MM-DD"
                 />
               </div>
               <div>
@@ -1245,38 +1554,6 @@ function StudentDashboard({ user, onLogout }) {
                   placeholder="e.g. O+"
                 />
               </div>
-              <div>
-                <label className="text-xs font-medium text-slate-400" htmlFor="st-em-name">
-                  Emergency contact name
-                </label>
-                <input
-                  id="st-em-name"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
-                  value={extraProfile.emergencyContactName}
-                  onChange={(e) =>
-                    setExtraProfile((p) => ({
-                      ...p,
-                      emergencyContactName: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-400" htmlFor="st-em-phone">
-                  Emergency contact phone
-                </label>
-                <input
-                  id="st-em-phone"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
-                  value={extraProfile.emergencyContactPhone}
-                  onChange={(e) =>
-                    setExtraProfile((p) => ({
-                      ...p,
-                      emergencyContactPhone: e.target.value,
-                    }))
-                  }
-                />
-              </div>
             </div>
           </div>
 
@@ -1290,6 +1567,7 @@ function StudentDashboard({ user, onLogout }) {
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
       <Card className="border border-white/10 bg-white/5 shadow-none">
         <CardContent className="p-6">
@@ -1372,7 +1650,8 @@ function StudentDashboard({ user, onLogout }) {
         </CardContent>
       </Card>
     </div>
-  );
+    );
+  };
 
   const renderAssessments = () => (
     <Card className="border border-white/10 bg-white/5 shadow-none">

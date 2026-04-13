@@ -1,7 +1,12 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { useLayoutEffect } from 'react';
+import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
 import AdminJobsPage from './pages/AdminJobsPage';
+import AdminCollegeDetailPage from './pages/AdminCollegeDetailPage';
+import AdminUserProfilePage from './pages/AdminUserProfilePage';
+import LearnerSummaryPage from './pages/LearnerSummaryPage';
 import CompanyJobsPage from './pages/CompanyJobsPage';
 import CompanyTalentPage from './pages/CompanyTalentPage';
 import Dashboard from './pages/Dashboard';
@@ -17,7 +22,9 @@ import LearningSubjectPage from './pages/LearningSubjectPage';
 import MaterialDetailsPage from './pages/MaterialDetailsPage';
 import MyLearningProgressPage from './pages/MyLearningProgressPage';
 import LearningManagePage from './pages/LearningManagePage';
+import { ClearSessionOnMount } from './components/auth/ClearSessionOnMount.jsx';
 import { useAuthSession } from './lib/authSession';
+import { NotificationProvider } from './context/NotificationContext.jsx';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -40,16 +47,37 @@ function RedirectDashboardLearningCategory() {
   return <Navigate to={`/dashboard/learning/subject/${categorySlug}`} replace />;
 }
 
+/** Reset window scroll on client-side navigation (e.g. landing → signup). */
+function ScrollToTopOnRouteChange() {
+  const { pathname } = useLocation();
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 function App() {
   return (
-    <>
+    <NotificationProvider>
+      <ScrollToTopOnRouteChange />
       <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route
+        path="/"
+        element={
+          <>
+            <ClearSessionOnMount />
+            <LandingPage />
+          </>
+        }
+      />
       <Route
         path="/login"
         element={
           <PublicRoute>
-            <Login />
+            <>
+              <ClearSessionOnMount />
+              <Login />
+            </>
           </PublicRoute>
         }
       />
@@ -57,7 +85,21 @@ function App() {
         path="/signup"
         element={
           <PublicRoute>
-            <Signup />
+            <>
+              <ClearSessionOnMount />
+              <Signup />
+            </>
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <PublicRoute>
+            <>
+              <ClearSessionOnMount />
+              <ForgotPassword />
+            </>
           </PublicRoute>
         }
       />
@@ -66,6 +108,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/learners/:userId"
+        element={
+          <ProtectedRoute>
+            <LearnerSummaryPage />
           </ProtectedRoute>
         }
       />
@@ -156,6 +206,22 @@ function App() {
         }
       />
       <Route
+        path="/admin/users/:userId"
+        element={
+          <ProtectedRoute>
+            <AdminUserProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/colleges/:collegeId"
+        element={
+          <ProtectedRoute>
+            <AdminCollegeDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/company/jobs"
         element={
           <ProtectedRoute>
@@ -205,7 +271,7 @@ function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-    </>
+    </NotificationProvider>
   );
 }
 

@@ -1,5 +1,11 @@
 const StudentProfile = require('../models/StudentProfile');
 const { getLearnerInsights } = require('../utils/learnerInsights');
+const {
+  CONTACT_PROFILE_KEYS,
+  validateStudentProfileContactFields,
+} = require('../utils/studentProfileFieldValidation');
+
+const USER_POPULATE_FIELDS = 'name email role profilePhoto';
 
 // @desc    Get current user's student profile
 // @route   GET /api/profile
@@ -8,7 +14,7 @@ exports.getMyProfile = async (req, res) => {
   try {
     const profile = await StudentProfile.findOne({ user: req.user._id }).populate(
       'user',
-      'name email role'
+      USER_POPULATE_FIELDS
     );
 
     if (!profile) {
@@ -24,6 +30,7 @@ exports.getMyProfile = async (req, res) => {
                 name: req.user.name,
                 email: req.user.email,
                 role: req.user.role,
+                profilePhoto: req.user.profilePhoto || '',
               },
               bio: '',
               course: '',
@@ -155,8 +162,6 @@ exports.createProfile = async (req, res) => {
       pincode,
       dateOfBirth,
       bloodGroup,
-      emergencyContactName,
-      emergencyContactPhone,
       toolsAndTechnologies,
       visibleToCompanies,
     } = req.body;
@@ -170,6 +175,22 @@ exports.createProfile = async (req, res) => {
     }
 
     const str = (v) => (typeof v === 'string' ? v.trim() : '');
+    const contactCheck = validateStudentProfileContactFields({
+      studentPhone,
+      fatherPhone,
+      motherPhone,
+      pincode,
+      dateOfBirth,
+      fatherName,
+      motherName,
+    });
+    if (!contactCheck.ok) {
+      return res.status(400).json({
+        success: false,
+        message: contactCheck.errors.join(' '),
+      });
+    }
+    const c = contactCheck.normalized;
     const profile = await StudentProfile.create({
       user: req.user._id,
       bio: str(bio),
@@ -177,19 +198,19 @@ exports.createProfile = async (req, res) => {
       branch: str(branch),
       year: str(year),
       semester: str(semester),
-      studentPhone: str(studentPhone),
-      fatherName: str(fatherName),
-      motherName: str(motherName),
-      fatherPhone: str(fatherPhone),
-      motherPhone: str(motherPhone),
+      studentPhone: c.studentPhone ?? '',
+      fatherName: c.fatherName ?? '',
+      motherName: c.motherName ?? '',
+      fatherPhone: c.fatherPhone ?? '',
+      motherPhone: c.motherPhone ?? '',
       address: str(address),
       city: str(city),
       state: str(state),
-      pincode: str(pincode),
-      dateOfBirth: str(dateOfBirth),
+      pincode: c.pincode ?? '',
+      dateOfBirth: c.dateOfBirth ?? '',
       bloodGroup: str(bloodGroup),
-      emergencyContactName: str(emergencyContactName),
-      emergencyContactPhone: str(emergencyContactPhone),
+      emergencyContactName: '',
+      emergencyContactPhone: '',
       toolsAndTechnologies: normalizeToolsList(toolsAndTechnologies),
       visibleToCompanies:
         typeof visibleToCompanies === 'boolean' ? visibleToCompanies : true,
@@ -198,7 +219,7 @@ exports.createProfile = async (req, res) => {
 
     const populated = await StudentProfile.findById(profile._id).populate(
       'user',
-      'name email role'
+      USER_POPULATE_FIELDS
     );
 
     res.status(201).json({
@@ -245,8 +266,6 @@ exports.updateProfile = async (req, res) => {
       pincode,
       dateOfBirth,
       bloodGroup,
-      emergencyContactName,
-      emergencyContactPhone,
       toolsAndTechnologies,
       visibleToCompanies,
     } = req.body;
@@ -260,21 +279,26 @@ exports.updateProfile = async (req, res) => {
     if (branch !== undefined) updateFields.branch = trimStr(branch);
     if (year !== undefined) updateFields.year = trimStr(year);
     if (semester !== undefined) updateFields.semester = trimStr(semester);
-    if (studentPhone !== undefined) updateFields.studentPhone = trimStr(studentPhone);
-    if (fatherName !== undefined) updateFields.fatherName = trimStr(fatherName);
-    if (motherName !== undefined) updateFields.motherName = trimStr(motherName);
-    if (fatherPhone !== undefined) updateFields.fatherPhone = trimStr(fatherPhone);
-    if (motherPhone !== undefined) updateFields.motherPhone = trimStr(motherPhone);
+    const contactPick = {};
+    for (const k of CONTACT_PROFILE_KEYS) {
+      if (req.body[k] !== undefined) contactPick[k] = req.body[k];
+    }
+    if (Object.keys(contactPick).length) {
+      const contactCheck = validateStudentProfileContactFields(contactPick);
+      if (!contactCheck.ok) {
+        return res.status(400).json({
+          success: false,
+          message: contactCheck.errors.join(' '),
+        });
+      }
+      Object.assign(updateFields, contactCheck.normalized);
+    }
     if (address !== undefined) updateFields.address = trimStr(address);
     if (city !== undefined) updateFields.city = trimStr(city);
     if (state !== undefined) updateFields.state = trimStr(state);
-    if (pincode !== undefined) updateFields.pincode = trimStr(pincode);
-    if (dateOfBirth !== undefined) updateFields.dateOfBirth = trimStr(dateOfBirth);
     if (bloodGroup !== undefined) updateFields.bloodGroup = trimStr(bloodGroup);
-    if (emergencyContactName !== undefined)
-      updateFields.emergencyContactName = trimStr(emergencyContactName);
-    if (emergencyContactPhone !== undefined)
-      updateFields.emergencyContactPhone = trimStr(emergencyContactPhone);
+    updateFields.emergencyContactName = '';
+    updateFields.emergencyContactPhone = '';
     if (toolsAndTechnologies !== undefined) {
       updateFields.toolsAndTechnologies = normalizeToolsList(toolsAndTechnologies);
     }
@@ -307,7 +331,7 @@ exports.updateProfile = async (req, res) => {
       { user: req.user._id },
       updateFields,
       { new: true, runValidators: true }
-    ).populate('user', 'name email role');
+    ).populate('user', USER_POPULATE_FIELDS);
 
     if (!profile) {
       return res.status(404).json({
@@ -364,7 +388,7 @@ exports.updateSkills = async (req, res) => {
       { user: req.user._id },
       updateFields,
       { new: true, runValidators: true }
-    ).populate('user', 'name email role');
+    ).populate('user', USER_POPULATE_FIELDS);
 
     if (!profile) {
       return res.status(404).json({

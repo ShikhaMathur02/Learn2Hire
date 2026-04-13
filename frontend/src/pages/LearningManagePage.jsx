@@ -14,13 +14,12 @@ import { NavDropdown } from "../components/ui/nav-dropdown";
 import { Card, CardContent } from "../components/ui/card";
 import { readApiResponse } from "../lib/api";
 import {
+  ALL_COHORT_DEGREE_PRESETS,
   COHORT_BRANCH_PRESETS,
   COHORT_OTHER,
-  COHORT_PROGRAM_GROUPS,
   COHORT_SEMESTER_PRESETS,
   COHORT_YEAR_PRESETS,
   cohortDegreeRequiresBranch,
-  degreesForProgram,
 } from "../lib/cohortPresets";
 
 const EDITOR_ROLES = new Set(["faculty", "admin", "college"]);
@@ -64,7 +63,6 @@ function LearningManagePage() {
   const [targetBranch, setTargetBranch] = useState("");
   const [targetYear, setTargetYear] = useState("");
   const [targetSemester, setTargetSemester] = useState("");
-  const [cohortProgramId, setCohortProgramId] = useState("");
   const [cohortCustomCourse, setCohortCustomCourse] = useState(false);
   const [cohortCustomBranch, setCohortCustomBranch] = useState(false);
   const [cohortCustomYear, setCohortCustomYear] = useState(false);
@@ -285,24 +283,17 @@ function LearningManagePage() {
         .filter(Boolean);
 
       if (audience === "cohort") {
-        if (!cohortProgramId) {
-          throw new Error("Select a program for cohort materials.");
-        }
         if (!targetCourse.trim()) {
-          throw new Error("Select a course / degree for cohort materials.");
+          throw new Error("Select a program for course-targeted materials.");
         }
-        const needsEngBranch =
-          cohortDegreeRequiresBranch(targetCourse) ||
-          (cohortCustomCourse && cohortProgramId === "engineering");
+        const needsEngBranch = cohortDegreeRequiresBranch(targetCourse);
         if (needsEngBranch && !targetBranch.trim()) {
           throw new Error("Engineering (B.Tech / Diploma) materials need a branch such as CSE or EE.");
         }
       }
 
       const needsEngBranchPayload =
-        audience === "cohort" &&
-        (cohortDegreeRequiresBranch(targetCourse) ||
-          (cohortCustomCourse && cohortProgramId === "engineering"));
+        audience === "cohort" && cohortDegreeRequiresBranch(targetCourse);
 
       const body = {
         title: title.trim(),
@@ -387,9 +378,7 @@ function LearningManagePage() {
   const inputClass =
     "mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
 
-  const showCohortBranchField =
-    cohortDegreeRequiresBranch(targetCourse) ||
-    (cohortCustomCourse && cohortProgramId === "engineering");
+  const showCohortBranchField = audience === "cohort";
 
   return (
     <div className="min-h-screen bg-slate-950 px-3 py-6 text-slate-100 sm:px-4 sm:py-8">
@@ -402,7 +391,7 @@ function LearningManagePage() {
                 Add study material
               </h1>
               <p className="mt-2 max-w-xl text-sm text-slate-400">
-                Publish to the whole catalog, or restrict to a cohort by matching each student&apos;s program,
+                Publish to the whole catalog, or restrict to a course by matching each student&apos;s program,
                 degree, branch (engineering only), year, and semester on their profile.
               </p>
             </div>
@@ -747,7 +736,7 @@ function LearningManagePage() {
                     <div>
                       <p className="text-sm font-semibold text-white">Who can see this?</p>
                       <p className="mt-1 text-xs text-slate-400">
-                        Cohort materials match{" "}
+                        Course-targeted materials match{" "}
                         <span className="text-slate-200">degree, branch (engineering only), year,</span>{" "}
                         and <span className="text-slate-200">semester</span> on each student&apos;s
                         profile (values are compared in a normalized form).
@@ -777,55 +766,26 @@ function LearningManagePage() {
 
                   {audience === "cohort" ? (
                     <div className="mt-4 space-y-4">
-                      <p className="text-xs text-slate-500">
-                        Choose the program track, then the degree (e.g. B.Tech, B.Pharma). Branch is
-                        only for engineering (B.Tech / Diploma).
+                                           <p className="text-xs text-slate-500">
+                        Use the same program, branch, year, and semester lists as student signup. B.Tech
+                        and Diploma courses require a branch. Year and semester must match what students
+                        select on their profile (compared in normalized form).
                       </p>
                       <div className="flex flex-wrap gap-4">
                         <div className="min-w-[160px] flex-1">
                           <label
                             className="text-xs font-medium text-slate-400"
-                            htmlFor="lm-prog-select"
+                            htmlFor="lm-program-select"
                           >
                             Program
                           </label>
                           <select
-                            id="lm-prog-select"
+                            id="lm-program-select"
                             className={`${inputClass} mt-1`}
-                            value={cohortProgramId}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setCohortProgramId(v);
-                              setTargetCourse("");
-                              setCohortCustomCourse(false);
-                              setTargetBranch("");
-                              setCohortCustomBranch(false);
-                            }}
-                            required={audience === "cohort"}
-                          >
-                            <option value="">Select program…</option>
-                            {COHORT_PROGRAM_GROUPS.map((g) => (
-                              <option key={g.id} value={g.id}>
-                                {g.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="min-w-[160px] flex-1">
-                          <label
-                            className="text-xs font-medium text-slate-400"
-                            htmlFor="lm-degree-select"
-                          >
-                            Course / degree
-                          </label>
-                          <select
-                            id="lm-degree-select"
-                            className={`${inputClass} mt-1`}
-                            disabled={!cohortProgramId}
                             value={
                               !targetCourse
                                 ? ""
-                                : degreesForProgram(cohortProgramId).includes(targetCourse)
+                                : ALL_COHORT_DEGREE_PRESETS.includes(targetCourse)
                                   ? targetCourse
                                   : COHORT_OTHER
                             }
@@ -848,25 +808,23 @@ function LearningManagePage() {
                             }}
                             required={audience === "cohort" && !cohortCustomCourse}
                           >
-                            <option value="">
-                              {cohortProgramId ? "Select degree…" : "Choose a program first"}
-                            </option>
-                            {degreesForProgram(cohortProgramId).map((d) => (
-                              <option key={d} value={d}>
-                                {d === "B.Sc" ? "B.Sc (Nursing)" : d}
+                            <option value="">Select program</option>
+                            {ALL_COHORT_DEGREE_PRESETS.map((p) => (
+                              <option key={p} value={p}>
+                                {p}
                               </option>
                             ))}
                             <option value={COHORT_OTHER}>Other…</option>
                           </select>
                           {cohortCustomCourse ? (
                             <input
-                              id="lm-degree-custom"
+                              id="lm-program-custom"
                               className={`${inputClass} mt-2`}
                               value={targetCourse}
                               onChange={(e) => setTargetCourse(e.target.value)}
-                              placeholder="e.g. M.E."
+                              placeholder="e.g. B.Arch"
                               required={audience === "cohort"}
-                              aria-label="Custom degree"
+                              aria-label="Custom program"
                             />
                           ) : null}
                         </div>
@@ -929,7 +887,7 @@ function LearningManagePage() {
                             className="text-xs font-medium text-slate-400"
                             htmlFor="lm-year-select"
                           >
-                            Year (1–4)
+                            Year
                           </label>
                           <select
                             id="lm-year-select"
@@ -956,10 +914,10 @@ function LearningManagePage() {
                             }}
                             required={audience === "cohort" && !cohortCustomYear}
                           >
-                            <option value="">Select year…</option>
+                            <option value="">Select year</option>
                             {COHORT_YEAR_PRESETS.map((y) => (
                               <option key={y} value={y}>
-                                Year {y}
+                                {y}
                               </option>
                             ))}
                             <option value={COHORT_OTHER}>Other…</option>
@@ -1010,7 +968,7 @@ function LearningManagePage() {
                             <option value="">All semesters in this year</option>
                             {COHORT_SEMESTER_PRESETS.map((s) => (
                               <option key={s} value={s}>
-                                Semester {s}
+                                {s}
                               </option>
                             ))}
                             <option value={COHORT_OTHER}>Other…</option>

@@ -10,7 +10,10 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../lib/api";
-import { DashboardTopNav } from "../components/dashboard/DashboardTopNav";
+import {
+  DashboardTopNav,
+  workspaceDashboardHeaderClassName,
+} from "../components/dashboard/DashboardTopNav";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 
@@ -171,24 +174,24 @@ function CompanyTalentPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
       <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
-          <DashboardTopNav
-            className="mb-0 rounded-none border-x-0 border-t-0 bg-slate-950/55 px-5 py-3 backdrop-blur-xl sm:px-6 sm:py-4 xl:px-7"
-            workspaceLabel="Company Workspace"
-            title="Talent pool"
-            description="Browse learners who opted in, see what they study and which tools they use, then express interest for a role."
-            user={{ name: user.name, email: user.email, role: user.role }}
-            onLogout={() => {
-              localStorage.removeItem("token");
-              localStorage.removeItem("user");
-              navigate("/login");
-            }}
-            actionItems={[
-              { label: "Manage jobs", to: "/company/jobs" },
-              { label: "Company home", onClick: () => navigate("/dashboard") },
-            ]}
-          />
+        <DashboardTopNav
+          className={workspaceDashboardHeaderClassName}
+          workspaceLabel="Company Workspace"
+          title="Talent pool"
+          description="Browse learners who opted in, see what they study and which tools they use, then express interest for a role."
+          user={{ name: user.name, email: user.email, role: user.role }}
+          onLogout={() => {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            navigate("/login");
+          }}
+          actionItems={[
+            { label: "Manage jobs", to: "/company/jobs" },
+            { label: "Company home", onClick: () => navigate("/dashboard") },
+          ]}
+        />
 
+        <div className="mt-4 rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
           <div className="space-y-6 p-5 sm:p-6 xl:p-7">
             <div className="flex flex-wrap items-center gap-3">
               <Button type="button" variant="outline" onClick={() => navigate("/dashboard")}>
@@ -226,7 +229,7 @@ function CompanyTalentPage() {
                       className={`${inputClass} mt-1`}
                       value={filterQ}
                       onChange={(e) => setFilterQ(e.target.value)}
-                      placeholder="Name, bio, cohort, tools…"
+                      placeholder="Name, bio, course, tools…"
                     />
                   </div>
                   <div className="w-full lg:w-56">
@@ -259,11 +262,18 @@ function CompanyTalentPage() {
                 <div className="space-y-3">
                   {talent.length ? (
                     talent.map((row) => (
-                      <button
+                      <div
                         key={row.userId}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => openDetail(row.userId)}
-                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openDetail(row.userId);
+                          }
+                        }}
+                        className={`w-full cursor-pointer rounded-2xl border p-4 text-left transition outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
                           detailUserId === row.userId
                             ? "border-cyan-400/50 bg-cyan-500/10"
                             : "border-white/10 bg-slate-900/50 hover:border-white/20"
@@ -278,7 +288,7 @@ function CompanyTalentPage() {
                             <p className="truncate text-xs text-slate-400">{row.email}</p>
                             <p className="mt-1 text-xs text-slate-500">
                               {[row.course, row.branch, row.year].filter(Boolean).join(" · ") ||
-                                "Cohort not set"}
+                                "Course not set"}
                             </p>
                             {row.toolsAndTechnologies?.length ? (
                               <p className="mt-2 line-clamp-2 text-xs text-slate-400">
@@ -286,9 +296,17 @@ function CompanyTalentPage() {
                                 {row.toolsAndTechnologies.length > 6 ? "…" : ""}
                               </p>
                             ) : null}
+                            <Link
+                              to={`/dashboard/learners/${row.userId}`}
+                              className="mt-2 inline-block text-xs font-medium text-cyan-300 underline-offset-4 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              Open profile page
+                            </Link>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     ))
                   ) : (
                     <p className="text-sm text-slate-500">No matching learners right now.</p>

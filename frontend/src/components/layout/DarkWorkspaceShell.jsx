@@ -152,7 +152,7 @@ function DarkWorkspaceShell({
           </div>
         </div>
 
-        <div className="min-w-0 flex-1 p-3 sm:p-4">
+        <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
           <DashboardTopNav
             bleed
             workspaceLabel={workspaceLabel}
@@ -168,9 +168,9 @@ function DarkWorkspaceShell({
             showHistoryBack={showHistoryBack}
             actionItems={actionItems}
             actions={actions}
-            className={topNavClassName}
+            className={cn("shrink-0", topNavClassName)}
           />
-          {children}
+          <div className="min-w-0 flex-1">{children}</div>
         </div>
       </div>
 

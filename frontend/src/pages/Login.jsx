@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
 import AuthField from "../components/auth/AuthField";
+import PasswordInput from "../components/auth/PasswordInput";
 import AuthLayout from "../components/auth/AuthLayout";
 import { Button } from "../components/ui/button";
 import { notifyAuthChange } from "../lib/authSession";
@@ -42,6 +43,33 @@ function Login() {
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
+  };
+
+  /** Blur only the field that lost focus so “Forgot password?” does not require password. */
+  const validateEmailOnBlur = () => {
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (!email.trim()) {
+        next.email = "Email is required.";
+      } else if (!emailPattern.test(email)) {
+        next.email = "Enter a valid email address.";
+      } else {
+        delete next.email;
+      }
+      return next;
+    });
+  };
+
+  const validatePasswordOnBlur = () => {
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (!password.trim()) {
+        next.password = "Password is required.";
+      } else {
+        delete next.password;
+      }
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -113,7 +141,7 @@ function Login() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            onBlur={validate}
+            onBlur={validateEmailOnBlur}
             placeholder="you@example.com"
             autoComplete="email"
             disabled={loading}
@@ -122,18 +150,26 @@ function Login() {
         </AuthField>
 
         <AuthField label="Password" htmlFor="password" error={errors.password}>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onBlur={validate}
+            onBlur={validatePasswordOnBlur}
             placeholder="Enter your password"
             autoComplete="current-password"
             disabled={loading}
             className={inputClassName}
           />
         </AuthField>
+
+        <div className="flex justify-end">
+          <Link
+            to="/forgot-password"
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
         <Button
           type="submit"

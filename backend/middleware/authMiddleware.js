@@ -42,17 +42,35 @@ const protect = async (req, res, next) => {
     const role = String(user.role || '')
       .trim()
       .toLowerCase();
-    if (role === 'faculty') {
+       if (role === 'faculty') {
       const st = user.facultyApprovalStatus;
       if (st === 'pending' || st === 'rejected') {
         const url = String(req.originalUrl || '');
-        if (!url.startsWith('/api/auth/me')) {
+        const allowedWhilePending =
+          url.startsWith('/api/auth/me') || url.startsWith('/api/profile/photo');
+        if (!allowedWhilePending) {
           return res.status(403).json({
             success: false,
             message:
               st === 'pending'
                 ? 'Your faculty account is awaiting approval from your college.'
                 : 'Your faculty account was not approved. Contact your college for help.',
+          });
+        }
+      }
+    }
+
+    if (role === 'college') {
+      const cst = user.collegeApprovalStatus;
+      if (cst === 'pending' || cst === 'rejected') {
+        const url = String(req.originalUrl || '');
+        if (!url.startsWith('/api/auth/me')) {
+          return res.status(403).json({
+            success: false,
+            message:
+              cst === 'pending'
+                ? 'Your college account is awaiting approval from a Learn2Hire administrator.'
+                : 'Your college account was not approved. Contact support for help.',
           });
         }
       }
@@ -111,6 +129,13 @@ const optionalProtect = async (req, res, next) => {
       if (role === 'faculty') {
         const st = user.facultyApprovalStatus;
         if (st === 'pending' || st === 'rejected') {
+          req.user = undefined;
+        } else {
+          req.user = user;
+        }
+      } else if (role === 'college') {
+        const cst = user.collegeApprovalStatus;
+        if (cst === 'pending' || cst === 'rejected') {
           req.user = undefined;
         } else {
           req.user = user;

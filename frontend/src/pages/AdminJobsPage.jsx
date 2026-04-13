@@ -368,7 +368,7 @@ function AdminJobsPage() {
                 onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
                 className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
               >
-                <option value="">All statuses</option>
+                <option value="">All status</option>
                 <option value="draft">Draft</option>
                 <option value="open">Open</option>
                 <option value="closed">Closed</option>
