@@ -15,15 +15,15 @@ import { Card, CardContent } from "../components/ui/card";
 
 function AdminJobsPage() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [jobs, setJobs] = useState([]);
-  const [selectedJobId, setSelectedJobId] = useState("");
-  const [applications, setApplications] = useState([]);
-  const [filters, setFilters] = useState({
+  const [user, setUser] = useState(null); //current logged-in user
+  const [jobs, setJobs] = useState([]); //jobs ka list store karega
+  const [selectedJobId, setSelectedJobId] = useState(""); //selected job ka id
+  const [applications, setApplications] = useState([]); //job user ne select ki hai
+  const [filters, setFilters] = useState({ 
     search: "",
     company: "",
     status: "",
-  });
+  }); 
   const [statusDraft, setStatusDraft] = useState("draft");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
