@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -19,7 +19,7 @@ import {
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 
-const roleOptions = ["student", "alumni", "faculty", "company", "admin", "college"];
+const roleOptions = ["student", "faculty", "company", "admin", "college"];
 
 const emptyStudentForm = {
   course: "",
@@ -69,6 +69,13 @@ function formatCollegeStatus(c) {
   return "Approved";
 }
 
+function formatPlatformStatus(s) {
+  if (s === "pending") return "Pending platform approval";
+  if (s === "rejected") return "Rejected by platform";
+  if (s === "approved") return "Approved";
+  return "Approved (legacy)";
+}
+
 function InfoRow({ label, value }) {
   return (
     <div className="rounded-xl border border-white/10 bg-slate-900/40 px-4 py-3">
@@ -94,6 +101,7 @@ export default function AdminUserProfilePage() {
   const [studentForm, setStudentForm] = useState(emptyStudentForm);
   const [facultyQualification, setFacultyQualification] = useState("");
   const [facultySubjects, setFacultySubjects] = useState("");
+  const [platformApprovalBusy, setPlatformApprovalBusy] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -161,7 +169,7 @@ export default function AdminUserProfilePage() {
     user &&
     viewer &&
     String(viewer._id ?? viewer.id ?? "") !== String(user._id) &&
-    ["student", "alumni", "faculty", "company"].includes(user.role);
+    ["student", "faculty", "company"].includes(user.role);
 
   const handleSave = async () => {
     const token = localStorage.getItem("token");
@@ -183,7 +191,7 @@ export default function AdminUserProfilePage() {
         if (!res.ok) throw new Error(data.message || "Role update failed.");
       }
 
-      if ((editRole === "student" || editRole === "alumni") && studentForm) {
+      if (editRole === "student" && studentForm) {
         const contactCheck = validateStudentProfileExtraFields(studentForm);
         if (!contactCheck.ok) {
           setError(contactCheck.errors.join(" "));
@@ -221,6 +229,32 @@ export default function AdminUserProfilePage() {
       setError(e.message || "Save failed.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePlatformApproval = async (decision) => {
+    const token = localStorage.getItem("token");
+    if (!token || !userId) return;
+    setPlatformApprovalBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/platform-approval`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await readApiResponse(res);
+      if (!res.ok) throw new Error(data.message || "Approval update failed.");
+      setSuccess(data.message || "Updated.");
+      await load();
+    } catch (e) {
+      setError(e.message || "Approval update failed.");
+    } finally {
+      setPlatformApprovalBusy(false);
     }
   };
 
@@ -267,12 +301,12 @@ export default function AdminUserProfilePage() {
         ? Factory
         : user?.role === "faculty"
           ? UserRound
-          : user?.role === "student" || user?.role === "alumni"
+          : user?.role === "student"
             ? GraduationCap
             : UserRound;
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
       <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
@@ -364,6 +398,37 @@ export default function AdminUserProfilePage() {
                     value={user.updatedAt ? new Date(user.updatedAt).toLocaleString() : "—"}
                   />
                 </div>
+
+                {user.role === "company" ? (
+                  <div className="rounded-xl border border-sky-400/25 bg-sky-500/10 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-200/90">
+                      Company registration (admin)
+                    </p>
+                    <p className="mt-1 text-sm text-slate-200">{formatPlatformStatus(user.platformApprovalStatus)}</p>
+                    {user.platformApprovalStatus === "pending" ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="success"
+                          className="h-10"
+                          disabled={platformApprovalBusy}
+                          onClick={() => handlePlatformApproval("approved")}
+                        >
+                          Approve account
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          className="h-10"
+                          disabled={platformApprovalBusy}
+                          onClick={() => handlePlatformApproval("rejected")}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div>
                   <label className="text-xs font-medium text-slate-400">Change role</label>
@@ -472,7 +537,7 @@ export default function AdminUserProfilePage() {
               </Card>
             ) : null}
 
-            {user.role === "student" || user.role === "alumni" ? (
+            {user.role === "student" ? (
               <Card className="border border-white/10 bg-slate-950/50 shadow-none">
                 <CardContent className="space-y-5 p-6">
                   <h2 className="text-lg font-semibold text-white">Student record</h2>
@@ -632,3 +697,4 @@ export default function AdminUserProfilePage() {
     </div>
   );
 }
+

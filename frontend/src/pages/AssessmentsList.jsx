@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ClipboardList, LoaderCircle, Sparkles } from "lucide-react";
 
@@ -77,7 +77,7 @@ function AssessmentsList() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-200">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading assessments...
@@ -87,20 +87,20 @@ function AssessmentsList() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-3 py-5 text-slate-50 sm:px-4 sm:py-6">
       <div className="w-full">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-300">
               <Link to="/dashboard" className="transition hover:text-white">
                 Dashboard
               </Link>
               <span>/</span>
-              <span className="text-slate-300">Assessments</span>
+              <span className="text-slate-200">Assessments</span>
             </div>
-            <p className="text-sm font-medium text-cyan-300">Student Workspace</p>
-            <h1 className="mt-1 text-3xl font-bold">Published Assessments</h1>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="text-sm font-medium text-cyan-200">Student Workspace</p>
+            <h1 className="mt-1 text-3xl font-bold text-white">Published Assessments</h1>
+            <p className="mt-2 text-sm text-slate-300">
               Access all currently published assessments and continue from your dashboard.
             </p>
           </div>
@@ -123,6 +123,9 @@ function AssessmentsList() {
               const percentage = submission?.maxScore
                 ? Math.round((submission.score / submission.maxScore) * 100)
                 : 0;
+              const qCount = assessment.questions?.length || 0;
+              const hasPaper = Boolean(assessment.questionPaper?.relativePath);
+              const isDocumentOnly = hasPaper && qCount === 0;
 
               return (
                 <Card
@@ -146,14 +149,18 @@ function AssessmentsList() {
 
                     <div className="mt-4 space-y-2 text-sm text-slate-400">
                       <p>Skill: {assessment.skill || "General"}</p>
-                      <p>Questions: {assessment.questions?.length || 0}</p>
+                      <p>
+                        {isDocumentOnly
+                          ? "Format: Question paper (download)"
+                          : `Questions: ${qCount}`}
+                      </p>
                       <p>
                         Time Limit:{" "}
                         {assessment.timeLimit ? `${assessment.timeLimit} mins` : "No limit"}
                       </p>
                     </div>
 
-                    {attempted ? (
+                    {attempted && !isDocumentOnly ? (
                       <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
                         <p className="text-sm font-medium text-emerald-200">Already submitted</p>
                         <p className="mt-1 text-sm text-emerald-100/80">
@@ -165,7 +172,11 @@ function AssessmentsList() {
                     <div className="mt-5">
                       <Button asChild className="w-full">
                         <Link to={`/assessments/${assessment._id}`}>
-                          {attempted ? "View Result" : "Start Assessment"}
+                          {attempted && !isDocumentOnly
+                            ? "View Result"
+                            : isDocumentOnly
+                              ? "Open question paper"
+                              : "Start Assessment"}
                         </Link>
                       </Button>
                     </div>
@@ -195,3 +206,4 @@ function AssessmentsList() {
 }
 
 export default AssessmentsList;
+

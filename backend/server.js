@@ -1,6 +1,6 @@
-require('dotenv').config();
-
 const path = require('path');
+// Always load backend/.env (not cwd) so SMTP and Mongo work when the server is started from another folder.
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');

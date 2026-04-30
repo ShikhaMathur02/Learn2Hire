@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -21,6 +21,8 @@ const emptyForm = {
   employmentType: "full-time",
   skillsRequired: "",
   status: "draft",
+  postingAudience: "all_colleges",
+  targetCollegeId: "",
 };
 
 function mapJobToForm(job) {
@@ -33,6 +35,8 @@ function mapJobToForm(job) {
     employmentType: job.employmentType || "full-time",
     skillsRequired: Array.isArray(job.skillsRequired) ? job.skillsRequired.join(", ") : "",
     status: job.status || "draft",
+    postingAudience: job.postingAudience === "single_college" ? "single_college" : "all_colleges",
+    targetCollegeId: job.targetCollege?._id || job.targetCollege || "",
   };
 }
 
@@ -42,6 +46,7 @@ function CompanyJobsPage() {
   const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState("");
   const [applications, setApplications] = useState([]);
+  const [interests, setInterests] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,6 +54,7 @@ function CompanyJobsPage() {
   const [updatingApplicationId, setUpdatingApplicationId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [colleges, setColleges] = useState([]);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job._id === selectedJobId) || null,
@@ -147,6 +153,45 @@ function CompanyJobsPage() {
     [navigate]
   );
 
+  const fetchInterests = useCallback(
+    async (jobId) => {
+      if (!jobId) {
+        setInterests([]);
+        return;
+      }
+
+      const token = localStorage.getItem("token");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      const response = await fetch(`/api/jobs/${jobId}/interests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await readApiResponse(
+        response,
+        "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
+      );
+
+      if (response.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        navigate("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        setInterests([]);
+        return;
+      }
+
+      setInterests(data.data?.interests || []);
+    },
+    [navigate]
+  );
+
   const refreshPage = useCallback(async () => {
     try {
       setError("");
@@ -162,19 +207,42 @@ function CompanyJobsPage() {
 
       if (nextSelectedJobId) {
         await fetchApplications(nextSelectedJobId);
+        await fetchInterests(nextSelectedJobId);
       } else {
         setApplications([]);
+        setInterests([]);
       }
     } catch (err) {
       setError(err.message || "Unable to load company jobs.");
     } finally {
       setLoading(false);
     }
-  }, [fetchApplications, fetchJobs, selectedJobId]);
+  }, [fetchApplications, fetchInterests, fetchJobs, selectedJobId]);
 
   useEffect(() => {
     refreshPage();
   }, [refreshPage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/approved-colleges");
+        const data = await readApiResponse(
+          res,
+          "Colleges list returned an unexpected response."
+        );
+        if (!res.ok || cancelled) return;
+        const list = data.data?.colleges ?? [];
+        setColleges(list.filter((c) => c.collegeApprovalStatus !== "rejected"));
+      } catch {
+        /* non-blocking */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (selectedJob) {
@@ -190,8 +258,33 @@ function CompanyJobsPage() {
 
     try {
       await fetchApplications(job._id);
+      await fetchInterests(job._id);
     } catch (err) {
       setError(err.message || "Unable to load applications for this job.");
+    }
+  };
+
+  const handleDownloadApplicantResume = async (studentId, downloadName) => {
+    const token = localStorage.getItem("token");
+    if (!token || !selectedJobId || !studentId) return;
+    setError("");
+    try {
+      const res = await fetch(`/api/jobs/${selectedJobId}/students/${studentId}/resume`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await readApiResponse(res);
+        throw new Error(data.message || "Could not download résumé.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = downloadName || "resume.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || "Résumé download failed.");
     }
   };
 
@@ -200,6 +293,11 @@ function CompanyJobsPage() {
 
     if (!selectedJobId) {
       setError("Select a job first.");
+      return;
+    }
+
+    if (form.postingAudience === "single_college" && !form.targetCollegeId.trim()) {
+      setError('Select a college for a campus-only listing, or choose "All partner colleges".');
       return;
     }
 
@@ -226,6 +324,8 @@ function CompanyJobsPage() {
             .split(",")
             .map((item) => item.trim())
             .filter(Boolean),
+          targetCollegeId:
+            form.postingAudience === "single_college" ? form.targetCollegeId.trim() : undefined,
         }),
       });
 
@@ -398,7 +498,7 @@ function CompanyJobsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading company jobs...
@@ -408,7 +508,7 @@ function CompanyJobsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
       <div className="w-full">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -483,9 +583,18 @@ function CompanyJobsPage() {
                             </div>
                           </div>
                         </div>
-                        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium capitalize text-slate-200">
-                          {job.status}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium capitalize text-slate-200">
+                            {job.status}
+                          </span>
+                          {job.postingAudience === "single_college" && job.targetCollege?.name ? (
+                            <span className="max-w-[10rem] text-right text-[11px] text-amber-200/90">
+                              {job.targetCollege.name} only
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-500">All colleges</span>
+                          )}
+                        </div>
                       </div>
                     </button>
                   ))
@@ -562,6 +671,48 @@ function CompanyJobsPage() {
                       <option value="open">Open</option>
                       <option value="closed">Closed</option>
                     </select>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-300">
+                        Visibility
+                      </label>
+                      <select
+                        value={form.postingAudience}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            postingAudience: e.target.value,
+                            targetCollegeId:
+                              e.target.value === "single_college" ? prev.targetCollegeId : "",
+                          }))
+                        }
+                        className={inputClassName}
+                      >
+                        <option value="all_colleges">All partner colleges on Learn2Hire</option>
+                        <option value="single_college">One specific college only</option>
+                      </select>
+                    </div>
+                    {form.postingAudience === "single_college" ? (
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-300">
+                          College
+                        </label>
+                        <select
+                          value={form.targetCollegeId}
+                          onChange={(e) =>
+                            setForm((prev) => ({ ...prev, targetCollegeId: e.target.value }))
+                          }
+                          className={inputClassName}
+                          required
+                        >
+                          <option value="">Select a college…</option>
+                          {colleges.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
                     <textarea
                       value={form.description}
                       onChange={(e) =>
@@ -723,17 +874,6 @@ function CompanyJobsPage() {
                           ) : null}
 
                           <div className="flex flex-wrap gap-3">
-                            {application.resumeLink ? (
-                              <a
-                                href={application.resumeLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
-                              >
-                                Resume Link
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            ) : null}
                             {application.portfolioLink ? (
                               <a
                                 href={application.portfolioLink}
@@ -744,6 +884,22 @@ function CompanyJobsPage() {
                                 Portfolio Link
                                 <ExternalLink className="h-4 w-4" />
                               </a>
+                            ) : null}
+                            {application.hasResumeFile && application.student?._id ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="border-cyan-400/40 text-cyan-100"
+                                onClick={() =>
+                                  handleDownloadApplicantResume(
+                                    application.student._id,
+                                    application.resumeOriginalName
+                                  )
+                                }
+                              >
+                                <FileText className="h-4 w-4" />
+                                Download résumé
+                              </Button>
                             ) : null}
                           </div>
 
@@ -777,6 +933,60 @@ function CompanyJobsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="border border-white/10 bg-white/5 shadow-none">
+              <CardContent className="p-6">
+                <h2 className="text-2xl font-bold text-white">Interested candidates</h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Learners who notified you of interest before applying. Their snapshot résumé (if any)
+                  is from when they clicked interest.
+                </p>
+                <div className="mt-6 space-y-4">
+                  {interests.length ? (
+                    interests.map((row) => (
+                      <div
+                        key={row._id}
+                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <h3 className="font-semibold text-white">
+                              {row.student?.name || "Learner"}
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-400">{row.student?.email}</p>
+                            {row.message ? (
+                              <p className="mt-2 text-sm text-slate-300">{row.message}</p>
+                            ) : null}
+                          </div>
+                          {row.hasResumeFile && row.student?._id ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="shrink-0 border-cyan-400/40 text-cyan-100"
+                              onClick={() =>
+                                handleDownloadApplicantResume(
+                                  row.student._id,
+                                  row.resumeOriginalName
+                                )
+                              }
+                            >
+                              <FileText className="h-4 w-4" />
+                              Download résumé
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-slate-500">No file résumé on record</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                      No interest notifications for this job yet.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
@@ -785,3 +995,4 @@ function CompanyJobsPage() {
 }
 
 export default CompanyJobsPage;
+

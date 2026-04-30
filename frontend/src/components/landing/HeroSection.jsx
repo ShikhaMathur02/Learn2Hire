@@ -20,7 +20,7 @@ function HeroSection() {
           <h1 className="mt-5 text-5xl font-extrabold leading-tight sm:text-6xl">
             Bridging the gap between Education &amp; Employment
           </h1>
-          <p className="mt-6 text-lg text-white/85 sm:text-xl">
+          <p className="mt-6 text-lg text-white/92 sm:text-xl">
             An end-to-end platform connecting students, colleges, and
             recruiters with AI-powered learning, performance tracking, and
             placement solutions.
@@ -33,7 +33,7 @@ function HeroSection() {
               <a href="#how-it-works">See How It Works</a>
             </Button>
           </div>
-          <div className="mt-6 flex flex-wrap gap-4 text-sm text-white/70 sm:gap-6">
+          <div className="mt-6 flex flex-wrap gap-4 text-sm text-white/85 sm:gap-6">
             <span>✓ Free for students</span>
             <span>✓ College & recruiter portal</span>
             <span>✓ Saved learning progress</span>

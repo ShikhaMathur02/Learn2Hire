@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BookOpenCheck,
@@ -17,30 +17,20 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../../lib/api";
 import {
+  STUDENT_COHORT_BRANCH_OPTIONS,
+  STUDENT_COHORT_PROGRAM_OPTIONS,
+  STUDENT_COHORT_SEMESTER_OPTIONS,
+  STUDENT_COHORT_YEAR_OPTIONS,
+} from "../../lib/studentCohortFieldOptions";
+import {
   DashboardTopNav,
   workspaceDashboardHeaderClassName,
 } from "../dashboard/DashboardTopNav";
+import { DashboardMetricCard } from "../dashboard/DashboardMetricCard";
+import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
-
-function MetricCard({ title, value, subtitle, icon: Icon }) {
-  return (
-    <Card className="border border-white/10 bg-white/5 shadow-[0_18px_40px_rgba(2,6,23,0.25)]">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-slate-400">{title}</p>
-            <h3 className="mt-3 text-3xl font-bold text-white">{value}</h3>
-            <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
-          </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
-            <Icon className="h-6 w-6" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+import { VisibleFileInput } from "../ui/visible-file-input";
 
 function formatSnapshotLabel(iso) {
   if (!iso) return "";
@@ -98,6 +88,10 @@ function CollegeDashboard({ user, onLogout }) {
   const [materialCategoryId, setMaterialCategoryId] = useState("");
   const [materialTitle, setMaterialTitle] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [importCourse, setImportCourse] = useState("");
+  const [importProgram, setImportProgram] = useState("");
+  const [importYear, setImportYear] = useState("");
+  const [importSemester, setImportSemester] = useState("");
 
   const fetchInsights = useCallback(
     async ({ silent } = {}) => {
@@ -353,12 +347,20 @@ function CollegeDashboard({ user, onLogout }) {
   const handleCollegeStudentImport = async () => {
     const token = localStorage.getItem("token");
     if (!token || !studentSheetFile) return;
+    if (!importCourse.trim() || !importProgram.trim() || !importYear.trim()) {
+      setPeopleError("Select the class (course, program, year) this file belongs to. Each row must match those values.");
+      return;
+    }
     setPeopleError("");
     setPeopleMessage("");
     setBulkBusy(true);
     try {
       const fd = new FormData();
       fd.append("file", studentSheetFile);
+      fd.append("targetCourse", importCourse.trim());
+      fd.append("targetProgram", importProgram.trim());
+      fd.append("targetYear", importYear.trim());
+      fd.append("targetSemester", importSemester.trim());
       const res = await fetch("/api/college/roster/import/students", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -443,7 +445,7 @@ function CollegeDashboard({ user, onLogout }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-200">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading college dashboard...
@@ -453,13 +455,16 @@ function CollegeDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-50">
       <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
         <DashboardTopNav
-          className={workspaceDashboardHeaderClassName}
+          compact
+          className={cn(
+            workspaceDashboardHeaderClassName,
+            "mb-2 px-3 shadow-[0_12px_36px_-20px_rgba(0,0,0,0.5)] sm:px-4 xl:px-5"
+          )}
           workspaceLabel="College Workspace"
           title={`Welcome, ${me.name}`}
-          description="Live placement radar for your campus: roster health, recruiters on the platform, open roles, and applications from your students. Refreshes automatically every minute."
           user={{ name: me.name, email: me.email, role: me.role }}
           onLogout={onLogout}
           actionItems={[
@@ -468,7 +473,7 @@ function CollegeDashboard({ user, onLogout }) {
           ]}
         />
 
-        <div className="mt-4 rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
+        <div className="mt-4 rounded-[32px] border border-slate-400/30 bg-slate-800/50 shadow-[0_30px_80px_rgba(15,23,42,0.35)] backdrop-blur">
           <div className="space-y-6 p-5 sm:p-6 xl:p-7">
           {error ? (
             <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
@@ -510,7 +515,8 @@ function CollegeDashboard({ user, onLogout }) {
                 <p className="max-w-3xl text-sm text-slate-400">
                   Companies registered on Learn2Hire, active job posts, and how your students are moving
                   through the hiring pipeline. Student application counts include only learners attached
-                  to your college roster.
+                  to your college roster. Open roles from employers are visible platform-wide to every
+                  partner college, not only your campus.
                 </p>
               </div>
               <Button
@@ -528,41 +534,47 @@ function CollegeDashboard({ user, onLogout }) {
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-              <MetricCard
+              <DashboardMetricCard
                 title="Your students"
                 value={insights?.campus?.rosterStudents ?? "—"}
                 subtitle="Accounts on your roster"
                 icon={GraduationCap}
+                scrollTargetId="college-dash-roster"
               />
-              <MetricCard
+              <DashboardMetricCard
                 title="Your faculty"
                 value={insights?.campus?.rosterFaculty ?? "—"}
                 subtitle="Teachers & mentors"
                 icon={Users}
+                scrollTargetId="college-dash-roster"
               />
-              <MetricCard
+              <DashboardMetricCard
                 title="Faculty in review"
                 value={insights?.campus?.pendingFacultyReview ?? "—"}
-                subtitle="Self‑signed faculty awaiting action"
+                subtitle="Self-signed faculty awaiting action"
                 icon={ShieldCheck}
+                scrollTargetId="college-dash-pending-faculty"
               />
-              <MetricCard
+              <DashboardMetricCard
                 title="Recruiters"
                 value={insights?.hiring?.registeredCompanies ?? "—"}
                 subtitle="Company accounts on the platform"
                 icon={Factory}
+                scrollTargetId="college-dash-companies"
               />
-              <MetricCard
+              <DashboardMetricCard
                 title="Open roles"
                 value={insights?.hiring?.openRoles ?? openJobs.length}
-                subtitle="Jobs hiring right now"
+                subtitle="Shared across all colleges"
                 icon={BriefcaseBusiness}
+                scrollTargetId="college-dash-open-jobs"
               />
-              <MetricCard
+              <DashboardMetricCard
                 title="Student applications"
                 value={insights?.placements?.applicationsTotal ?? "—"}
                 subtitle="Your students' job applications"
                 icon={Building2}
+                scrollTargetId="college-dash-applications"
               />
             </div>
 
@@ -583,7 +595,11 @@ function CollegeDashboard({ user, onLogout }) {
             ) : null}
 
             <div className="mt-5 grid gap-6 xl:grid-cols-3">
-              <Card className="border border-white/10 bg-slate-950/50 shadow-none xl:col-span-1">
+              <Card
+                id="college-dash-companies"
+                tabIndex={-1}
+                className="scroll-mt-28 border border-white/10 bg-slate-950/50 shadow-none outline-none focus:outline-none xl:col-span-1"
+              >
                 <CardContent className="p-5">
                   <h3 className="text-lg font-semibold text-white">Registered companies</h3>
                   <p className="mt-1 text-sm text-slate-500">Organizations recruiting via the platform.</p>
@@ -610,7 +626,11 @@ function CollegeDashboard({ user, onLogout }) {
                 </CardContent>
               </Card>
 
-              <Card className="border border-white/10 bg-slate-950/50 shadow-none xl:col-span-1">
+              <Card
+                id="college-dash-open-jobs"
+                tabIndex={-1}
+                className="scroll-mt-28 border border-white/10 bg-slate-950/50 shadow-none outline-none focus:outline-none xl:col-span-1"
+              >
                 <CardContent className="p-5">
                   <h3 className="text-lg font-semibold text-white">Open job posts</h3>
                   <p className="mt-1 text-sm text-slate-500">Roles companies are hiring for now.</p>
@@ -637,7 +657,11 @@ function CollegeDashboard({ user, onLogout }) {
                 </CardContent>
               </Card>
 
-              <Card className="border border-white/10 bg-slate-950/50 shadow-none xl:col-span-1">
+              <Card
+                id="college-dash-applications"
+                tabIndex={-1}
+                className="scroll-mt-28 border border-white/10 bg-slate-950/50 shadow-none outline-none focus:outline-none xl:col-span-1"
+              >
                 <CardContent className="p-5">
                   <h3 className="text-lg font-semibold text-white">Your students applying</h3>
                   <p className="mt-1 text-sm text-slate-500">Latest activity from your roster.</p>
@@ -700,9 +724,13 @@ function CollegeDashboard({ user, onLogout }) {
             ) : null}
 
             <div className="mt-5 grid gap-6 xl:grid-cols-2">
-              <Card className="border border-amber-400/20 bg-amber-500/5 shadow-none">
+              <Card
+                id="college-dash-pending-faculty"
+                tabIndex={-1}
+                className="scroll-mt-28 border border-amber-400/20 bg-amber-500/5 shadow-none outline-none focus:outline-none"
+              >
                 <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold text-white">Pending faculty (self‑registration)</h3>
+                  <h3 className="text-lg font-semibold text-white">Pending faculty (self-registration)</h3>
                   <p className="mt-1 text-sm text-slate-400">
                     Approve or reject faculty who signed up from the public signup page.
                   </p>
@@ -821,7 +849,11 @@ function CollegeDashboard({ user, onLogout }) {
               </Card>
             </div>
 
-            <div className="mt-5">
+            <div
+              id="college-dash-roster"
+              tabIndex={-1}
+              className="scroll-mt-28 mt-5 outline-none focus:outline-none"
+            >
               <h3 className="text-lg font-semibold text-white">Your campus roster</h3>
               <p className="mt-1 text-sm text-slate-400">
                 Students and faculty created by your college ({roster.length} accounts).
@@ -875,61 +907,148 @@ function CollegeDashboard({ user, onLogout }) {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-6 xl:grid-cols-3">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+          <div className="mt-5 space-y-6">
+            <Card className="border border-slate-400/30 bg-slate-800/40 shadow-none">
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-white">Bulk students (Excel)</h3>
-                <p className="mt-1 text-sm text-slate-400">
-                  Upload `.xlsx` with columns: name, email, password.
+                <h3 className="text-lg font-semibold text-white">Bulk students (Excel or CSV)</h3>
+                <p className="mt-1 text-sm text-slate-300">
+                  Standard columns: <strong className="text-slate-200">S.No</strong>,{" "}
+                  <strong className="text-slate-200">Course</strong>,{" "}
+                  <strong className="text-slate-200">Program</strong>,{" "}
+                  <strong className="text-slate-200">Year</strong>,{" "}
+                  <strong className="text-slate-200">Contact number</strong>,{" "}
+                  <strong className="text-slate-200">Email id</strong>. Optional:{" "}
+                  <strong className="text-slate-200">Name</strong> (recommended for display name and default
+                  password). Every row must match the class you select below. Default password pattern:{" "}
+                  <code className="text-cyan-200">Firstname@123</code>.
                 </p>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="mt-4 w-full text-sm text-slate-300"
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <label className="text-xs font-medium text-slate-300">Course (must match file)</label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                      value={importCourse}
+                      onChange={(e) => setImportCourse(e.target.value)}
+                    >
+                      <option value="">Select course</option>
+                      {STUDENT_COHORT_PROGRAM_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-300">Program / branch</label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                      value={importProgram}
+                      onChange={(e) => setImportProgram(e.target.value)}
+                    >
+                      <option value="">Select program</option>
+                      {STUDENT_COHORT_BRANCH_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-300">Year</label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                      value={importYear}
+                      onChange={(e) => setImportYear(e.target.value)}
+                    >
+                      <option value="">Select year</option>
+                      {STUDENT_COHORT_YEAR_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-300">Semester (optional)</label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                      value={importSemester}
+                      onChange={(e) => setImportSemester(e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {STUDENT_COHORT_SEMESTER_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <VisibleFileInput
+                  className="mt-4"
+                  id="college-bulk-students"
+                  label="Spreadsheet file"
+                  accept=".xlsx,.xls,.csv"
                   onChange={(e) => setStudentSheetFile(e.target.files?.[0] || null)}
+                  disabled={bulkBusy}
                 />
-                <Button className="mt-4 w-full" disabled={!studentSheetFile || bulkBusy} onClick={handleCollegeStudentImport}>
+                <Button
+                  className="mt-4 w-full sm:w-auto"
+                  disabled={
+                    !studentSheetFile ||
+                    !importCourse.trim() ||
+                    !importProgram.trim() ||
+                    !importYear.trim() ||
+                    bulkBusy
+                  }
+                  onClick={handleCollegeStudentImport}
+                >
                   Import students
                 </Button>
               </CardContent>
             </Card>
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <div className="grid gap-6 xl:grid-cols-2">
+            <Card className="border border-slate-400/30 bg-slate-800/40 shadow-none">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-white">Bulk materials (Excel)</h3>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-sm text-slate-300">
                   Columns: title, summary, content, categorySlug/categoryId.
                 </p>
-                <input
-                  type="file"
+                <VisibleFileInput
+                  className="mt-4"
+                  id="college-bulk-materials"
+                  label="Materials spreadsheet"
                   accept=".xlsx,.xls"
-                  className="mt-4 w-full text-sm text-slate-300"
                   onChange={(e) => setMaterialSheetFile(e.target.files?.[0] || null)}
+                  disabled={bulkBusy}
                 />
                 <Button className="mt-4 w-full" disabled={!materialSheetFile || bulkBusy} onClick={handleMaterialSheetImport}>
                   Import materials
                 </Button>
               </CardContent>
             </Card>
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-400/30 bg-slate-800/40 shadow-none">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold text-white">Create material from image</h3>
                 <input
                   placeholder="Material title"
-                  className="mt-3 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
+                  className="mt-3 w-full rounded-xl border border-slate-400/35 bg-slate-800/85 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
                   value={materialTitle}
                   onChange={(e) => setMaterialTitle(e.target.value)}
                 />
                 <input
                   placeholder="Category ID"
-                  className="mt-3 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
+                  className="mt-3 w-full rounded-xl border border-slate-400/35 bg-slate-800/85 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
                   value={materialCategoryId}
                   onChange={(e) => setMaterialCategoryId(e.target.value)}
                 />
-                <input
-                  type="file"
+                <VisibleFileInput
+                  className="mt-3"
+                  id="college-material-image"
+                  label="Image file"
                   accept="image/*"
-                  className="mt-3 w-full text-sm text-slate-300"
                   onChange={(e) => setMaterialImageFile(e.target.files?.[0] || null)}
+                  disabled={bulkBusy}
                 />
                 <Button
                   className="mt-4 w-full"
@@ -940,42 +1059,53 @@ function CollegeDashboard({ user, onLogout }) {
                 </Button>
               </CardContent>
             </Card>
+            </div>
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
+            <DashboardMetricCard
               title="Published Assessments"
               value={publishedAssessments.length}
               subtitle="Current assessments available to learners"
               icon={BookOpenCheck}
+              to="/assessments"
             />
-            <MetricCard
+            <DashboardMetricCard
               title="Open Jobs"
               value={openJobs.length}
               subtitle="Company opportunities visible right now"
               icon={BriefcaseBusiness}
+              scrollTargetId="college-dash-open-jobs"
             />
-            <MetricCard
+            <DashboardMetricCard
               title="Institution Role"
               value="Active"
               subtitle="College access is enabled"
               icon={Building2}
             />
-            <MetricCard
+            <DashboardMetricCard
               title="Campus Readiness"
               value={publishedAssessments.length || openJobs.length ? "Live" : "Setup"}
               subtitle="Platform opportunities are being tracked"
               icon={GraduationCap}
+              scrollTargetId="college-dash-overview"
             />
           </div>
 
           <div className="mt-5 grid gap-6 xl:grid-cols-2">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card
+              id="college-dash-overview"
+              tabIndex={-1}
+              className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+            >
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold text-white">College Overview</h2>
                 <p className="mt-2 text-sm text-slate-400">
                   A dedicated college dashboard is now active for this role.
                 </p>
+                <Button asChild className="mt-4" variant="default">
+                  <Link to="/assessments/create">Create assessment (MCQ or question paper)</Link>
+                </Button>
 
                 <div className="mt-6 space-y-4">
                   <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
@@ -1062,7 +1192,8 @@ function CollegeDashboard({ user, onLogout }) {
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold text-white">Recent Open Jobs</h2>
                 <p className="mt-2 text-sm text-slate-400">
-                  Open opportunities that can support student placement planning.
+                  The same open postings every partner college sees—use them for placement planning and
+                  student outreach.
                 </p>
 
                 <div className="mt-6 space-y-4">
@@ -1095,3 +1226,4 @@ function CollegeDashboard({ user, onLogout }) {
 }
 
 export default CollegeDashboard;
+

@@ -206,4 +206,16 @@ From `backend/`:
 - **Material detail** works on both `/learning/topic/:slug` and `/dashboard/learning/topic/:slug`; the page can adapt behavior based on auth/context.
 - **Optional JWT** on some learning GET routes allows the same endpoints to return generic or personalized data when a token is sent.
 
+---
+
+## Technical documentation (Word + UI screenshots)
+
+1. Start MongoDB, then the backend (`backend/`, port 5000) and frontend (`frontend/`, port 3000).
+2. Optional: `cd backend && npm run seed:learning` so public learning subject/material screenshots have content.
+3. `cd backend && npm run seed:doc-users` — creates demo accounts (`doc.*@learn2hire.local`, password `DocDemo@12345`) plus a sample job and assessment, and writes `docs/screenshot-ids.json`.
+4. `cd docs && npm install && npx playwright install chromium && npm run screenshots` — saves PNGs under `docs/bw_figures/`.
+5. `python docs/generate_project_documentation.py` — builds `docs/Learn2Hire_Project_Documentation.docx` (embeds those PNGs; skips generating placeholders for files that already exist).
+
+On Windows, Playwright uses `http://localhost:3000` by default (not `127.0.0.1`). Override with `PLAYWRIGHT_BASE_URL` / `PLAYWRIGHT_API_URL` if needed.
+
 For deeper behavior, follow the route → controller → model chain for the feature you care about.

@@ -50,6 +50,7 @@ router.post('/photo', (req, res, next) => {
   });
 }, uploadMyProfilePhoto);
 router.delete('/photo', deleteMyProfilePhoto);
+
 router.post('/', createProfile);
 router.put('/', updateProfile);
 router.patch('/skills', updateSkills);

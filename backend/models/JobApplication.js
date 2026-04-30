@@ -17,7 +17,13 @@ const jobApplicationSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-    resumeLink: {
+    /** Snapshot of uploaded résumé at apply time (private/resumes/...). */
+    resumeRelativePath: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    resumeOriginalName: {
       type: String,
       default: '',
       trim: true,

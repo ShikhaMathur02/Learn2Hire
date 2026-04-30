@@ -1,9 +1,15 @@
+const fs = require('fs/promises');
+const path = require('path');
 const Assessment = require('../models/Assessment');
 const mongoose = require('mongoose');
-const User = require('../models/User');
 const { createBulkNotifications } = require('../utils/notificationService');
+const {
+  getStudentRecipientIdsForEditor,
+} = require('../utils/campusNotificationRecipients');
 
-// Strip correctAnswer from questions (for students taking assessment)
+const canAuthorAssessment = (role) =>
+  role === 'faculty' || role === 'admin' || role === 'college';
+
 const stripAnswers = (questions) => {
   if (!Array.isArray(questions)) return [];
   return questions.map(({ question, options, marks }) => ({
@@ -13,9 +19,50 @@ const stripAnswers = (questions) => {
   }));
 };
 
+const unlinkQuestionPaperFile = async (relativePath) => {
+  if (!relativePath || typeof relativePath !== 'string') return;
+  if (!relativePath.startsWith('/uploads/assessments/')) return;
+  const abs = path.join(__dirname, '..', relativePath.replace(/^\//, ''));
+  try {
+    await fs.unlink(abs);
+  } catch (_) {
+    /* ignore */
+  }
+};
+
+const writeQuestionPaperFile = async (userId, file) => {
+  const dir = path.join(__dirname, '..', 'uploads', 'assessments');
+  await fs.mkdir(dir, { recursive: true });
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const allowed = ['.pdf', '.doc', '.docx'];
+  const safeExt = allowed.includes(ext) ? ext : '.pdf';
+  const fname = `${userId}-${Date.now()}${safeExt}`;
+  const full = path.join(dir, fname);
+  await fs.writeFile(full, file.buffer);
+  return {
+    relativePath: `/uploads/assessments/${fname}`,
+    originalName: file.originalname || fname,
+    mimeType: file.mimetype || '',
+  };
+};
+
+const parseQuestionsFromBody = (raw) => {
+  if (raw === undefined || raw === null) return undefined;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  return [];
+};
+
 // @desc    Get all assessments
 // @route   GET /api/assessments
-// @access  Private (students: published only, faculty: all)
+// @access  Private (students: published only, others: all)
 exports.getAllAssessments = async (req, res) => {
   try {
     let query = {};
@@ -92,20 +139,46 @@ exports.getAssessment = async (req, res) => {
   }
 };
 
-// @desc    Create assessment
+// @desc    Create assessment (JSON or multipart with optional questionPaper file)
 // @route   POST /api/assessments
-// @access  Private (faculty only)
+// @access  Private (faculty, college, admin)
 exports.createAssessment = async (req, res) => {
   try {
-    if (req.user.role !== 'faculty' && req.user.role !== 'admin') {
+    if (!canAuthorAssessment(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only faculty or admin can create assessments.',
+        message: 'Only faculty, college, or admin can create assessments.',
       });
     }
 
-    const { title, description, skill, questions, timeLimit, status } =
-      req.body;
+    let title;
+    let description = '';
+    let skill = '';
+    let timeLimit = null;
+    let status = 'draft';
+    let questions = [];
+
+    if (req.file) {
+      title = (req.body.title || '').trim();
+      description = (req.body.description || '').trim();
+      skill = (req.body.skill || '').trim();
+      if (req.body.timeLimit) {
+        const n = Number(req.body.timeLimit);
+        timeLimit = Number.isFinite(n) && n > 0 ? n : null;
+      }
+      if (req.body.status) status = req.body.status;
+      questions = parseQuestionsFromBody(req.body.questions);
+    } else {
+      ({
+        title,
+        description = '',
+        skill = '',
+        questions = [],
+        timeLimit = null,
+        status = 'draft',
+      } = req.body);
+      if (!Array.isArray(questions)) questions = [];
+    }
 
     if (!title) {
       return res.status(400).json({
@@ -114,11 +187,17 @@ exports.createAssessment = async (req, res) => {
       });
     }
 
-    if (!Array.isArray(questions) || questions.length === 0) {
+    if (!req.file && (!Array.isArray(questions) || questions.length === 0)) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide at least one question',
+        message:
+          'Add at least one question, or upload a question paper (PDF or Word) using multipart form field questionPaper.',
       });
+    }
+
+    let questionPaper = { relativePath: '', originalName: '', mimeType: '' };
+    if (req.file) {
+      questionPaper = await writeQuestionPaperFile(req.user._id, req.file);
     }
 
     const assessment = await Assessment.create({
@@ -127,6 +206,7 @@ exports.createAssessment = async (req, res) => {
       createdBy: req.user._id,
       skill: skill || '',
       questions,
+      questionPaper,
       timeLimit: timeLimit || null,
       status: status || 'draft',
     });
@@ -137,10 +217,10 @@ exports.createAssessment = async (req, res) => {
     );
 
     if (assessment.status === 'published') {
-      const students = await User.find({ role: 'student' }).select('_id').lean();
+      const recipientIds = await getStudentRecipientIdsForEditor(req.user);
 
       await createBulkNotifications({
-        recipientIds: students.map((user) => user._id),
+        recipientIds,
         title: 'New assignment available',
         message: `${assessment.title} is now published — you can take it from Assessments.`,
         category: 'assessment',
@@ -165,6 +245,12 @@ exports.createAssessment = async (req, res) => {
         message: messages.join(' '),
       });
     }
+    if (err.message) {
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
     res.status(500).json({
       success: false,
       message: err.message || 'Server error',
@@ -174,7 +260,7 @@ exports.createAssessment = async (req, res) => {
 
 // @desc    Update assessment
 // @route   PUT /api/assessments/:id
-// @access  Private (faculty only, creator only)
+// @access  Private (faculty, college, admin; creator except admin)
 exports.updateAssessment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -185,10 +271,10 @@ exports.updateAssessment = async (req, res) => {
       });
     }
 
-    if (req.user.role !== 'faculty' && req.user.role !== 'admin') {
+    if (!canAuthorAssessment(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only faculty or admin can update assessments.',
+        message: 'Only faculty, college, or admin can update assessments.',
       });
     }
 
@@ -212,18 +298,53 @@ exports.updateAssessment = async (req, res) => {
 
     const previousStatus = assessment.status;
 
-    const { title, description, skill, questions, timeLimit, status } =
-      req.body;
+    let title;
+    let description;
+    let skill;
+    let questions;
+    let timeLimit;
+    let status;
+
+    if (req.file) {
+      if (req.body.title !== undefined) title = req.body.title;
+      if (req.body.description !== undefined) description = req.body.description;
+      if (req.body.skill !== undefined) skill = req.body.skill;
+      if (req.body.timeLimit !== undefined) timeLimit = req.body.timeLimit;
+      if (req.body.status !== undefined) status = req.body.status;
+      if (Object.prototype.hasOwnProperty.call(req.body, 'questions')) {
+        questions = parseQuestionsFromBody(req.body.questions);
+      }
+    } else {
+      ({
+        title,
+        description,
+        skill,
+        questions,
+        timeLimit,
+        status,
+      } = req.body);
+    }
 
     if (title !== undefined) assessment.title = title;
     if (description !== undefined) assessment.description = description;
     if (skill !== undefined) assessment.skill = skill;
     if (questions !== undefined) {
-      assessment.questions = questions;
-      assessment.maxScore = 0; // trigger pre-save recalc
+      assessment.questions = Array.isArray(questions) ? questions : [];
+      assessment.maxScore = 0;
     }
-    if (timeLimit !== undefined) assessment.timeLimit = timeLimit;
+    if (timeLimit !== undefined) {
+      const n = Number(timeLimit);
+      assessment.timeLimit = Number.isFinite(n) && n > 0 ? n : null;
+    }
     if (status !== undefined) assessment.status = status;
+
+    if (req.file) {
+      await unlinkQuestionPaperFile(assessment.questionPaper?.relativePath);
+      assessment.questionPaper = await writeQuestionPaperFile(
+        req.user._id,
+        req.file
+      );
+    }
 
     await assessment.save();
 
@@ -233,10 +354,10 @@ exports.updateAssessment = async (req, res) => {
     );
 
     if (previousStatus !== 'published' && assessment.status === 'published') {
-      const students = await User.find({ role: 'student' }).select('_id').lean();
+      const recipientIds = await getStudentRecipientIdsForEditor(req.user);
 
       await createBulkNotifications({
-        recipientIds: students.map((user) => user._id),
+        recipientIds,
         title: 'New assignment published',
         message: `${assessment.title} is now available under Assessments.`,
         category: 'assessment',
@@ -261,6 +382,12 @@ exports.updateAssessment = async (req, res) => {
         message: messages.join(' '),
       });
     }
+    if (err.message) {
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
     res.status(500).json({
       success: false,
       message: err.message || 'Server error',
@@ -270,7 +397,7 @@ exports.updateAssessment = async (req, res) => {
 
 // @desc    Delete assessment
 // @route   DELETE /api/assessments/:id
-// @access  Private (faculty only, creator only)
+// @access  Private (faculty, college, admin; creator except admin)
 exports.deleteAssessment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -289,10 +416,10 @@ exports.deleteAssessment = async (req, res) => {
       });
     }
 
-    if (req.user.role !== 'faculty' && req.user.role !== 'admin') {
+    if (!canAuthorAssessment(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only faculty or admin can delete assessments.',
+        message: 'Only faculty, college, or admin can delete assessments.',
       });
     }
 
@@ -306,6 +433,7 @@ exports.deleteAssessment = async (req, res) => {
       });
     }
 
+    await unlinkQuestionPaperFile(assessment.questionPaper?.relativePath);
     await Assessment.findByIdAndDelete(id);
 
     res.status(200).json({

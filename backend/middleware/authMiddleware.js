@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
+const { isPlatformApprovalBlockingApi } = require('../utils/platformApproval');
 
 /**
  * Protects routes by verifying the JWT token.
@@ -42,7 +43,7 @@ const protect = async (req, res, next) => {
     const role = String(user.role || '')
       .trim()
       .toLowerCase();
-       if (role === 'faculty') {
+    if (role === 'faculty') {
       const st = user.facultyApprovalStatus;
       if (st === 'pending' || st === 'rejected') {
         const url = String(req.originalUrl || '');
@@ -53,8 +54,26 @@ const protect = async (req, res, next) => {
             success: false,
             message:
               st === 'pending'
-                ? 'Your faculty account is awaiting approval from your college.'
-                : 'Your faculty account was not approved. Contact your college for help.',
+                ? 'Your faculty account is awaiting approval from your college or a Learn2Hire administrator.'
+                : 'Your faculty account was not approved. Contact your college or support for help.',
+          });
+        }
+      }
+    }
+
+    if (role === 'company') {
+      if (isPlatformApprovalBlockingApi(user)) {
+        const url = String(req.originalUrl || '');
+        const allowedWhilePending =
+          url.startsWith('/api/auth/me') || url.startsWith('/api/profile/photo');
+        if (!allowedWhilePending) {
+          const pst = user.platformApprovalStatus;
+          return res.status(403).json({
+            success: false,
+            message:
+              pst === 'pending'
+                ? 'Your company account is awaiting approval from a Learn2Hire administrator.'
+                : 'Your company registration was not approved. Contact support for help.',
           });
         }
       }
@@ -136,6 +155,12 @@ const optionalProtect = async (req, res, next) => {
       } else if (role === 'college') {
         const cst = user.collegeApprovalStatus;
         if (cst === 'pending' || cst === 'rejected') {
+          req.user = undefined;
+        } else {
+          req.user = user;
+        }
+      } else if (role === 'company') {
+        if (isPlatformApprovalBlockingApi(user)) {
           req.user = undefined;
         } else {
           req.user = user;

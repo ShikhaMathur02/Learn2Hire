@@ -36,6 +36,17 @@ const jobSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    /** all_colleges: every partner campus; single_college: only learners tied to targetCollege */
+    postingAudience: {
+      type: String,
+      enum: ['all_colleges', 'single_college'],
+      default: 'all_colleges',
+    },
+    targetCollege: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     jdOriginalName: {
       type: String,
       default: '',

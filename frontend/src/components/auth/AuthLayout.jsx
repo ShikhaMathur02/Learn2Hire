@@ -1,4 +1,4 @@
-import { CheckCircle2, Sparkles } from "lucide-react";
+﻿import { CheckCircle2, Sparkles } from "lucide-react";
 
 const defaultHighlights = [
   "Learning, assessments, and placements in one place.",
@@ -37,7 +37,7 @@ function AuthLayout({
     "One workspace for study materials, assessments, and placement workflows.";
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 py-6 text-slate-900 sm:px-6 sm:py-8 lg:px-8">
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-4 py-6 text-slate-900 sm:px-6 sm:py-8 lg:px-8">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-10 top-10 h-48 w-48 rounded-full bg-fuchsia-500/20 blur-3xl" />
         <div className="absolute bottom-0 right-10 h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl" />
@@ -54,7 +54,7 @@ function AuthLayout({
                 </div>
                 <div>
                   <p className="text-base font-semibold text-slate-900">Learn2Hire</p>
-                  <p className="text-sm text-slate-500">Career &amp; campus platform</p>
+                  <p className="text-sm text-slate-600">Career &amp; campus platform</p>
                 </div>
               </div>
 
@@ -67,11 +67,11 @@ function AuthLayout({
               <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[1.75rem] sm:leading-snug">
                 {title}
               </h1>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{subtitle}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{subtitle}</p>
 
               <div className="mt-8">{children}</div>
 
-              <div className="mt-8 border-t border-slate-100 pt-6 text-sm text-slate-600">
+              <div className="mt-8 border-t border-slate-100 pt-6 text-sm text-slate-700">
                 {footer}
               </div>
             </div>
@@ -171,3 +171,4 @@ function AuthLayout({
 }
 
 export default AuthLayout;
+

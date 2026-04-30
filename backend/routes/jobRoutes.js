@@ -7,12 +7,14 @@ const {
   applyToJob,
   createJob,
   deleteJob,
+  downloadJobApplicantResume,
   downloadJobJD,
   expressCompanyInterest,
   expressStudentJobInterest,
   getApplicationsForJob,
   getCompanyDashboard,
   getCompanyStudentDetail,
+  getInterestsForJob,
   getJobById,
   getJobs,
   getMyApplications,
@@ -25,6 +27,7 @@ const {
   updateJob,
   uploadJobJD,
 } = require('../controllers/jobController');
+const { MAX_BYTES: APPLY_RESUME_MAX_BYTES } = require('../controllers/studentResumeController');
 const { protect } = require('../middleware/authMiddleware');
 
 const jdStorage = multer.diskStorage({
@@ -52,6 +55,20 @@ const jdUpload = multer({
   },
 });
 
+const applyResumeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: APPLY_RESUME_MAX_BYTES },
+  fileFilter: (req, file, cb) => {
+    const ok = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ].includes(file.mimetype);
+    if (ok) cb(null, true);
+    else cb(new Error('Only PDF or Word documents are allowed for résumés.'));
+  },
+});
+
 const router = express.Router();
 
 router.use(protect);
@@ -66,8 +83,26 @@ router.get('/saved/me', getSavedJobs);
 router.get('/suggestions/me', getSuggestedJobs);
 router.post('/student/express-interest', expressStudentJobInterest);
 router.patch('/applications/:applicationId/status', updateApplicationStatus);
+router.get('/:id/interests', getInterestsForJob);
 router.get('/:id/applications', getApplicationsForJob);
-router.post('/:id/apply', applyToJob);
+router.get('/:id/students/:studentId/resume', downloadJobApplicantResume);
+router.post('/:id/apply', (req, res, next) => {
+  applyResumeUpload.single('resume')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          message: 'Résumé must be 5 MB or smaller.',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Invalid résumé upload.',
+      });
+    }
+    next();
+  });
+}, applyToJob);
 router.post('/:id/save', saveJob);
 router.delete('/:id/save', unsaveJob);
 

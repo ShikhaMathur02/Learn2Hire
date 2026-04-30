@@ -1,0 +1,9 @@
+# Student résumés (private; served only via authenticated download routes)
+backend/private/resumes/
+
+# Generated when seeding Playwright screenshot users (contains local Mongo ids)
+docs/screenshot-ids.json
+
+# Playwright output
+docs/test-results/
+docs/playwright-report/

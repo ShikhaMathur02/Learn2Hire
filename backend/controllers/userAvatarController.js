@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const User = require('../models/User');
+const { notifyPlatformAdmins } = require('../utils/notificationService');
 
 const AVATAR_DIR = path.join(__dirname, '..', 'uploads', 'avatars');
 
@@ -36,10 +37,10 @@ function removeExistingAvatars(userId) {
 // @access  Private
 exports.uploadMyProfilePhoto = async (req, res) => {
   try {
-    if (!['student', 'alumni', 'faculty'].includes(req.user.role)) {
+    if (!['student', 'faculty'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only students, alumni, and faculty can upload a profile photo.',
+        message: 'Only students and faculty can upload a profile photo.',
       });
     }
 
@@ -62,6 +63,19 @@ exports.uploadMyProfilePhoto = async (req, res) => {
     const publicPath = `/uploads/avatars/${filename}`;
     await User.findByIdAndUpdate(req.user._id, { profilePhoto: publicPath });
 
+    try {
+      await notifyPlatformAdmins({
+        title: 'Profile photo updated',
+        message: `${req.user.name} (${req.user.email}, ${req.user.role}) uploaded a new profile photo.`,
+        category: 'system',
+        type: 'user_avatar_updated',
+        actionUrl: '/dashboard',
+        metadata: { userId: req.user._id },
+      });
+    } catch (e) {
+      console.error('[Learn2Hire] avatar admin notify:', e.message || e);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Profile photo updated.',
@@ -80,15 +94,28 @@ exports.uploadMyProfilePhoto = async (req, res) => {
 // @access  Private
 exports.deleteMyProfilePhoto = async (req, res) => {
   try {
-    if (!['student', 'alumni', 'faculty'].includes(req.user.role)) {
+    if (!['student', 'faculty'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only students, alumni, and faculty can update profile photos.',
+        message: 'Only students and faculty can update profile photos.',
       });
     }
 
     removeExistingAvatars(req.user._id);
     await User.findByIdAndUpdate(req.user._id, { profilePhoto: '' });
+
+    try {
+      await notifyPlatformAdmins({
+        title: 'Profile photo removed',
+        message: `${req.user.name} (${req.user.email}, ${req.user.role}) removed their profile photo.`,
+        category: 'system',
+        type: 'user_avatar_removed',
+        actionUrl: '/dashboard',
+        metadata: { userId: req.user._id },
+      });
+    } catch (e) {
+      console.error('[Learn2Hire] avatar admin notify:', e.message || e);
+    }
 
     res.status(200).json({
       success: true,

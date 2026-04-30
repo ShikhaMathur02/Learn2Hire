@@ -17,7 +17,7 @@ async function canViewProfileSummary(viewer, target) {
   if (role === 'admin') return true;
 
   if (role === 'company') {
-    if (!['student', 'alumni'].includes(target.role)) return false;
+    if (target.role !== 'student') return false;
     const sp = await StudentProfile.findOne({ user: target._id }).select('visibleToCompanies').lean();
     if (sp && sp.visibleToCompanies === false) return false;
     return true;
@@ -35,7 +35,7 @@ async function canViewProfileSummary(viewer, target) {
     if (!vCampus) return false;
     const aff = collegeRefId(target.affiliatedCollege);
     const mgr = collegeRefId(target.managedByCollege);
-    if (['student', 'alumni', 'faculty'].includes(target.role)) {
+    if (target.role === 'student' || target.role === 'faculty') {
       return aff === vCampus || mgr === vCampus;
     }
     return false;
@@ -91,7 +91,7 @@ exports.getProfileSummaryForViewer = async (req, res) => {
 
     const collegeName = collegeDisplayName(target) || '—';
 
-    if (!['student', 'alumni'].includes(target.role)) {
+    if (target.role !== 'student') {
       return res.status(200).json({
         success: true,
         data: {

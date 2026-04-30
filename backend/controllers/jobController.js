@@ -14,9 +14,73 @@ const {
   createBulkNotifications,
   createNotification,
 } = require('../utils/notificationService');
+const { JOB_CREATED_BY_SELECT } = require('../constants/jobCreatedBySelect');
+const {
+  isAllowedPrivateResumeRel,
+  persistResumeBufferForUser,
+  removeResumeFile,
+} = require('./studentResumeController');
+const {
+  LEARNER_JOB_BROWSER_ROLES,
+  canViewerSeeOpenJob,
+  openJobVisibilityFilterForViewer,
+} = require('../utils/jobPostingVisibility');
 
 const companyRoles = ['company'];
-const applicantRoles = ['student', 'alumni'];
+const applicantRoles = ['student'];
+
+const TARGET_COLLEGE_SELECT = 'name email role collegeApprovalStatus';
+
+async function resolvePostingFields(body) {
+  const rawAudience = String(body.postingAudience || body.posting_audience || '').toLowerCase();
+  const postingAudience =
+    rawAudience === 'single_college' || rawAudience === 'single' ? 'single_college' : 'all_colleges';
+
+  if (postingAudience === 'all_colleges') {
+    return { postingAudience: 'all_colleges', targetCollege: null };
+  }
+
+  const targetCollegeId = body.targetCollegeId || body.targetCollege || body.collegeId;
+  if (!targetCollegeId || !mongoose.Types.ObjectId.isValid(String(targetCollegeId))) {
+    return {
+      error: 'Choose a partner college for a campus-specific job, or post to all colleges.',
+    };
+  }
+
+  const collegeUser = await User.findOne({
+    _id: targetCollegeId,
+    role: 'college',
+    $or: [
+      { collegeApprovalStatus: { $exists: false } },
+      { collegeApprovalStatus: null },
+      { collegeApprovalStatus: 'approved' },
+    ],
+  }).select('_id');
+
+  if (!collegeUser) {
+    return {
+      error: 'That campus was not found or is not approved for hiring on Learn2Hire yet.',
+    };
+  }
+
+  return { postingAudience: 'single_college', targetCollege: collegeUser._id };
+}
+
+async function studentIdsToNotifyForOpenJob(job) {
+  if (job.postingAudience === 'single_college' && job.targetCollege) {
+    const tid = job.targetCollege;
+    const studs = await User.find({
+      role: 'student',
+      $or: [{ managedByCollege: tid }, { affiliatedCollege: tid }],
+    })
+      .select('_id')
+      .lean();
+    return studs.map((s) => s._id);
+  }
+
+  const studs = await User.find({ role: 'student' }).select('_id').lean();
+  return studs.map((s) => s._id);
+}
 
 const normalizeSkills = (skillsRequired) => {
   if (!Array.isArray(skillsRequired)) return [];
@@ -34,15 +98,30 @@ const ensureValidId = (id, label) => {
   return null;
 };
 
+function sanitizeJobApplicationClient(applicationDoc) {
+  const base = applicationDoc.toObject ? applicationDoc.toObject() : { ...applicationDoc };
+  const hasResumeFile = Boolean(base.resumeRelativePath);
+  const resumeOriginalName = base.resumeOriginalName || '';
+  delete base.resumeRelativePath;
+  return { ...base, hasResumeFile, resumeOriginalName };
+}
+
 const buildJobFilters = (query, user) => {
   const filters = { ...getJobQueryByRole(user) };
+  const visibilityOr = filters.$or;
 
   if (query.search) {
-    filters.$or = [
+    const searchOr = [
       { title: { $regex: query.search, $options: 'i' } },
       { description: { $regex: query.search, $options: 'i' } },
       { location: { $regex: query.search, $options: 'i' } },
     ];
+    if (visibilityOr) {
+      filters.$and = [{ $or: visibilityOr }, { $or: searchOr }];
+      delete filters.$or;
+    } else {
+      filters.$or = searchOr;
+    }
   }
 
   if (query.location) {
@@ -73,6 +152,10 @@ const getJobQueryByRole = (user) => {
     return { createdBy: user._id };
   }
 
+  if (LEARNER_JOB_BROWSER_ROLES.includes(user.role)) {
+    return { status: 'open', ...openJobVisibilityFilterForViewer(user) };
+  }
+
   return { status: 'open' };
 };
 
@@ -95,7 +178,8 @@ const getMatchedSkills = (skillsRequired, learnerSkills) => {
 exports.getJobs = async (req, res) => {
   try {
     const jobs = await Job.find(buildJobFilters(req.query, req.user))
-      .populate('createdBy', 'name email role')
+      .populate('createdBy', JOB_CREATED_BY_SELECT)
+      .populate('targetCollege', TARGET_COLLEGE_SELECT)
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -113,13 +197,13 @@ exports.getJobs = async (req, res) => {
 
 // @desc    Get personalized job suggestions
 // @route   GET /api/jobs/suggestions/me
-// @access  Private (student/alumni only)
+// @access  Private (student only)
 exports.getSuggestedJobs = async (req, res) => {
   try {
     if (!applicantRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only students or alumni can view job suggestions.',
+        message: 'Only students can view job suggestions.',
       });
     }
 
@@ -127,7 +211,13 @@ exports.getSuggestedJobs = async (req, res) => {
       StudentProfile.findOne({ user: req.user._id }).select('skills').lean(),
       JobApplication.find({ student: req.user._id }).select('job').lean(),
       SavedJob.find({ student: req.user._id }).select('job').lean(),
-      Job.find({ status: 'open' }).populate('createdBy', 'name email role').sort({ createdAt: -1 }),
+      Job.find({
+        status: 'open',
+        ...openJobVisibilityFilterForViewer(req.user),
+      })
+        .populate('createdBy', JOB_CREATED_BY_SELECT)
+        .populate('targetCollege', TARGET_COLLEGE_SELECT)
+        .sort({ createdAt: -1 }),
     ]);
 
     const insights = profile ? null : await getLearnerInsights(req.user._id);
@@ -192,7 +282,9 @@ exports.getJobById = async (req, res) => {
       });
     }
 
-    const job = await Job.findById(id).populate('createdBy', 'name email role');
+    const job = await Job.findById(id)
+      .populate('createdBy', JOB_CREATED_BY_SELECT)
+      .populate('targetCollege', TARGET_COLLEGE_SELECT);
     if (!job) {
       return res.status(404).json({
         success: false,
@@ -204,7 +296,9 @@ exports.getJobById = async (req, res) => {
     const canView =
       req.user.role === 'admin' ||
       isOwner ||
-      (job.status === 'open' && applicantRoles.includes(req.user.role));
+      (job.status === 'open' &&
+        LEARNER_JOB_BROWSER_ROLES.includes(req.user.role) &&
+        canViewerSeeOpenJob(job, req.user));
 
     if (!canView) {
       return res.status(403).json({
@@ -258,6 +352,14 @@ exports.createJob = async (req, res) => {
       });
     }
 
+    const posting = await resolvePostingFields(req.body);
+    if (posting.error) {
+      return res.status(400).json({
+        success: false,
+        message: posting.error,
+      });
+    }
+
     const job = await Job.create({
       title,
       description: description || '',
@@ -266,22 +368,25 @@ exports.createJob = async (req, res) => {
       skillsRequired: normalizeSkills(skillsRequired),
       status: status || 'draft',
       createdBy: req.user._id,
+      postingAudience: posting.postingAudience,
+      targetCollege: posting.targetCollege,
     });
 
-    const populatedJob = await Job.findById(job._id).populate(
-      'createdBy',
-      'name email role'
-    );
+    const populatedJob = await Job.findById(job._id)
+      .populate('createdBy', JOB_CREATED_BY_SELECT)
+      .populate('targetCollege', TARGET_COLLEGE_SELECT);
 
     if (job.status === 'open') {
-      const learners = await User.find({ role: { $in: applicantRoles } })
-        .select('_id')
-        .lean();
+      const recipientIds = await studentIdsToNotifyForOpenJob(job);
+      const scopeNote =
+        job.postingAudience === 'single_college'
+          ? ' This role is shared with your campus only.'
+          : '';
 
       await createBulkNotifications({
-        recipientIds: learners.map((user) => user._id),
+        recipientIds,
         title: 'New job posted',
-        message: `${job.title} is now open for applications. Check the listing for details and any uploaded job description (JD).`,
+        message: `${job.title} is now open for applications.${scopeNote} Check the listing for details and any uploaded job description (JD).`,
         category: 'job',
         type: 'job_posted',
         actionUrl: `/jobs/${job._id}`,
@@ -365,22 +470,36 @@ exports.updateJob = async (req, res) => {
     }
     if (status !== undefined) job.status = status;
 
+    const postingKeys = ['postingAudience', 'posting_audience', 'targetCollegeId', 'targetCollege', 'collegeId'];
+    if (postingKeys.some((k) => Object.prototype.hasOwnProperty.call(req.body, k))) {
+      const posting = await resolvePostingFields(req.body);
+      if (posting.error) {
+        return res.status(400).json({
+          success: false,
+          message: posting.error,
+        });
+      }
+      job.postingAudience = posting.postingAudience;
+      job.targetCollege = posting.targetCollege;
+    }
+
     await job.save();
 
-    const populatedJob = await Job.findById(job._id).populate(
-      'createdBy',
-      'name email role'
-    );
+    const populatedJob = await Job.findById(job._id)
+      .populate('createdBy', JOB_CREATED_BY_SELECT)
+      .populate('targetCollege', TARGET_COLLEGE_SELECT);
 
     if (previousStatus !== 'open' && job.status === 'open') {
-      const learners = await User.find({ role: { $in: applicantRoles } })
-        .select('_id')
-        .lean();
+      const recipientIds = await studentIdsToNotifyForOpenJob(job);
+      const scopeNote =
+        job.postingAudience === 'single_college'
+          ? ' This role is shared with your campus only.'
+          : '';
 
       await createBulkNotifications({
-        recipientIds: learners.map((user) => user._id),
+        recipientIds,
         title: 'Job is now open',
-        message: `${job.title} is now available for applications.`,
+        message: `${job.title} is now available for applications.${scopeNote}`,
         category: 'job',
         type: 'job_opened',
         actionUrl: `/jobs/${job._id}`,
@@ -468,13 +587,13 @@ exports.deleteJob = async (req, res) => {
 
 // @desc    Apply to job
 // @route   POST /api/jobs/:id/apply
-// @access  Private (student/alumni only)
+// @access  Private (student only)
 exports.applyToJob = async (req, res) => {
   try {
     if (!applicantRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only students or alumni can apply to jobs.',
+        message: 'Only students can apply to jobs.',
       });
     }
 
@@ -495,17 +614,55 @@ exports.applyToJob = async (req, res) => {
       });
     }
 
-    const application = await JobApplication.create({
-      job: job._id,
-      student: req.user._id,
-      coverLetter: req.body.coverLetter || '',
-      resumeLink: req.body.resumeLink || '',
-      portfolioLink: req.body.portfolioLink || '',
-    });
+    if (!canViewerSeeOpenJob(job, req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'This role is posted for a different campus.',
+      });
+    }
+
+    if (!req.file?.buffer) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Please upload your résumé as a PDF or Word file (form field name: resume).',
+      });
+    }
+
+    let resumeRelativePath = '';
+    let resumeOriginalName = '';
+    try {
+      ({ resumeRelativePath, resumeOriginalName } = persistResumeBufferForUser(
+        req.user._id,
+        req.file
+      ));
+    } catch (e) {
+      return res.status(400).json({
+        success: false,
+        message: e.message || 'Invalid résumé file.',
+      });
+    }
+
+    let application;
+    try {
+      application = await JobApplication.create({
+        job: job._id,
+        student: req.user._id,
+        coverLetter: String(req.body.coverLetter || '').trim(),
+        portfolioLink: String(req.body.portfolioLink || '').trim(),
+        resumeRelativePath,
+        resumeOriginalName,
+      });
+    } catch (createErr) {
+      removeResumeFile(resumeRelativePath);
+      throw createErr;
+    }
 
     const populatedApplication = await JobApplication.findById(application._id)
       .populate('job', 'title description location employmentType status skillsRequired')
       .populate('student', 'name email role');
+
+    const hasResumeFile = Boolean(application.resumeRelativePath);
 
     await createNotification({
       recipient: req.user._id,
@@ -523,7 +680,7 @@ exports.applyToJob = async (req, res) => {
     await createNotification({
       recipient: job.createdBy,
       title: 'New job application',
-      message: `${req.user.name} applied for ${job.title}.`,
+      message: `${req.user.name} applied for ${job.title}.${hasResumeFile ? ' A résumé file is attached—download it from the applicant list.' : ''}`,
       category: 'job',
       type: 'job_application_received',
       actionUrl: '/company/jobs',
@@ -537,7 +694,7 @@ exports.applyToJob = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Application submitted successfully',
-      data: { application: populatedApplication },
+      data: { application: sanitizeJobApplicationClient(populatedApplication) },
     });
   } catch (err) {
     if (err.code === 11000) {
@@ -554,15 +711,15 @@ exports.applyToJob = async (req, res) => {
   }
 };
 
-// @desc    Student / alumni expresses interest in a job (notifies company)
+// @desc    Student expresses interest in a job (notifies company)
 // @route   POST /api/jobs/student/express-interest  body: { jobId, message? }
-// @access  Private (student/alumni only)
+// @access  Private (student only)
 exports.expressStudentJobInterest = async (req, res) => {
   try {
     if (!applicantRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only students or alumni can express interest in a job.',
+        message: 'Only students can express interest in a job.',
       });
     }
 
@@ -580,6 +737,13 @@ exports.expressStudentJobInterest = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Open job not found',
+      });
+    }
+
+    if (!canViewerSeeOpenJob(job, req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'This role is posted for a different campus.',
       });
     }
 
@@ -602,6 +766,8 @@ exports.expressStudentJobInterest = async (req, res) => {
       job: job._id,
       student: req.user._id,
       message: note,
+      resumeRelativePath: '',
+      resumeOriginalName: '',
     });
 
     const interestLine = note ? ` Note: "${note}"` : '';
@@ -641,13 +807,13 @@ exports.expressStudentJobInterest = async (req, res) => {
 
 // @desc    Get my job applications
 // @route   GET /api/jobs/applications/me
-// @access  Private (student/alumni only)
+// @access  Private (student only)
 exports.getMyApplications = async (req, res) => {
   try {
     if (!applicantRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only students or alumni can view their applications.',
+        message: 'Only students can view their applications.',
       });
     }
 
@@ -656,15 +822,17 @@ exports.getMyApplications = async (req, res) => {
         path: 'job',
         populate: {
           path: 'createdBy',
-          select: 'name email role',
+          select: JOB_CREATED_BY_SELECT,
         },
       })
       .sort({ appliedAt: -1 });
 
+    const safe = applications.map((a) => sanitizeJobApplicationClient(a));
+
     res.status(200).json({
       success: true,
-      count: applications.length,
-      data: { applications },
+      count: safe.length,
+      data: { applications: safe },
     });
   } catch (err) {
     res.status(500).json({
@@ -676,13 +844,13 @@ exports.getMyApplications = async (req, res) => {
 
 // @desc    Get my saved jobs
 // @route   GET /api/jobs/saved/me
-// @access  Private (student/alumni only)
+// @access  Private (student only)
 exports.getSavedJobs = async (req, res) => {
   try {
     if (!applicantRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only students or alumni can view saved jobs.',
+        message: 'Only students can view saved jobs.',
       });
     }
 
@@ -691,7 +859,7 @@ exports.getSavedJobs = async (req, res) => {
         path: 'job',
         populate: {
           path: 'createdBy',
-          select: 'name email role',
+          select: JOB_CREATED_BY_SELECT,
         },
       })
       .sort({ createdAt: -1 });
@@ -711,13 +879,13 @@ exports.getSavedJobs = async (req, res) => {
 
 // @desc    Save job
 // @route   POST /api/jobs/:id/save
-// @access  Private (student/alumni only)
+// @access  Private (student only)
 exports.saveJob = async (req, res) => {
   try {
     if (!applicantRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only students or alumni can save jobs.',
+        message: 'Only students can save jobs.',
       });
     }
 
@@ -738,6 +906,13 @@ exports.saveJob = async (req, res) => {
       });
     }
 
+    if (!canViewerSeeOpenJob(job, req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'This role is posted for a different campus.',
+      });
+    }
+
     const savedJob = await SavedJob.create({
       student: req.user._id,
       job: id,
@@ -747,7 +922,7 @@ exports.saveJob = async (req, res) => {
       path: 'job',
       populate: {
         path: 'createdBy',
-        select: 'name email role',
+        select: JOB_CREATED_BY_SELECT,
       },
     });
 
@@ -773,13 +948,13 @@ exports.saveJob = async (req, res) => {
 
 // @desc    Unsave job
 // @route   DELETE /api/jobs/:id/save
-// @access  Private (student/alumni only)
+// @access  Private (student only)
 exports.unsaveJob = async (req, res) => {
   try {
     if (!applicantRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only students or alumni can remove saved jobs.',
+        message: 'Only students can remove saved jobs.',
       });
     }
 
@@ -854,9 +1029,10 @@ exports.getApplicationsForJob = async (req, res) => {
 
     const enrichedApplications = applications.map((application) => {
       const studentId = application.student?._id?.toString();
+      const base = sanitizeJobApplicationClient(application);
 
       return {
-        ...application.toObject(),
+        ...base,
         studentProfile: studentId ? profileMap[studentId] || null : null,
       };
     });
@@ -868,6 +1044,143 @@ exports.getApplicationsForJob = async (req, res) => {
         applications: enrichedApplications,
       },
     });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Interested students for a job (no full application yet)
+// @route   GET /api/jobs/:id/interests
+// @access  Private (company owner / admin)
+exports.getInterestsForJob = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const invalidId = ensureValidId(id, 'Job');
+    if (invalidId) {
+      return res.status(400).json({
+        success: false,
+        message: invalidId,
+      });
+    }
+
+    const job = await Job.findById(id);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found',
+      });
+    }
+
+    const isOwner = job.createdBy.toString() === req.user._id.toString();
+    if (req.user.role !== 'admin' && !isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only view interest for your own jobs.',
+      });
+    }
+
+    const interests = await JobStudentInterest.find({ job: id })
+      .populate('student', 'name email role')
+      .sort({ createdAt: -1 });
+
+    const data = interests.map((item) => {
+      const o = item.toObject();
+      const hasResumeFile = Boolean(o.resumeRelativePath);
+      const resumeOriginalName = o.resumeOriginalName || '';
+      delete o.resumeRelativePath;
+      return { ...o, hasResumeFile, resumeOriginalName };
+    });
+
+    res.status(200).json({
+      success: true,
+      count: data.length,
+      data: { interests: data },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Download applicant / interested student résumé (uploaded file)
+// @route   GET /api/jobs/:id/students/:studentId/resume
+// @access  Private (company owner / admin)
+exports.downloadJobApplicantResume = async (req, res) => {
+  try {
+    const { id, studentId } = req.params;
+    const invalidJob = ensureValidId(id, 'Job');
+    if (invalidJob) {
+      return res.status(400).json({
+        success: false,
+        message: invalidJob,
+      });
+    }
+    const invalidStudent = ensureValidId(studentId, 'User');
+    if (invalidStudent) {
+      return res.status(400).json({
+        success: false,
+        message: invalidStudent,
+      });
+    }
+
+    const job = await Job.findById(id);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found',
+      });
+    }
+
+    const isOwner = job.createdBy.toString() === req.user._id.toString();
+    if (req.user.role !== 'admin' && !isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to download this résumé.',
+      });
+    }
+
+    let rel = '';
+    let downloadName = 'resume.pdf';
+
+    const application = await JobApplication.findOne({
+      job: id,
+      student: studentId,
+    });
+    if (application?.resumeRelativePath) {
+      rel = application.resumeRelativePath;
+      downloadName = application.resumeOriginalName || downloadName;
+    } else {
+      const interest = await JobStudentInterest.findOne({
+        job: id,
+        student: studentId,
+      });
+      if (interest?.resumeRelativePath) {
+        rel = interest.resumeRelativePath;
+        downloadName = interest.resumeOriginalName || downloadName;
+      }
+    }
+
+    if (!rel || !isAllowedPrivateResumeRel(rel)) {
+      return res.status(404).json({
+        success: false,
+        message: 'No résumé file on record for this candidate and job.',
+      });
+    }
+
+    const abs = path.join(__dirname, '..', rel);
+    if (!fs.existsSync(abs)) {
+      return res.status(404).json({
+        success: false,
+        message: 'File is no longer available.',
+      });
+    }
+
+    return res.download(abs, downloadName);
   } catch (err) {
     res.status(500).json({
       success: false,
@@ -952,7 +1265,7 @@ exports.updateApplicationStatus = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Application status updated successfully',
-      data: { application: updatedApplication },
+      data: { application: sanitizeJobApplicationClient(updatedApplication) },
     });
   } catch (err) {
     if (err.name === 'ValidationError') {
@@ -982,7 +1295,9 @@ exports.getCompanyDashboard = async (req, res) => {
       });
     }
 
-    const jobs = await Job.find({ createdBy: req.user._id }).sort({ createdAt: -1 });
+    const jobs = await Job.find({ createdBy: req.user._id })
+      .populate('targetCollege', TARGET_COLLEGE_SELECT)
+      .sort({ createdAt: -1 });
     const jobIds = jobs.map((job) => job._id);
 
     const applications = await JobApplication.find({ job: { $in: jobIds } })
@@ -1001,9 +1316,10 @@ exports.getCompanyDashboard = async (req, res) => {
 
     const enrichedApplications = applications.map((application) => {
       const studentId = application.student?._id?.toString();
+      const base = sanitizeJobApplicationClient(application);
 
       return {
-        ...application.toObject(),
+        ...base,
         studentProfile: studentId ? profileMap[studentId] || null : null,
       };
     });
@@ -1106,12 +1422,10 @@ exports.uploadJobJD = async (req, res) => {
     await job.save();
 
     if (job.status === 'open') {
-      const learners = await User.find({ role: { $in: applicantRoles } })
-        .select('_id')
-        .lean();
+      const recipientIds = await studentIdsToNotifyForOpenJob(job);
 
       await createBulkNotifications({
-        recipientIds: learners.map((user) => user._id),
+        recipientIds,
         title: 'Job description available',
         message: `${job.title}: a detailed JD (PDF) has been uploaded.`,
         category: 'job',
@@ -1123,10 +1437,9 @@ exports.uploadJobJD = async (req, res) => {
       });
     }
 
-    const populatedJob = await Job.findById(job._id).populate(
-      'createdBy',
-      'name email role'
-    );
+    const populatedJob = await Job.findById(job._id)
+      .populate('createdBy', JOB_CREATED_BY_SELECT)
+      .populate('targetCollege', TARGET_COLLEGE_SELECT);
 
     res.status(200).json({
       success: true,
@@ -1199,7 +1512,7 @@ exports.downloadJobJD = async (req, res) => {
   }
 };
 
-// @desc    Search students / alumni for recruiting (talent pool)
+// @desc    Search students for recruiting (talent pool)
 // @route   GET /api/jobs/company/talent
 // @access  Private (company / admin)
 exports.searchCompanyTalent = async (req, res) => {
@@ -1219,7 +1532,7 @@ exports.searchCompanyTalent = async (req, res) => {
     })
       .populate({
         path: 'user',
-        match: { role: { $in: ['student', 'alumni'] } },
+        match: { role: 'student' },
         select: 'name email role',
       })
       .sort({ updatedAt: -1 })
@@ -1304,7 +1617,7 @@ exports.getCompanyStudentDetail = async (req, res) => {
     }
 
     const user = await User.findById(userId).select('name email role').lean();
-    if (!user || !['student', 'alumni'].includes(user.role)) {
+    if (!user || user.role !== 'student') {
       return res.status(404).json({
         success: false,
         message: 'Student not found',
@@ -1382,7 +1695,7 @@ exports.expressCompanyInterest = async (req, res) => {
     }
 
     const student = await User.findById(studentUserId).select('name role').lean();
-    if (!student || !['student', 'alumni'].includes(student.role)) {
+    if (!student || student.role !== 'student') {
       return res.status(404).json({
         success: false,
         message: 'Student not found',

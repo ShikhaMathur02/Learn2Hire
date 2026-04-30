@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  UserCheck,
   UserRound,
   Users,
 } from "lucide-react";
@@ -63,7 +64,7 @@ function MetricCard({ title, value, subtitle, icon: Icon, className, onClick }) 
       className={cn(
         "group relative overflow-hidden border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] shadow-[0_20px_50px_-18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition duration-300 hover:border-cyan-400/20 hover:shadow-[0_28px_60px_-20px_rgba(34,211,238,0.12)]",
         interactive &&
-          "cursor-pointer hover:border-cyan-400/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50",
+          "cursor-pointer hover:border-cyan-400/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
         className
       )}
       role={interactive ? "button" : undefined}
@@ -176,7 +177,7 @@ function CollapsibleSection({ title, subtitle, badge, defaultOpen = false, secti
   );
 }
 
-/** Roles shown in admin charts and filters — alumni excluded (no alumni workspace in admin). */
+/** Roles shown in admin charts and filters. */
 const ADMIN_DASHBOARD_ROLES = ["student", "faculty", "company", "admin", "college"];
 
 const DIRECTORY_PREVIEW_ROWS = 5;
@@ -192,7 +193,6 @@ const emptyAnalytics = {
   },
   roles: {
     student: 0,
-    alumni: 0,
     faculty: 0,
     company: 0,
     admin: 0,
@@ -208,12 +208,12 @@ const emptyInsights = {
     totalApplications: 0,
     pendingFacultyCount: 0,
     pendingCollegesCount: 0,
+    pendingPlatformCount: 0,
     managedStudentsCount: 0,
     collegeAccountsTotal: 0,
   },
   roleCounts: {
     student: 0,
-    alumni: 0,
     faculty: 0,
     company: 0,
     admin: 0,
@@ -225,6 +225,7 @@ const emptyInsights = {
   jobs: [],
   applications: [],
   pendingColleges: [],
+  pendingPlatformUsers: [],
   registeredColleges: [],
   registeredCompanies: [],
   facultyDirectory: [],
@@ -291,6 +292,7 @@ function AdminDashboard({ user, onLogout }) {
   const [deletingUserId, setDeletingUserId] = useState("");
   const [deletingJobId, setDeletingJobId] = useState("");
   const [collegeApprovalBusyId, setCollegeApprovalBusyId] = useState("");
+  const [platformApprovalBusyId, setPlatformApprovalBusyId] = useState("");
   const [deletingCollegeId, setDeletingCollegeId] = useState("");
   /** Directory tables: show 5 rows until expanded. */
   const [showAllDirColleges, setShowAllDirColleges] = useState(false);
@@ -375,14 +377,9 @@ function AdminDashboard({ user, onLogout }) {
     return () => window.clearTimeout(t);
   }, [location.hash]);
 
-  const peopleExcludingAlumni = useMemo(
-    () => (insights.people || []).filter((u) => u.role !== "alumni"),
-    [insights.people]
-  );
-
   const filteredPeople = useMemo(() => {
     const search = peopleSearch.trim().toLowerCase();
-    return peopleExcludingAlumni.filter((u) => {
+    return (insights.people || []).filter((u) => {
       if (peopleRoleFilter !== "all" && u.role !== peopleRoleFilter) return false;
       if (!search) return true;
       const hay = [
@@ -407,14 +404,11 @@ function AdminDashboard({ user, onLogout }) {
         .join(" ");
       return hay.includes(search);
     });
-  }, [peopleExcludingAlumni, peopleRoleFilter, peopleSearch]);
+  }, [insights.people, peopleRoleFilter, peopleSearch]);
 
   const recentJobs = useMemo(() => (insights.jobs || []).slice(0, 8), [insights.jobs]);
   const recentApplications = useMemo(
-    () =>
-      (insights.applications || [])
-        .filter((a) => a.student?.role !== "alumni")
-        .slice(0, 10),
+    () => (insights.applications || []).slice(0, 10),
     [insights.applications]
   );
 
@@ -477,6 +471,37 @@ function AdminDashboard({ user, onLogout }) {
       setError(err.message || "College approval failed.");
     } finally {
       setCollegeApprovalBusyId("");
+    }
+  };
+
+  const handlePlatformUserApproval = async (targetUserId, decision) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setPlatformApprovalBusyId(targetUserId);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`/api/admin/users/${targetUserId}/platform-approval`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await readApiResponse(res);
+      if (!res.ok) {
+        throw new Error(data.message || "Could not update account approval.");
+      }
+      setSuccess(data.message || "Updated.");
+      await fetchDashboard({ silent: true });
+    } catch (err) {
+      setError(err.message || "Platform approval failed.");
+    } finally {
+      setPlatformApprovalBusyId("");
     }
   };
 
@@ -670,7 +695,7 @@ function AdminDashboard({ user, onLogout }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading admin dashboard...
@@ -680,7 +705,7 @@ function AdminDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="relative min-h-screen text-white">
+    <div className="l2h-dark-ui relative min-h-screen text-white">
       <div
         className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_100%_70%_at_50%_-15%,rgba(56,189,248,0.14),transparent_55%)]"
         aria-hidden
@@ -783,7 +808,7 @@ function AdminDashboard({ user, onLogout }) {
           </div>
 
             <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <MetricCard
                 title="Students"
                 value={insights.roleCounts.student || 0}
@@ -810,6 +835,19 @@ function AdminDashboard({ user, onLogout }) {
                     (insights.pendingColleges || []).length > 0
                       ? "admin-pending-colleges"
                       : "admin-section-campus-accounts"
+                  )
+                }
+              />
+              <MetricCard
+                title="Companies Pending"
+                value={insights.totals.pendingPlatformCount || 0}
+                subtitle="Self-service company sign-ups"
+                icon={UserCheck}
+                onClick={() =>
+                  goToAdminHash(
+                    (insights.pendingPlatformUsers || []).length > 0
+                      ? "admin-pending-platform"
+                      : "admin-section-all-people"
                   )
                 }
               />
@@ -911,6 +949,98 @@ function AdminDashboard({ user, onLogout }) {
                 </CardContent>
               </Card>
             ) : null}
+
+            {(insights.pendingPlatformUsers || []).length > 0 ? (
+              <Card
+                id="admin-pending-platform"
+                className="scroll-mt-28 overflow-hidden border border-sky-400/35 bg-gradient-to-br from-sky-500/[0.12] via-slate-950/40 to-transparent shadow-[0_20px_50px_-20px_rgba(14,165,233,0.15)]"
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/20 text-sky-200 ring-1 ring-sky-400/25">
+                      <UserCheck className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-bold text-white sm:text-xl">Company registrations pending approval</h2>
+                      <p className="mt-0.5 text-sm text-slate-400">
+                        Self-service company sign-ups. Approve so they can sign in and post jobs. Use Faculty Pending
+                        or campus profiles for faculty requests.
+                      </p>
+                    </div>
+                  </div>
+                  <ul className="mt-5 space-y-3">
+                    {(insights.pendingPlatformUsers || []).map((u) => (
+                      <li
+                        key={u._id}
+                        role="button"
+                        tabIndex={0}
+                        className="flex cursor-pointer flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/55 p-4 transition hover:border-sky-400/30 hover:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between"
+                        onClick={() => {
+                          saveAdminDashboardScrollBeforeNavigate();
+                          navigate(`/dashboard/learners/${u._id}`);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            saveAdminDashboardScrollBeforeNavigate();
+                            navigate(`/dashboard/learners/${u._id}`);
+                          }
+                        }}
+                      >
+                        <div className="min-w-0">
+                          <p className="font-semibold text-white">
+                            {u.name}{" "}
+                            <span className="font-normal capitalize text-slate-400">· {u.role}</span>
+                          </p>
+                          <p className="truncate text-sm text-slate-400">{u.email}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Requested {u.createdAt ? new Date(u.createdAt).toLocaleString() : "—"}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              saveAdminDashboardScrollBeforeNavigate();
+                              navigate(`/dashboard/learners/${u._id}`);
+                            }}
+                          >
+                            View profile
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="success"
+                            className="h-10"
+                            disabled={platformApprovalBusyId === u._id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePlatformUserApproval(u._id, "approved");
+                            }}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            className="h-10"
+                            disabled={platformApprovalBusyId === u._id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePlatformUserApproval(u._id, "rejected");
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
 
           <div id="admin-insights-grid" className="scroll-mt-28 mt-5 grid gap-6 xl:grid-cols-3">
@@ -918,7 +1048,7 @@ function AdminDashboard({ user, onLogout }) {
               <CardContent className="p-6">
                 <h3 className="text-lg font-bold tracking-tight text-white">Role distribution</h3>
                 <p className="mt-1 text-xs text-slate-500">
-                  Share of users by role (alumni excluded). Click a row to open matching accounts below.
+                  Share of users by role. Click a row to open matching accounts below.
                 </p>
                 <div className="mt-5 space-y-3">
                   {ADMIN_DASHBOARD_ROLES.map((role) => {
@@ -970,7 +1100,7 @@ function AdminDashboard({ user, onLogout }) {
               <CardContent className="p-6">
                 <h3 className="text-lg font-bold tracking-tight text-white">Application pipeline</h3>
                 <p className="mt-1 text-xs text-slate-500">
-                  Student applications by stage (alumni applications are not listed here). Click to review recent activity.
+                  Student applications by stage. Click to review recent activity.
                 </p>
                 <div className="mt-5 space-y-3">
                   {Object.entries(insights.appStatusCounts || {}).map(([k, v]) => (
@@ -1663,7 +1793,7 @@ function AdminDashboard({ user, onLogout }) {
                             {job.createdBy?.name || "Company"} · {job.location || "Remote"} ·{" "}
                             <span className="capitalize">{job.status}</span>
                           </p>
-                          <p className="mt-2 text-xs font-medium text-cyan-300">View job posting →</p>
+                          <p className="mt-2 text-xs font-medium text-cyan-300">View job posting â†’</p>
                         </Link>
                         <div className="flex shrink-0 flex-col gap-2 sm:items-end sm:justify-center">
                           {job.createdBy?._id ? (
@@ -1704,7 +1834,7 @@ function AdminDashboard({ user, onLogout }) {
               <CardContent className="p-6">
                 <h2 className="text-xl font-bold">Recent Applications</h2>
                 <p className="mt-1 text-sm text-slate-400">
-                  Latest student applications (alumni applications are not shown here).
+                  Latest student applications.
                 </p>
                 <div className="mt-4 space-y-3">
                   {recentApplications.length ? (
@@ -1733,13 +1863,13 @@ function AdminDashboard({ user, onLogout }) {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
                             <p className="font-semibold text-white">
-                              {item.student?.name || "Applicant"} → {item.job?.title || "Job"}
+                              {item.student?.name || "Applicant"} â†’ {item.job?.title || "Job"}
                             </p>
                             <p className="mt-1 text-sm text-slate-400">
                               {item.job?.createdBy?.name || "Company"} ·{" "}
                               <span className="capitalize">{item.status}</span>
                             </p>
-                            <p className="mt-2 text-xs text-cyan-300/90">Click for job details →</p>
+                            <p className="mt-2 text-xs text-cyan-300/90">Click for job details â†’</p>
                           </div>
                           <div className="flex shrink-0 flex-wrap gap-2">
                             {item.student?._id ? (
@@ -1792,3 +1922,4 @@ function AdminDashboard({ user, onLogout }) {
 }
 
 export default AdminDashboard;
+

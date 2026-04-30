@@ -193,7 +193,7 @@ function LandingPage() {
                       <Icon className="h-7 w-7" />
                     </div>
                     <h3 className="text-2xl font-semibold text-slate-900">{feature.title}</h3>
-                    <p className="mt-3 text-slate-600">{feature.description}</p>
+                    <p className="mt-3 text-slate-700">{feature.description}</p>
                   </CardContent>
                 </Card>
               );
@@ -256,7 +256,7 @@ function LandingPage() {
                 </div>
                 <div>
                   <h3 className="text-2xl font-semibold text-slate-900">{step.title}</h3>
-                  <p className="mt-2 text-slate-600">{step.description}</p>
+                  <p className="mt-2 text-slate-700">{step.description}</p>
                 </div>
               </div>
             ))}
@@ -281,10 +281,10 @@ function LandingPage() {
                     />
                     <div>
                       <h4 className="text-lg font-semibold text-slate-900">{testimonial.name}</h4>
-                      <p className="text-slate-500">{testimonial.role}</p>
+                      <p className="text-slate-600">{testimonial.role}</p>
                     </div>
                   </div>
-                  <p className="italic text-slate-600">"{testimonial.text}"</p>
+                  <p className="italic text-slate-700">"{testimonial.text}"</p>
                   <div className="mt-5 flex gap-1 text-amber-500">
                     {Array.from({ length: 5 }).map((_, idx) => (
                       <Star key={idx} className="h-4 w-4 fill-current" />
@@ -310,7 +310,7 @@ function LandingPage() {
         </section>
       </main>
 
-      <footer className="bg-[var(--dark)] px-3 pb-6 pt-10 text-white sm:px-4 sm:pb-8 sm:pt-12">
+      <footer className="l2h-dark-ui bg-[var(--dark)] px-3 pb-6 pt-10 text-white sm:px-4 sm:pb-8 sm:pt-12">
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             <div>
               <div className="mb-5 text-2xl font-bold">Learn2Hire</div>

@@ -24,6 +24,32 @@ const generateToken = (id) => {
   });
 };
 
+const serializeAuthUser = (user) => {
+  const doc = user && typeof user.toObject === 'function' ? user.toObject() : user;
+  const base = {
+    id: doc._id,
+    name: doc.name,
+    email: doc.email,
+    role: doc.role,
+    facultyApprovalStatus: doc.facultyApprovalStatus,
+    collegeApprovalStatus: doc.collegeApprovalStatus,
+    platformApprovalStatus: doc.platformApprovalStatus,
+    affiliatedCollege: doc.affiliatedCollege,
+    managedByCollege: doc.managedByCollege,
+    profilePhoto: doc.profilePhoto || '',
+  };
+  if (doc.role === 'company') {
+    return {
+      ...base,
+      companyBio: doc.companyBio || '',
+      companyDetails: doc.companyDetails || '',
+      companyGoals: doc.companyGoals || '',
+      companyFocusAreas: doc.companyFocusAreas || '',
+    };
+  }
+  return base;
+};
+
 const isStrongPassword = (password) => {
   const value = String(password || '');
 
@@ -320,9 +346,9 @@ exports.requestSignupOtp = async (req, res) => {
   }
 };
 
-const PASSWORD_RESET_ROLES = ['student', 'alumni', 'faculty', 'college', 'company'];
+const PASSWORD_RESET_ROLES = ['student', 'faculty', 'college', 'company'];
 
-// @desc    Request password reset code (student, alumni, faculty, college, company; not admin)
+// @desc    Request password reset code (student, faculty, college, company; not admin)
 // @route   POST /api/auth/request-password-reset-otp
 // @access  Public
 exports.requestPasswordResetOtp = async (req, res) => {
@@ -597,6 +623,10 @@ exports.signup = async (req, res) => {
       userPayload.affiliatedCollege = collegeDoc._id;
     }
 
+    if (role === 'company') {
+      userPayload.platformApprovalStatus = 'pending';
+    }
+
     const user = await User.create(userPayload);
 
     if (role === 'college') {
@@ -672,7 +702,7 @@ exports.signup = async (req, res) => {
           metadata: { studentId: user._id },
         });
         await notifyPlatformAdmins({
-          title: 'Student registered',
+          title: 'New student registered',
           message: `${name} (${normEmail}) joined as a student under ${collegeDoc.name}.`,
           category: 'system',
           type: 'student_joined_platform',
@@ -682,6 +712,17 @@ exports.signup = async (req, res) => {
       } catch (notifyErr) {
         console.error('[Learn2Hire] student signup notify:', notifyErr.message || notifyErr);
       }
+
+      await EmailOtp.deleteMany({ email: normEmail, purpose: 'signup' });
+      const token = generateToken(user._id);
+      return res.status(201).json({
+        success: true,
+        message: 'User registered successfully',
+        data: {
+          user: serializeAuthUser(user),
+          token,
+        },
+      });
     }
 
     if (role === 'faculty') {
@@ -697,8 +738,8 @@ exports.signup = async (req, res) => {
           metadata: { facultyId: user._id },
         });
         await notifyPlatformAdmins({
-          title: 'Faculty registration',
-          message: `${name} requested faculty access for ${collegeDoc.name}.`,
+          title: 'Faculty registration pending approval',
+          message: `${name} (${normEmail}) requested faculty access for ${collegeDoc.name}. Their college or a Learn2Hire administrator can approve this request.`,
           category: 'system',
           type: 'faculty_pending_admin',
           actionUrl: '/dashboard',
@@ -710,7 +751,7 @@ exports.signup = async (req, res) => {
       return res.status(201).json({
         success: true,
         message:
-          'Registration received. Your college will review and approve your faculty account before you can sign in.',
+          'Registration received. Your college or a Learn2Hire administrator must approve your faculty account before you can sign in.',
         data: {
           user: {
             id: user._id,
@@ -726,24 +767,42 @@ exports.signup = async (req, res) => {
       });
     }
 
-    const token = generateToken(user._id);
-
-    await EmailOtp.deleteMany({ email: normEmail, purpose: 'signup' });
-
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          managedByCollege: user.managedByCollege,
-          affiliatedCollege: user.affiliatedCollege,
+    if (role === 'company') {
+      await EmailOtp.deleteMany({ email: normEmail, purpose: 'signup' });
+      try {
+        await notifyPlatformAdmins({
+          title: 'Company pending platform approval',
+          message: `${name} (${normEmail}) registered a company account. Approve or reject this account in the admin dashboard.`,
+          category: 'system',
+          type: 'company_pending_platform',
+          actionUrl: '/dashboard',
+          metadata: { companyUserId: user._id },
+        });
+      } catch (notifyErr) {
+        console.error('[Learn2Hire] company signup notify:', notifyErr.message || notifyErr);
+      }
+      return res.status(201).json({
+        success: true,
+        message:
+          'Registration received. A Learn2Hire administrator must approve your company account before you can sign in.',
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            platformApprovalStatus: 'pending',
+          },
+          token: null,
+          requiresApproval: true,
         },
-        token,
-      },
+      });
+    }
+
+    console.error('[Learn2Hire] signup: unexpected fallthrough for role', role);
+    return res.status(500).json({
+      success: false,
+      message: 'Registration could not be completed.',
     });
   } catch (err) {
     res.status(500).json({
@@ -819,23 +878,30 @@ exports.login = async (req, res) => {
       }
     }
 
+    if (user.role === 'company') {
+      const pst = user.platformApprovalStatus;
+      if (pst === 'pending') {
+        return res.status(403).json({
+          success: false,
+          message:
+            'Your company account is awaiting approval from a Learn2Hire administrator. You will be able to sign in after approval.',
+        });
+      }
+      if (pst === 'rejected') {
+        return res.status(403).json({
+          success: false,
+          message: 'Your company registration was not approved. Contact support if you need help.',
+        });
+      }
+    }
+
     const token = generateToken(user._id);
 
     res.status(200).json({
       success: true,
       message: 'Login successful',
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          facultyApprovalStatus: user.facultyApprovalStatus,
-          collegeApprovalStatus: user.collegeApprovalStatus,
-          affiliatedCollege: user.affiliatedCollege,
-          managedByCollege: user.managedByCollege,
-          profilePhoto: user.profilePhoto || '',
-        },
+        user: serializeAuthUser(user),
         token,
       },
     });
@@ -856,20 +922,78 @@ exports.getMe = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          facultyApprovalStatus: user.facultyApprovalStatus,
-          collegeApprovalStatus: user.collegeApprovalStatus,
-          managedByCollege: user.managedByCollege,
-          affiliatedCollege: user.affiliatedCollege,
-          profilePhoto: user.profilePhoto || '',
-        },
+        user: serializeAuthUser(user),
       },
     });
   } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Update company narrative profile (employer accounts only)
+// @route   PATCH /api/auth/me/company
+// @access  Private (company)
+exports.patchCompanyProfile = async (req, res) => {
+  try {
+    if (req.user.role !== 'company') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only company accounts can update this profile.',
+      });
+    }
+
+    const { companyBio, companyDetails, companyGoals, companyFocusAreas } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    if (companyBio !== undefined) user.companyBio = String(companyBio ?? '').trim();
+    if (companyDetails !== undefined) {
+      user.companyDetails = String(companyDetails ?? '').trim();
+    }
+    if (companyGoals !== undefined) user.companyGoals = String(companyGoals ?? '').trim();
+    if (companyFocusAreas !== undefined) {
+      user.companyFocusAreas = String(companyFocusAreas ?? '').trim();
+    }
+
+    await user.save();
+
+    try {
+      await notifyPlatformAdmins({
+        title: 'Company profile updated',
+        message: `${user.name} (${user.email}) updated their company profile.`,
+        category: 'system',
+        type: 'company_profile_updated',
+        actionUrl: '/dashboard',
+        metadata: { companyUserId: user._id },
+      });
+    } catch (e) {
+      console.error('[Learn2Hire] company profile admin notify:', e.message || e);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Company profile updated.',
+      data: {
+        user: serializeAuthUser(user),
+      },
+    });
+  } catch (err) {
+    if (err.name === 'ValidationError') {
+      const messages = Object.values(err.errors).map((e) => e.message);
+      return res.status(400).json({
+        success: false,
+        message: messages.join(' '),
+      });
+    }
     res.status(500).json({
       success: false,
       message: err.message || 'Server error',

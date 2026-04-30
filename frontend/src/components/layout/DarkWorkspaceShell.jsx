@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { LogOut, Menu, Sparkles } from "lucide-react";
 
 import { DashboardTopNav } from "../dashboard/DashboardTopNav";
@@ -59,11 +59,11 @@ function DarkWorkspaceShell({
     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition hover:border-white/20 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-50">
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside
           className={cn(
-            "hidden w-64 shrink-0 flex-col border-white/10 bg-slate-950/50 backdrop-blur",
+            "hidden w-64 shrink-0 flex-col border-slate-400/25 bg-slate-800/55 backdrop-blur",
             "lg:sticky lg:top-0 lg:h-screen lg:max-h-screen lg:border-b-0 lg:border-r",
             sidebarCollapsed ? "lg:hidden" : "lg:flex"
           )}
@@ -112,7 +112,7 @@ function DarkWorkspaceShell({
 
         <div
           className={cn(
-            "hidden min-h-0 shrink-0 flex-col border-white/10 bg-slate-950/50 backdrop-blur",
+            "hidden min-h-0 shrink-0 flex-col border-slate-400/25 bg-slate-800/55 backdrop-blur",
             "lg:sticky lg:top-0 lg:h-screen lg:max-h-screen lg:border-b-0 lg:border-r",
             sidebarCollapsed
               ? "lg:flex lg:w-16 lg:min-h-0 lg:gap-2 lg:px-2 lg:py-3"

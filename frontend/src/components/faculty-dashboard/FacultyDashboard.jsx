@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   BookOpenCheck,
@@ -6,25 +6,35 @@ import {
   LoaderCircle,
   Pencil,
   Sparkles,
+  UserPlus,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { facultyNavItems } from "../../config/facultyNavItems";
+import { readApiResponse } from "../../lib/api";
+import {
+  STUDENT_COHORT_BRANCH_OPTIONS,
+  STUDENT_COHORT_PROGRAM_OPTIONS,
+  STUDENT_COHORT_SEMESTER_OPTIONS,
+  STUDENT_COHORT_YEAR_OPTIONS,
+} from "../../lib/studentCohortFieldOptions";
 import {
   PROFILE_PHOTO_MAX_BYTES,
   persistUserProfilePhotoInLocalStorage,
 } from "../../lib/avatarUtils";
 import { DarkWorkspaceShell } from "../layout/DarkWorkspaceShell";
+import { DashboardMetricCard } from "../dashboard/DashboardMetricCard";
 import { ProfileAvatarBlock } from "../profile/ProfileAvatarBlock";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
+import { VisibleFileInput } from "../ui/visible-file-input";
 
 function SectionTitle({ title, description, action }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 className="text-2xl font-bold text-white">{title}</h2>
-        <p className="mt-2 text-sm text-slate-400">{description}</p>
+        <p className="mt-2 text-sm text-slate-300">{description}</p>
       </div>
       {action}
     </div>
@@ -40,28 +50,9 @@ function EmptyState({ title, description, action }) {
         </div>
         <div>
           <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <p className="mt-2 text-sm text-slate-400">{description}</p>
+          <p className="mt-2 text-sm text-slate-300">{description}</p>
         </div>
         {action}
-      </CardContent>
-    </Card>
-  );
-}
-
-function MetricCard({ title, value, subtitle, icon: Icon }) {
-  return (
-    <Card className="border border-white/10 bg-white/5 shadow-[0_18px_40px_rgba(2,6,23,0.25)] transition-transform hover:-translate-y-1">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-slate-400">{title}</p>
-            <h3 className="mt-3 text-3xl font-bold text-white">{value}</h3>
-            <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
-          </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
-            <Icon className="h-6 w-6" />
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
@@ -80,6 +71,14 @@ function FacultyDashboard({ user, onLogout }) {
   const [profilePhotoError, setProfilePhotoError] = useState("");
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [photoCacheBust, setPhotoCacheBust] = useState(0);
+  const [importCourse, setImportCourse] = useState("");
+  const [importProgram, setImportProgram] = useState("");
+  const [importYear, setImportYear] = useState("");
+  const [importSemester, setImportSemester] = useState("");
+  const [studentSheetFile, setStudentSheetFile] = useState(null);
+  const [bulkImportBusy, setBulkImportBusy] = useState(false);
+  const [bulkImportMessage, setBulkImportMessage] = useState("");
+  const [bulkImportError, setBulkImportError] = useState("");
 
   useEffect(() => {
     const sid = location.state?.facultySection;
@@ -246,6 +245,47 @@ function FacultyDashboard({ user, onLogout }) {
   );
   const recentAssessments = assessments.slice(0, 4);
 
+  const handleFacultyStudentImport = async () => {
+    const token = localStorage.getItem("token");
+    if (!token || !studentSheetFile) return;
+    if (!importCourse.trim() || !importProgram.trim() || !importYear.trim()) {
+      setBulkImportError(
+        "Select course, program, and year. Each row in the file must match that class."
+      );
+      return;
+    }
+    setBulkImportError("");
+    setBulkImportMessage("");
+    setBulkImportBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", studentSheetFile);
+      fd.append("targetCourse", importCourse.trim());
+      fd.append("targetProgram", importProgram.trim());
+      fd.append("targetYear", importYear.trim());
+      fd.append("targetSemester", importSemester.trim());
+      const res = await fetch("/api/college/roster/import/students", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await readApiResponse(res);
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return;
+      }
+      if (!res.ok) throw new Error(data.message || "Student import failed.");
+      setBulkImportMessage(data.message || "Import completed.");
+      setStudentSheetFile(null);
+    } catch (err) {
+      setBulkImportError(err.message || "Student import failed.");
+    } finally {
+      setBulkImportBusy(false);
+    }
+  };
+
   const assessmentProgress = assessments.map((assessment) => {
     const submissions = submissionsByAssessment[assessment._id] || [];
     return {
@@ -262,6 +302,24 @@ function FacultyDashboard({ user, onLogout }) {
           : 0,
     };
   });
+
+  const goToProgressSection = useCallback(() => {
+    setActiveSection("progress");
+    const tryScroll = (attemptsLeft) => {
+      const el = document.getElementById("faculty-dash-progress");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        try {
+          el.focus({ preventScroll: true });
+        } catch {
+          /* not focusable */
+        }
+        return;
+      }
+      if (attemptsLeft > 0) requestAnimationFrame(() => tryScroll(attemptsLeft - 1));
+    };
+    requestAnimationFrame(() => tryScroll(32));
+  }, []);
 
   const renderDashboard = () => (
     <div className="space-y-5">
@@ -282,34 +340,157 @@ function FacultyDashboard({ user, onLogout }) {
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
+        <DashboardMetricCard
           title="Assessments Created"
           value={assessments.length}
           subtitle="Owned by this faculty account"
           icon={ClipboardList}
+          to="/assessments"
         />
-        <MetricCard
+        <DashboardMetricCard
           title="Published"
           value={publishedAssessments.length}
           subtitle="Visible to students"
           icon={BookOpenCheck}
+          scrollTargetId="faculty-dash-mix"
         />
-        <MetricCard
+        <DashboardMetricCard
           title="Total Submissions"
           value={totalSubmissions}
           subtitle="Across your assessments"
           icon={BarChart3}
+          onActivate={goToProgressSection}
         />
-        <MetricCard
+        <DashboardMetricCard
           title="Average Score"
           value={`${averageScore}%`}
           subtitle="Average student performance"
           icon={Sparkles}
+          onActivate={goToProgressSection}
         />
       </div>
 
+      <Card className="border border-slate-400/30 bg-slate-800/40 shadow-none">
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-cyan-200">
+                <UserPlus className="h-5 w-5" />
+                <h3 className="text-lg font-semibold text-white">Bulk student import</h3>
+              </div>
+              <p className="mt-2 text-sm text-slate-300">
+                Upload Excel or CSV for your campus: columns{" "}
+                <span className="text-slate-200">
+                  S.No, Course, Program, Year, Contact number, Email id
+                </span>
+                . Optional <span className="text-slate-200">Name</span>. Rows must match the class you
+                select. New accounts use password <code className="text-cyan-200">Firstname@123</code>.
+              </p>
+            </div>
+          </div>
+          {bulkImportMessage ? (
+            <div className="mt-4 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              {bulkImportMessage}
+            </div>
+          ) : null}
+          {bulkImportError ? (
+            <div className="mt-4 rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              {bulkImportError}
+            </div>
+          ) : null}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="text-xs font-medium text-slate-300">Course</label>
+              <select
+                className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                value={importCourse}
+                onChange={(e) => setImportCourse(e.target.value)}
+              >
+                <option value="">Select</option>
+                {STUDENT_COHORT_PROGRAM_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-300">Program</label>
+              <select
+                className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                value={importProgram}
+                onChange={(e) => setImportProgram(e.target.value)}
+              >
+                <option value="">Select</option>
+                {STUDENT_COHORT_BRANCH_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-300">Year</label>
+              <select
+                className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                value={importYear}
+                onChange={(e) => setImportYear(e.target.value)}
+              >
+                <option value="">Select</option>
+                {STUDENT_COHORT_YEAR_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-300">Semester (optional)</label>
+              <select
+                className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                value={importSemester}
+                onChange={(e) => setImportSemester(e.target.value)}
+              >
+                <option value="">—</option>
+                {STUDENT_COHORT_SEMESTER_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <VisibleFileInput
+            className="mt-4"
+            id="faculty-bulk-students"
+            label="Spreadsheet file"
+            accept=".xlsx,.xls,.csv"
+            onChange={(e) => setStudentSheetFile(e.target.files?.[0] || null)}
+            disabled={bulkImportBusy}
+          />
+          <Button
+            type="button"
+            className="mt-4"
+            disabled={
+              bulkImportBusy ||
+              !studentSheetFile ||
+              !importCourse.trim() ||
+              !importProgram.trim() ||
+              !importYear.trim()
+            }
+            onClick={handleFacultyStudentImport}
+          >
+            {bulkImportBusy ? "Importing…" : "Import students"}
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 shadow-none">
+        <Card
+          id="faculty-dash-recent"
+          tabIndex={-1}
+          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+        >
           <CardContent className="p-6">
             <SectionTitle
               title="Recent Assessments"
@@ -345,7 +526,11 @@ function FacultyDashboard({ user, onLogout }) {
           </CardContent>
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 shadow-none">
+        <Card
+          id="faculty-dash-mix"
+          tabIndex={-1}
+          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+        >
           <CardContent className="p-6">
             <SectionTitle
               title="Assessment Mix"
@@ -523,7 +708,11 @@ function FacultyDashboard({ user, onLogout }) {
   );
 
   const renderProgress = () => (
-    <Card className="border border-white/10 bg-white/5 shadow-none">
+    <Card
+      id="faculty-dash-progress"
+      tabIndex={-1}
+      className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+    >
       <CardContent className="p-6">
         <SectionTitle
           title="Assessment Progress"

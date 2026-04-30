@@ -15,13 +15,15 @@ const bcrypt = require('bcryptjs');
 const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
 const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
 const { createNotification } = require('../utils/notificationService');
+const { sendApprovalGrantedEmail } = require('../utils/otpDelivery');
 const { isCollegeNameTaken } = require('../utils/collegeNameNormalize');
 const {
   CONTACT_PROFILE_KEYS,
   validateStudentProfileContactFields,
 } = require('../utils/studentProfileFieldValidation');
+const { JOB_CREATED_BY_SELECT } = require('../constants/jobCreatedBySelect');
 
-const validRoles = ['student', 'alumni', 'faculty', 'company', 'admin', 'college'];
+const validRoles = ['student', 'faculty', 'company', 'admin', 'college'];
 
 const ensureAdmin = (req, res) => {
   if (req.user.role !== 'admin') {
@@ -52,7 +54,7 @@ exports.getAnalytics = async (req, res) => {
       roleBreakdown,
       recentUsers,
     ] = await Promise.all([
-      User.countDocuments({ role: { $ne: 'alumni' } }),
+      User.countDocuments(),
       StudentProfile.countDocuments(),
       Assessment.countDocuments(),
       AssessmentSubmission.countDocuments(),
@@ -67,11 +69,10 @@ exports.getAnalytics = async (req, res) => {
           },
         },
         { $unwind: { path: '$stu', preserveNullAndEmptyArrays: true } },
-        { $match: { 'stu.role': { $ne: 'alumni' } } },
         { $count: 'c' },
       ]),
       User.aggregate([{ $group: { _id: '$role', count: { $sum: 1 } } }]),
-      User.find({ role: { $ne: 'alumni' } })
+      User.find()
         .select('name email role createdAt')
         .sort({ createdAt: -1 })
         .limit(6),
@@ -81,7 +82,6 @@ exports.getAnalytics = async (req, res) => {
 
     const roles = {
       student: 0,
-      alumni: 0,
       faculty: 0,
       company: 0,
       admin: 0,
@@ -137,7 +137,7 @@ exports.getUsers = async (req, res) => {
     }
 
     const users = await User.find(query)
-      .select('name email role createdAt updatedAt')
+      .select('name email role createdAt updatedAt platformApprovalStatus')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -167,7 +167,7 @@ exports.getAdminUserDetail = async (req, res) => {
 
     const user = await User.findById(id)
       .select(
-        'name email role createdAt updatedAt facultyApprovalStatus collegeApprovalStatus affiliatedCollege managedByCollege facultyQualification facultySubjects'
+        'name email role createdAt updatedAt facultyApprovalStatus collegeApprovalStatus platformApprovalStatus affiliatedCollege managedByCollege facultyQualification facultySubjects'
       )
       .populate('affiliatedCollege', 'name email role collegeApprovalStatus createdAt')
       .populate('managedByCollege', 'name email role collegeApprovalStatus createdAt')
@@ -178,7 +178,7 @@ exports.getAdminUserDetail = async (req, res) => {
     }
 
     let studentProfile = null;
-    if (user.role === 'student' || user.role === 'alumni') {
+    if (user.role === 'student') {
       studentProfile = await StudentProfile.findOne({ user: id })
         .select(
           'course branch year semester bio studentPhone fatherName motherName fatherPhone motherPhone address city state pincode dateOfBirth bloodGroup emergencyContactName emergencyContactPhone'
@@ -343,6 +343,8 @@ exports.getPlatformInsights = async (req, res) => {
       jobStatusBreakdown,
       pendingCollegesCount,
       pendingColleges,
+      pendingPlatformCount,
+      pendingPlatformUsers,
       registeredColleges,
       registeredCompanies,
       registeredFaculty,
@@ -350,7 +352,7 @@ exports.getPlatformInsights = async (req, res) => {
     ] = await Promise.all([
       User.find()
         .select(
-          'name email role managedByCollege facultyApprovalStatus collegeApprovalStatus affiliatedCollege facultyQualification facultySubjects createdAt updatedAt'
+          'name email role managedByCollege facultyApprovalStatus collegeApprovalStatus platformApprovalStatus affiliatedCollege facultyQualification facultySubjects createdAt updatedAt'
         )
         .sort({ createdAt: -1 })
         .limit(300)
@@ -361,7 +363,7 @@ exports.getPlatformInsights = async (req, res) => {
         .select('title status location employmentType createdBy createdAt updatedAt')
         .sort({ createdAt: -1 })
         .limit(120)
-        .populate('createdBy', 'name email role')
+        .populate('createdBy', JOB_CREATED_BY_SELECT)
         .lean(),
       JobApplication.find()
         .select('status student job createdAt updatedAt')
@@ -371,7 +373,7 @@ exports.getPlatformInsights = async (req, res) => {
         .populate({
           path: 'job',
           select: 'title status createdBy location employmentType',
-          populate: { path: 'createdBy', select: 'name email role' },
+          populate: { path: 'createdBy', select: JOB_CREATED_BY_SELECT },
         })
         .lean(),
       User.aggregate([{ $group: { _id: '$role', count: { $sum: 1 } } }]),
@@ -379,6 +381,18 @@ exports.getPlatformInsights = async (req, res) => {
       User.countDocuments({ role: 'college', collegeApprovalStatus: 'pending' }),
       User.find({ role: 'college', collegeApprovalStatus: 'pending' })
         .select('name email createdAt')
+        .sort({ createdAt: -1 })
+        .limit(80)
+        .lean(),
+      User.countDocuments({
+        role: 'company',
+        platformApprovalStatus: 'pending',
+      }),
+      User.find({
+        role: 'company',
+        platformApprovalStatus: 'pending',
+      })
+        .select('name email role createdAt')
         .sort({ createdAt: -1 })
         .limit(80)
         .lean(),
@@ -402,13 +416,8 @@ exports.getPlatformInsights = async (req, res) => {
       User.countDocuments({ role: 'college' }),
     ]);
 
-    const applicationsExcludingAlumni = applications.filter(
-      (a) => a.student && a.student.role !== 'alumni'
-    );
-
     const roleCounts = {
       student: 0,
-      alumni: 0,
       faculty: 0,
       company: 0,
       admin: 0,
@@ -427,7 +436,7 @@ exports.getPlatformInsights = async (req, res) => {
       rejected: 0,
       hired: 0,
     };
-    applicationsExcludingAlumni.forEach((a) => {
+    applications.forEach((a) => {
       const s = a.status;
       if (s && Object.prototype.hasOwnProperty.call(appStatusCounts, s)) {
         appStatusCounts[s] += 1;
@@ -443,7 +452,7 @@ exports.getPlatformInsights = async (req, res) => {
       if (row?._id) jobStatusCounts[row._id] = row.count;
     });
 
-    const usersForAdmin = users.filter((u) => u.role !== 'alumni');
+    const usersForAdmin = users;
 
     const pendingFacultyCount = usersForAdmin.filter(
       (u) => u.role === 'faculty' && u.facultyApprovalStatus === 'pending'
@@ -500,13 +509,15 @@ exports.getPlatformInsights = async (req, res) => {
         totals: {
           totalUsers: usersForAdmin.length,
           totalJobs: jobs.length,
-          totalApplications: applicationsExcludingAlumni.length,
+          totalApplications: applications.length,
           pendingFacultyCount,
           pendingCollegesCount,
+          pendingPlatformCount,
           managedStudentsCount,
           collegeAccountsTotal: collegeAccountCount,
         },
         pendingColleges,
+        pendingPlatformUsers,
         registeredColleges,
         registeredCompanies,
         facultyDirectory,
@@ -515,7 +526,7 @@ exports.getPlatformInsights = async (req, res) => {
         appStatusCounts,
         people,
         jobs,
-        applications: applicationsExcludingAlumni,
+        applications,
       },
     });
   } catch (err) {
@@ -606,10 +617,10 @@ exports.patchStudentCohort = async (req, res) => {
     }
 
     const target = await User.findById(id);
-    if (!target || (target.role !== 'student' && target.role !== 'alumni')) {
+    if (!target || target.role !== 'student') {
       return res.status(404).json({
         success: false,
-        message: 'Student or alumni user not found.',
+        message: 'Student user not found.',
       });
     }
 
@@ -669,7 +680,7 @@ exports.patchStudentCohort = async (req, res) => {
   }
 };
 
-// @desc    Delete user (admin) — cascade by role (student/alumni, faculty, company)
+// @desc    Delete user (admin) — cascade by role (student, faculty, company)
 // @route   DELETE /api/admin/users/:id
 // @access  Private (admin only)
 exports.deleteUser = async (req, res) => {
@@ -877,6 +888,9 @@ exports.setCollegeApproval = async (req, res) => {
     user.collegeApprovalStatus = decision;
     await user.save();
 
+    let approvalEmailSent = false;
+    let approvalEmailNote = '';
+
     if (decision === 'approved') {
       try {
         await createNotification({
@@ -889,7 +903,21 @@ exports.setCollegeApproval = async (req, res) => {
           metadata: {},
         });
       } catch (e) {
-        console.error('[Learn2Hire] college approval notify:', e.message || e);
+        console.error('[Learn2Hire] college approval in-app notify:', e.message || e);
+      }
+
+      const mailResult = await sendApprovalGrantedEmail(user.email, {
+        recipientName: user.name,
+        variant: 'college',
+      });
+      approvalEmailSent = Boolean(mailResult.sent);
+      if (!mailResult.sent) {
+        approvalEmailNote =
+          mailResult.reason === 'smtp_not_configured'
+            ? 'SMTP is not configured on the server — approval was saved but no email was sent. Set SMTP_USER, SMTP_PASS, and SMTP_HOST (or SMTP_SERVICE) in backend/.env.'
+            : mailResult.reason === 'send_failed'
+              ? `Email could not be sent: ${mailResult.error || 'check SMTP settings and server logs.'}`
+              : 'Email was not sent.';
       }
     }
 
@@ -907,6 +935,114 @@ exports.setCollegeApproval = async (req, res) => {
           role: user.role,
           collegeApprovalStatus: user.collegeApprovalStatus,
         },
+        approvalEmailSent,
+        approvalEmailNote,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Approve or reject self-registered company (platform approval)
+// @route   PATCH /api/admin/users/:id/platform-approval
+// @access  Private (admin only)
+exports.setPlatformUserApproval = async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
+    const { decision } = req.body || {};
+    if (!['approved', 'rejected'].includes(decision)) {
+      return res.status(400).json({
+        success: false,
+        message: 'decision must be approved or rejected',
+      });
+    }
+
+    const user = await User.findById(id);
+    if (!user || user.role !== 'company') {
+      return res.status(404).json({
+        success: false,
+        message: 'Company account not found or this user is not a self-service company registration.',
+      });
+    }
+
+    user.platformApprovalStatus = decision;
+    await user.save();
+
+    let approvalEmailSent = false;
+    let approvalEmailNote = '';
+
+    if (decision === 'approved') {
+      try {
+        await createNotification({
+          recipient: user._id,
+          title: 'Account approved',
+          message:
+            'Your company account is approved on Learn2Hire. You can sign in and post roles.',
+          category: 'system',
+          type: 'platform_approved',
+          actionUrl: '/dashboard',
+          metadata: {},
+        });
+      } catch (e) {
+        console.error('[Learn2Hire] platform approval in-app notify:', e.message || e);
+      }
+
+      const mailResult = await sendApprovalGrantedEmail(user.email, {
+        recipientName: user.name,
+        variant: 'company',
+      });
+      approvalEmailSent = Boolean(mailResult.sent);
+      if (!mailResult.sent) {
+        approvalEmailNote =
+          mailResult.reason === 'smtp_not_configured'
+            ? 'SMTP is not configured on the server — approval was saved but no email was sent. Set SMTP_USER, SMTP_PASS, and SMTP_HOST (or SMTP_SERVICE) in backend/.env.'
+            : mailResult.reason === 'send_failed'
+              ? `Email could not be sent: ${mailResult.error || 'check SMTP settings and server logs.'}`
+              : 'Email was not sent.';
+      }
+    } else {
+      try {
+        await createNotification({
+          recipient: user._id,
+          title: 'Account not approved',
+          message:
+            'Your registration was not approved by the platform. Contact support if you have questions.',
+          category: 'system',
+          type: 'platform_rejected',
+          actionUrl: '/dashboard',
+          metadata: {},
+        });
+      } catch (e) {
+        console.error('[Learn2Hire] platform rejection notify:', e.message || e);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message:
+        decision === 'approved'
+          ? 'Account approved.'
+          : 'Registration rejected for this account.',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          platformApprovalStatus: user.platformApprovalStatus,
+        },
+        approvalEmailSent,
+        approvalEmailNote,
       },
     });
   } catch (err) {

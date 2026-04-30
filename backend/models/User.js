@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['student', 'alumni', 'faculty', 'company', 'admin', 'college'],
+        values: ['student', 'faculty', 'company', 'admin', 'college'],
         message: '{VALUE} is not a valid role',
       },
       required: [true, 'Please provide a role'],
@@ -31,6 +31,12 @@ const userSchema = new mongoose.Schema(
     },
     // College self-registration: pending until a platform admin approves. Omitted or "approved" for legacy colleges.
     collegeApprovalStatus: {
+      type: String,
+      enum: ['approved', 'pending', 'rejected'],
+    },
+    // Company self-registration: pending until a platform admin approves.
+    // Omitted or "approved" for legacy users and accounts created by an admin.
+    platformApprovalStatus: {
       type: String,
       enum: ['approved', 'pending', 'rejected'],
     },
@@ -62,6 +68,31 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+    },
+    /** Company accounts: narrative shown on employer profile and job pages. */
+    companyBio: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 2000,
+    },
+    companyDetails: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 4000,
+    },
+    companyGoals: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 2000,
+    },
+    companyFocusAreas: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 1500,
     },
   },
   {

@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle2,
   Clock3,
+  Download,
+  ExternalLink,
+  FileText,
   LoaderCircle,
   Trophy,
 } from "lucide-react";
@@ -99,9 +102,13 @@ function StudentAssessment() {
     [id, submissions]
   );
 
+  const questionPaperPath = assessment?.questionPaper?.relativePath || "";
+  const questionPaperName =
+    assessment?.questionPaper?.originalName || "Question paper";
   const totalQuestions = assessment?.questions?.length || 0;
+  const isDocumentOnly = Boolean(questionPaperPath) && totalQuestions === 0;
   const answeredCount = Object.keys(answers).length;
-  const hasTimeLimit = Boolean(assessment?.timeLimit);
+  const hasTimeLimit = Boolean(assessment?.timeLimit) && totalQuestions > 0;
   const percentage = existingSubmission?.maxScore
     ? Math.round((existingSubmission.score / existingSubmission.maxScore) * 100)
     : 0;
@@ -112,9 +119,12 @@ function StudentAssessment() {
       return;
     }
 
-    if (assessment.timeLimit) {
+    const qn = assessment.questions?.length || 0;
+    if (assessment.timeLimit && qn > 0) {
       setTimeLeft(assessment.timeLimit * 60);
       setTimeExpired(false);
+    } else {
+      setTimeLeft(null);
     }
   }, [assessment, existingSubmission]);
 
@@ -149,7 +159,7 @@ function StudentAssessment() {
       }
 
       if (!assessment?.questions?.length) {
-        setError("This assessment has no questions.");
+        setError("This assessment has no online questions to submit.");
         return;
       }
 
@@ -249,7 +259,7 @@ function StudentAssessment() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-200">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading assessment...
@@ -259,7 +269,7 @@ function StudentAssessment() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-3 py-5 text-slate-50 sm:px-4 sm:py-6">
       <div className="w-full">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -279,7 +289,10 @@ function StudentAssessment() {
               {assessment?.title || "Assessment"}
             </h1>
             <p className="mt-2 text-sm text-slate-400">
-              {assessment?.description || "Complete all questions and submit your answers."}
+              {assessment?.description ||
+                (isDocumentOnly
+                  ? "Download or open the question paper using the buttons below."
+                  : "Complete all questions and submit your answers.")}
             </p>
           </div>
 
@@ -289,12 +302,20 @@ function StudentAssessment() {
           </Button>
         </div>
 
-        <div className="mb-6 grid gap-4 md:grid-cols-4">
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card className="border border-white/10 bg-white/5 shadow-none">
             <CardContent className="p-5">
               <p className="text-sm text-slate-400">Skill</p>
               <p className="mt-2 text-lg font-semibold text-white">
                 {assessment?.skill || "General"}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border border-white/10 bg-white/5 shadow-none">
+            <CardContent className="p-5">
+              <p className="text-sm text-slate-400">Format</p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                {isDocumentOnly ? "Document" : totalQuestions > 0 ? "Online MCQ" : "—"}
               </p>
             </CardContent>
           </Card>
@@ -312,15 +333,51 @@ function StudentAssessment() {
               </p>
             </CardContent>
           </Card>
-          <Card className="border border-white/10 bg-white/5 shadow-none">
-            <CardContent className="p-5">
-              <p className="text-sm text-slate-400">Answered</p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {answeredCount}/{totalQuestions}
-              </p>
+          {totalQuestions > 0 ? (
+            <Card className="border border-white/10 bg-white/5 shadow-none sm:col-span-2 xl:col-span-4">
+              <CardContent className="p-5">
+                <p className="text-sm text-slate-400">Answered</p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {answeredCount}/{totalQuestions}
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+
+        {questionPaperPath ? (
+          <Card className="mb-6 border border-cyan-400/25 bg-cyan-500/5 shadow-none">
+            <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-cyan-300">
+                  <FileText className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-cyan-200">Question paper</p>
+                  <p className="mt-1 text-sm text-slate-300">{questionPaperName}</p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Open in the browser or download to complete offline, per your instructor&apos;s
+                    instructions.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild variant="default" className="gap-2">
+                  <a href={questionPaperPath} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                    Open
+                  </a>
+                </Button>
+                <Button asChild variant="outline" className="gap-2 border-white/20 text-white">
+                  <a href={questionPaperPath} download={questionPaperName}>
+                    <Download className="h-4 w-4" />
+                    Download
+                  </a>
+                </Button>
+              </div>
             </CardContent>
           </Card>
-        </div>
+        ) : null}
 
         {existingSubmission ? (
           <Card className="border border-emerald-400/20 bg-emerald-500/10 shadow-none">
@@ -367,6 +424,21 @@ function StudentAssessment() {
                 <Button onClick={() => navigate("/assessments")}>Back to Assessments</Button>
                 <Button variant="default" onClick={() => navigate("/dashboard")}>
                   Go to Dashboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : isDocumentOnly ? (
+          <Card className="border border-white/10 bg-white/5 shadow-none">
+            <CardContent className="p-6">
+              <h2 className="text-lg font-semibold text-white">Document assessment</h2>
+              <p className="mt-2 text-sm text-slate-400">
+                This assessment is delivered as a file only. Use Open or Download above. There is no
+                online answer sheet for this test.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button type="button" onClick={() => navigate("/assessments")}>
+                  Back to Assessments
                 </Button>
               </div>
             </CardContent>
@@ -488,3 +560,4 @@ function StudentAssessment() {
 }
 
 export default StudentAssessment;
+

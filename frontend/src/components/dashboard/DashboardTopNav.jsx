@@ -44,6 +44,7 @@ function initialsFromName(name) {
  * @param {{ label: string, to?: string, onClick?: () => void, icon?: import("lucide-react").LucideIcon }[]} [props.actionItems] — 2+ items become a menu; 1 item renders as a toolbar link
  * @param {boolean} [props.bleed=false] — true: extend to edges of a padded main column (sidebar layouts)
  * @param {string} [props.className]
+ * @param {boolean} [props.compact=false] — tighter padding and typography (e.g. college dashboard)
  * @param {boolean} [props.showNavMenuButton=false] — hamburger; toggles workspace nav
  * @param {boolean} [props.showNavMenuAtLarge=false] — when true, keep hamburger visible on `lg+`
  * @param {boolean} [props.navMenuLeading=false] — when true, place the menu control first on the left (before the brand tile)
@@ -70,6 +71,7 @@ function DashboardTopNav({
   actionItems = null,
   bleed = false,
   className,
+  compact = false,
 }) {
   const isDark = theme === "dark";
   const navigate = useNavigate();
@@ -162,7 +164,8 @@ function DashboardTopNav({
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 mb-6 border-b backdrop-blur-xl",
+        "sticky top-0 z-50 border-b backdrop-blur-xl",
+        compact ? "mb-3" : "mb-6",
         isDark &&
           (bleed
             ? "-mx-3 border-white/10 bg-gradient-to-b from-slate-950/90 via-slate-950/75 to-slate-950/60 px-3 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.65)] ring-1 ring-white/5 sm:-mx-4 sm:px-4"
@@ -172,20 +175,29 @@ function DashboardTopNav({
         className
       )}
     >
-      <div className="py-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
-          <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+      <div className={cn("py-4", compact && "py-2 sm:py-2.5")}>
+        <div
+          className={cn(
+            "flex flex-col lg:flex-row lg:items-center lg:justify-between",
+            compact ? "gap-2.5 lg:gap-4" : "gap-4 lg:gap-6"
+          )}
+        >
+          <div className={cn("flex min-w-0 flex-1 items-start", compact ? "gap-2.5 sm:gap-3" : "gap-3 sm:gap-4")}>
             {navMenuLeading ? navMenuButton : null}
             {showHistoryBack ? historyBackButton : null}
             <div
               className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-lg sm:h-12 sm:w-12",
+                "flex shrink-0 items-center justify-center rounded-xl shadow-lg",
+                compact ? "h-9 w-9 sm:h-10 sm:w-10" : "h-11 w-11 sm:h-12 sm:w-12",
                 isDark
                   ? "bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-indigo-900/40"
                   : "bg-indigo-600 text-white shadow-indigo-600/20"
               )}
             >
-              <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
+              <Sparkles
+                className={cn("shrink-0", compact ? "h-4 w-4 sm:h-5 sm:w-5" : "h-5 w-5 sm:h-6 sm:w-6")}
+                aria-hidden
+              />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 gap-y-1">
@@ -224,7 +236,8 @@ function DashboardTopNav({
               </div>
               <h1
                 className={cn(
-                  "mt-1.5 truncate text-xl font-semibold tracking-tight sm:text-2xl",
+                  "truncate font-semibold tracking-tight",
+                  compact ? "mt-1 text-lg sm:text-xl" : "mt-1.5 text-xl sm:text-2xl",
                   isDark ? "text-white" : "text-slate-900"
                 )}
               >
@@ -426,7 +439,8 @@ function DashboardTopNav({
         {description ? (
           <p
             className={cn(
-              "mt-4 max-w-3xl text-sm leading-relaxed lg:mt-3",
+              "max-w-3xl text-sm leading-relaxed",
+              compact ? "mt-2 lg:mt-2" : "mt-4 lg:mt-3",
               isDark ? "text-slate-400" : "text-slate-600"
             )}
           >

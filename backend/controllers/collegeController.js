@@ -1,16 +1,75 @@
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const StudentProfile = require('../models/StudentProfile');
 const Job = require('../models/Job');
 const JobApplication = require('../models/JobApplication');
-const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
+const {
+  asString,
+  parseTabularFileRows,
+  extractStudentBulkRow,
+  cohortRowMatchesTarget,
+  displayNameFromEmail,
+  defaultStudentPasswordFromRow,
+} = require('../utils/uploadParsers');
 const { createBulkNotifications } = require('../utils/notificationService');
+const { sendApprovalGrantedEmail } = require('../utils/otpDelivery');
+const {
+  getCampusStudentIds,
+  resolveCollegeIdForFacultyApproval,
+} = require('../utils/campusNotificationRecipients');
+const { JOB_CREATED_BY_SELECT } = require('../constants/jobCreatedBySelect');
+const { openJobVisibilityFilterForViewer } = require('../utils/jobPostingVisibility');
 
 const normalizeRole = (r) => String(r || '').trim().toLowerCase();
 
 const isCollegeOrAdmin = (req) => {
   const r = normalizeRole(req.user?.role);
   return r === 'college' || r === 'admin';
+};
+
+const isApprovedFaculty = (req) => {
+  if (normalizeRole(req.user?.role) !== 'faculty') return false;
+  const st = req.user.facultyApprovalStatus;
+  return st === 'approved' || st === undefined;
+};
+
+/** College, platform admin, or approved faculty (imports go to their affiliated college). */
+const canBulkImportStudents = (req) => {
+  const r = normalizeRole(req.user?.role);
+  if (r === 'admin' || r === 'college') return true;
+  if (r === 'faculty') return isApprovedFaculty(req);
+  return false;
+};
+
+const resolveStudentImportCollegeId = async (req) => {
+  const role = normalizeRole(req.user.role);
+  if (role === 'college') {
+    return req.user._id;
+  }
+  if (role === 'faculty') {
+    const cid = req.user.affiliatedCollege;
+    if (!cid) {
+      throw new Error('FACULTY_NO_COLLEGE');
+    }
+    return cid;
+  }
+  if (role === 'admin') {
+    const rawCid = req.body.collegeId;
+    if (!rawCid || !mongoose.Types.ObjectId.isValid(String(rawCid))) {
+      throw new Error('ADMIN_COLLEGE_REQUIRED');
+    }
+    const collegeUser = await User.findById(rawCid);
+    if (!collegeUser || collegeUser.role !== 'college') {
+      throw new Error('ADMIN_COLLEGE_INVALID');
+    }
+    const cst = collegeUser.collegeApprovalStatus;
+    if (cst === 'pending' || cst === 'rejected') {
+      throw new Error('ADMIN_COLLEGE_NOT_APPROVED');
+    }
+    return collegeUser._id;
+  }
+  throw new Error('ROLE');
 };
 
 const isStrongPassword = (password) => {
@@ -265,18 +324,40 @@ exports.setFacultyApproval = async (req, res) => {
     }
     await user.save();
 
+    let approvalEmailSent = false;
+    let approvalEmailNote = '';
+
     if (decision === 'approved') {
-      const students = await User.find({ role: 'student' }).select('_id').lean();
-      if (students.length) {
-        await createBulkNotifications({
-          recipientIds: students.map((s) => s._id),
-          title: 'New faculty member',
-          message: `${user.name} has joined the teaching team.`,
-          category: 'system',
-          type: 'faculty_joined',
-          actionUrl: '/dashboard/learning',
-          metadata: { facultyId: user._id },
-        });
+      const campusId = resolveCollegeIdForFacultyApproval(req, user);
+      const recipientIds = campusId ? await getCampusStudentIds(campusId) : [];
+      if (recipientIds.length) {
+        try {
+          await createBulkNotifications({
+            recipientIds,
+            title: 'New faculty member',
+            message: `${user.name} has joined the teaching team.`,
+            category: 'system',
+            type: 'faculty_joined',
+            actionUrl: '/dashboard/learning',
+            metadata: { facultyId: user._id },
+          });
+        } catch (e) {
+          console.error('[Learn2Hire] faculty approval campus notify:', e.message || e);
+        }
+      }
+
+      const mailResult = await sendApprovalGrantedEmail(user.email, {
+        recipientName: user.name,
+        variant: 'faculty_full',
+      });
+      approvalEmailSent = Boolean(mailResult.sent);
+      if (!mailResult.sent) {
+        approvalEmailNote =
+          mailResult.reason === 'smtp_not_configured'
+            ? 'SMTP is not configured on the server — approval was saved but no email was sent. Set SMTP_USER, SMTP_PASS, and SMTP_HOST (or SMTP_SERVICE) in backend/.env.'
+            : mailResult.reason === 'send_failed'
+              ? `Email could not be sent: ${mailResult.error || 'check SMTP settings and server logs.'}`
+              : 'Email was not sent.';
       }
     }
 
@@ -294,6 +375,8 @@ exports.setFacultyApproval = async (req, res) => {
           role: user.role,
           facultyApprovalStatus: user.facultyApprovalStatus,
         },
+        approvalEmailSent,
+        approvalEmailNote,
       },
     });
   } catch (err) {
@@ -322,6 +405,10 @@ exports.getCollegeInsights = async (req, res) => {
       ? { managedByCollege: collegeId }
       : { managedByCollege: { $ne: null } };
 
+    const openJobsQuery = isCollege
+      ? { status: 'open', ...openJobVisibilityFilterForViewer(req.user) }
+      : { status: 'open' };
+
     const [
       rosterStudents,
       rosterFaculty,
@@ -341,12 +428,13 @@ exports.getCollegeInsights = async (req, res) => {
         .limit(40)
         .lean(),
       User.countDocuments({ role: 'company' }),
-      Job.find({ status: 'open' })
-        .populate('createdBy', 'name email role')
+      Job.find(openJobsQuery)
+        .populate('createdBy', JOB_CREATED_BY_SELECT)
+        .populate('targetCollege', 'name email role')
         .sort({ createdAt: -1 })
         .limit(30)
         .lean(),
-      Job.countDocuments({ status: 'open' }),
+      Job.countDocuments(openJobsQuery),
       User.find({ ...campusFilter, role: 'student' }).select('_id').lean(),
     ]);
 
@@ -415,25 +503,79 @@ exports.getCollegeInsights = async (req, res) => {
   }
 };
 
-// @desc    Bulk import students through Excel sheet (college/admin)
+// @desc    Bulk import students (Excel or CSV). College, approved faculty, or admin.
+//          Form fields: targetCourse, targetProgram, targetYear, targetSemester (optional).
+//          Admin also sends collegeId. Each row must match the target class (course, program, year).
+//          Columns: S.No, Course, Program, Year, Contact number, Email id (optional Name).
+//          Password default: Firstname@123
 // @route   POST /api/college/roster/import/students
 exports.importStudentsFromSheet = async (req, res) => {
   try {
-    if (!isCollegeOrAdmin(req)) {
+    if (!canBulkImportStudents(req)) {
       return res.status(403).json({
         success: false,
-        message: 'Only college or admin users can import students',
+        message:
+          'Only an approved college account, approved faculty, or admin can import students.',
       });
     }
 
     if (!req.file?.buffer) {
       return res.status(400).json({
         success: false,
-        message: 'Please upload an Excel file.',
+        message: 'Please upload an Excel (.xlsx, .xls) or CSV file.',
       });
     }
 
-    const rows = parseWorkbookRows(req.file.buffer);
+    let collegeId;
+    try {
+      collegeId = await resolveStudentImportCollegeId(req);
+    } catch (e) {
+      const code = e.message;
+      if (code === 'FACULTY_NO_COLLEGE') {
+        return res.status(400).json({
+          success: false,
+          message: 'Your faculty profile must be linked to a college before importing students.',
+        });
+      }
+      if (code === 'ADMIN_COLLEGE_REQUIRED') {
+        return res.status(400).json({
+          success: false,
+          message: 'Admin must pass collegeId (approved college user id) with this import.',
+        });
+      }
+      if (code === 'ADMIN_COLLEGE_INVALID') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid collegeId.',
+        });
+      }
+      if (code === 'ADMIN_COLLEGE_NOT_APPROVED') {
+        return res.status(400).json({
+          success: false,
+          message: 'That college is not approved yet.',
+        });
+      }
+      return res.status(403).json({
+        success: false,
+        message: 'Not allowed to resolve college for import.',
+      });
+    }
+
+    const targetCourse = asString(req.body.targetCourse);
+    const targetProgram = asString(req.body.targetProgram);
+    const targetYear = asString(req.body.targetYear);
+    const targetSemester = asString(req.body.targetSemester);
+
+    if (!targetCourse || !targetProgram || !targetYear) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Specify the class for this upload: targetCourse, targetProgram, and targetYear must match each row in the file.',
+      });
+    }
+
+    const target = { course: targetCourse, program: targetProgram, year: targetYear };
+    const rows = parseTabularFileRows(req.file.buffer, req.file.originalname || '');
     if (!rows.length) {
       return res.status(400).json({
         success: false,
@@ -441,42 +583,73 @@ exports.importStudentsFromSheet = async (req, res) => {
       });
     }
 
-    const collegeId = normalizeRole(req.user.role) === 'college' ? req.user._id : null;
     const results = [];
 
-    // Expected headers: name, email, password
-    for (const row of rows) {
-      const name = asString(row.name);
-      const email = asString(row.email).toLowerCase();
-      const password = asString(row.password);
+    for (const raw of rows) {
+      const extracted = extractStudentBulkRow(raw);
+      const email = asString(extracted.email).toLowerCase();
 
-      if (!name || !email || !password) {
-        results.push({ email, ok: false, message: 'Missing name/email/password' });
+      if (!email) {
+        results.push({
+          email: '',
+          ok: false,
+          message: 'Missing email',
+          sno: extracted.sno || '',
+        });
         continue;
       }
-      if (!isStrongPassword(password)) {
-        results.push({ email, ok: false, message: 'Weak password' });
+
+      if (!cohortRowMatchesTarget(extracted, target)) {
+        results.push({
+          email,
+          ok: false,
+          message: `Row class (${extracted.course} / ${extracted.program} / ${extracted.year}) does not match selected class (${targetCourse} / ${targetProgram} / ${targetYear}).`,
+          sno: extracted.sno || '',
+        });
         continue;
       }
+
+      const displayName = asString(extracted.name) || displayNameFromEmail(email);
+      const plainPassword = defaultStudentPasswordFromRow({
+        ...extracted,
+        email,
+        name: extracted.name,
+      });
 
       const exists = await User.findOne({ email });
       if (exists) {
-        results.push({ email, ok: false, message: 'Email already exists' });
+        results.push({ email, ok: false, message: 'Email already exists', sno: extracted.sno || '' });
         continue;
       }
 
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
+      const hashedPassword = await bcrypt.hash(plainPassword, salt);
 
-      await User.create({
-        name,
+      const user = await User.create({
+        name: displayName,
         email,
         password: hashedPassword,
         role: 'student',
         managedByCollege: collegeId,
+        affiliatedCollege: collegeId,
       });
 
-      results.push({ email, ok: true, message: 'Created' });
+      await StudentProfile.create({
+        user: user._id,
+        course: extracted.course,
+        branch: extracted.program,
+        year: extracted.year,
+        semester: targetSemester,
+        studentPhone: asString(extracted.contact),
+      });
+
+      results.push({
+        email,
+        ok: true,
+        message: 'Created',
+        sno: extracted.sno || '',
+        defaultPasswordHint: 'Firstname@123',
+      });
     }
 
     const created = results.filter((r) => r.ok).length;
@@ -485,7 +658,13 @@ exports.importStudentsFromSheet = async (req, res) => {
     res.status(200).json({
       success: true,
       message: `Student import finished. Created: ${created}, Failed: ${failed}`,
-      data: { created, failed, results },
+      data: {
+        created,
+        failed,
+        results,
+        templateHint:
+          'Columns: S.No, Course, Program, Year, Contact number, Email id (optional Name). Password: Firstname@123',
+      },
     });
   } catch (err) {
     res.status(500).json({

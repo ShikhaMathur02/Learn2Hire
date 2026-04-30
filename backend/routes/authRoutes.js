@@ -4,6 +4,7 @@ const {
   signup,
   login,
   getMe,
+  patchCompanyProfile,
   requestSignupOtp,
   verifySignupOtp,
   listApprovedColleges,
@@ -24,5 +25,6 @@ router.post('/login', login);
 
 // Protected route: requires valid JWT in Authorization header
 router.get('/me', protect, getMe);
+router.patch('/me/company', protect, patchCompanyProfile);
 
 module.exports = router;

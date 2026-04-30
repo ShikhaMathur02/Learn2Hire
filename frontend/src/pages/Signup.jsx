@@ -381,7 +381,19 @@ function Signup() {
           state: {
             notice:
               data.message ||
-              "Your faculty registration was received. Your college will approve your account before you can sign in.",
+              "Your faculty registration was received. Your college or a Learn2Hire administrator must approve your account before you can sign in.",
+          },
+        });
+        return;
+      }
+
+      if (data.data?.requiresApproval && role === "company") {
+        setAlertLines([]);
+        navigate("/login", {
+          state: {
+            notice:
+              data.message ||
+              "Your company registration was received. A platform administrator will approve it before you can sign in.",
           },
         });
         return;

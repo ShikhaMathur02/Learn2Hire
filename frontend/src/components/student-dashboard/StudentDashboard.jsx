@@ -34,6 +34,7 @@ import {
 import { clearAuthSession } from "../../lib/authSession";
 import { studentNavItems } from "../../config/studentNavItems";
 import { DarkWorkspaceShell } from "../layout/DarkWorkspaceShell";
+import { DashboardMetricCard } from "../dashboard/DashboardMetricCard";
 import { ProfileAvatarBlock } from "../profile/ProfileAvatarBlock";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
@@ -69,25 +70,6 @@ function EmptyState({ title, description, action }) {
           <p className="mt-2 text-sm text-slate-400">{description}</p>
         </div>
         {action}
-      </CardContent>
-    </Card>
-  );
-}
-
-function MetricCard({ title, value, subtitle, icon: Icon }) {
-  return (
-    <Card className="border border-white/10 bg-white/5 shadow-[0_18px_40px_rgba(2,6,23,0.25)] transition-transform hover:-translate-y-1">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-slate-400">{title}</p>
-            <h3 className="mt-3 text-3xl font-bold text-white">{value}</h3>
-            <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
-          </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
-            <Icon className="h-6 w-6" />
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
@@ -574,34 +556,42 @@ function StudentDashboard({ user, onLogout }) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
+        <DashboardMetricCard
           title="Skill Progress"
           value={skills.length ? `${skills.length} skills` : "No skills"}
           subtitle={skills.length ? "Tracked in your profile" : "Add skills to start tracking"}
           icon={BookOpen}
+          scrollTargetId="student-dash-skills"
         />
-        <MetricCard
+        <DashboardMetricCard
           title="Available Assessments"
           value={assessments.length}
           subtitle="Published assessments ready to take"
           icon={ClipboardList}
+          scrollTargetId="student-dash-assessments"
         />
-        <MetricCard
+        <DashboardMetricCard
           title="Learning Started"
           value={learningSummary.totalStarted}
           subtitle={`${learningSummary.totalCompleted} completed materials`}
           icon={BarChart3}
+          scrollTargetId="student-dash-materials"
         />
-        <MetricCard
+        <DashboardMetricCard
           title="Overall Score"
           value={`${overallScore || 0}%`}
           subtitle="Based on your current skill progress"
           icon={Gauge}
+          scrollTargetId="student-dash-readiness"
         />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 shadow-none">
+        <Card
+          id="student-dash-skills"
+          tabIndex={-1}
+          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+        >
           <CardContent className="p-6">
             <SectionTitle
               title="Skill Progress"
@@ -641,7 +631,11 @@ function StudentDashboard({ user, onLogout }) {
           </CardContent>
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 shadow-none">
+        <Card
+          id="student-dash-assessments"
+          tabIndex={-1}
+          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+        >
           <CardContent className="p-6">
             <SectionTitle
               title="Available Assessments"
@@ -734,7 +728,11 @@ function StudentDashboard({ user, onLogout }) {
           </CardContent>
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 shadow-none">
+        <Card
+          id="student-dash-materials"
+          tabIndex={-1}
+          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+        >
           <CardContent className="p-6">
             <SectionTitle
               title="Study materials"
@@ -784,7 +782,11 @@ function StudentDashboard({ user, onLogout }) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 shadow-none">
+        <Card
+          id="student-dash-results"
+          tabIndex={-1}
+          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+        >
           <CardContent className="p-6">
             <SectionTitle
               title="Recent Assessment Results"
@@ -826,7 +828,11 @@ function StudentDashboard({ user, onLogout }) {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden border border-white/10 bg-white/5 shadow-none">
+        <Card
+          id="student-dash-readiness"
+          tabIndex={-1}
+          className="scroll-mt-28 overflow-hidden border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+        >
           <CardContent className="p-0">
             <div className="relative overflow-hidden">
               <img
@@ -1105,6 +1111,7 @@ function StudentDashboard({ user, onLogout }) {
               Upload a clear photo (optional). If you remove it, we show initials from your name.
             </p>
           </div>
+
           {profile ? (
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
@@ -1859,29 +1866,33 @@ function StudentDashboard({ user, onLogout }) {
           <div>
             <h3 className="text-lg font-semibold text-white">Summary</h3>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <MetricCard
+              <DashboardMetricCard
                 title="Started"
                 value={learningSummary.totalStarted}
                 subtitle="Materials you have opened"
                 icon={BookOpen}
+                to="/dashboard/learning/progress"
               />
-              <MetricCard
+              <DashboardMetricCard
                 title="Completed"
                 value={learningSummary.totalCompleted}
                 subtitle="Marked as finished"
                 icon={CheckCircle2}
+                to="/dashboard/learning/progress"
               />
-              <MetricCard
+              <DashboardMetricCard
                 title="In progress"
                 value={learningSummary.inProgressCount}
                 subtitle="Currently being studied"
                 icon={Gauge}
+                to="/dashboard/learning/progress"
               />
-              <MetricCard
+              <DashboardMetricCard
                 title="Avg. completion"
                 value={`${learningSummary.averageProgress || 0}%`}
                 subtitle="Across saved materials"
                 icon={Sparkles}
+                to="/dashboard/learning/progress"
               />
             </div>
           </div>

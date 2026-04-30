@@ -7,7 +7,8 @@ const StudentProfile = require('../models/StudentProfile');
 const StudyMaterial = require('../models/StudyMaterial');
 const { getLearnerInsights } = require('../utils/learnerInsights');
 const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
-const { createBulkNotifications } = require('../utils/notificationService');
+const { createBulkNotifications, notifyPlatformAdmins } = require('../utils/notificationService');
+const { getStudentRecipientIdsForEditor } = require('../utils/campusNotificationRecipients');
 
 const editorRoles = ['faculty', 'admin', 'college'];
 const learnerRoles = ['student'];
@@ -26,6 +27,27 @@ const normalizeTags = (tags) => {
     .map((tag) => String(tag || '').trim().toLowerCase())
     .filter(Boolean);
 };
+
+function editorLabel(u) {
+  if (!u) return 'Someone';
+  const role = u.role ? ` (${u.role})` : '';
+  return `${u.name || 'User'}${role}`;
+}
+
+async function notifyAdminsLearningChange({ title, message, type, metadata }) {
+  try {
+    await notifyPlatformAdmins({
+      title,
+      message,
+      category: 'learning',
+      type,
+      actionUrl: '/dashboard',
+      metadata: metadata || {},
+    });
+  } catch (e) {
+    console.error('[Learn2Hire] admin learning notify:', e.message || e);
+  }
+}
 
 const ensureEditor = (req, res) => {
   const role = String(req.user?.role || '')
@@ -116,6 +138,22 @@ const materialVisibleToContext = (material, ctx) => {
   }
   return normalizeCohortValue(ctx.cohort.semester) === targetSem;
 };
+
+async function notifyStudentsLearningMaterialPublished(editorUser, materialDoc) {
+  if (!materialDoc?.isPublished) return;
+  const recipientIds = await getStudentRecipientIdsForEditor(editorUser);
+  if (!recipientIds.length) return;
+  const slug = materialDoc.slug || '';
+  await createBulkNotifications({
+    recipientIds,
+    title: 'New study material',
+    message: `${materialDoc.title} is available in the learning hub.`,
+    category: 'learning',
+    type: 'material_published',
+    actionUrl: slug ? `/learning/topic/${slug}` : '/dashboard/learning',
+    metadata: { materialId: materialDoc._id },
+  });
+}
 
 const ensureUniqueMaterialSlug = async (baseSlug, excludeId = null) => {
   let slug = baseSlug;
@@ -351,10 +389,10 @@ exports.createCategory = async (req, res) => {
     });
 
     if (category.isPublished) {
-      const students = await User.find({ role: 'student' }).select('_id').lean();
-      if (students.length) {
+      const recipientIds = await getStudentRecipientIdsForEditor(req.user);
+      if (recipientIds.length) {
         await createBulkNotifications({
-          recipientIds: students.map((s) => s._id),
+          recipientIds,
           title: 'New learning subject',
           message: `A new subject was added: ${category.name}. Explore it in the learning hub.`,
           category: 'learning',
@@ -364,6 +402,13 @@ exports.createCategory = async (req, res) => {
         });
       }
     }
+
+    await notifyAdminsLearningChange({
+      title: 'Learning subject created',
+      message: `${editorLabel(req.user)} created subject “${category.name}”.`,
+      type: 'learning_category_created',
+      metadata: { categoryId: category._id },
+    });
 
     res.status(201).json({
       success: true,
@@ -423,6 +468,13 @@ exports.deleteCategory = async (req, res) => {
         message: 'Category not found',
       });
     }
+
+    await notifyAdminsLearningChange({
+      title: 'Learning subject deleted',
+      message: `${editorLabel(req.user)} deleted subject “${deleted.name}”.`,
+      type: 'learning_category_deleted',
+      metadata: { categoryId: id },
+    });
 
     res.status(200).json({
       success: true,
@@ -962,6 +1014,15 @@ exports.createMaterial = async (req, res) => {
       .populate('category', 'name slug')
       .populate('createdBy', 'name role');
 
+    await notifyStudentsLearningMaterialPublished(req.user, material);
+
+    await notifyAdminsLearningChange({
+      title: 'Learning material created',
+      message: `${editorLabel(req.user)} created “${material.title}” in ${category.name}.`,
+      type: 'learning_material_created',
+      metadata: { materialId: material._id, categoryId: categoryId },
+    });
+
     res.status(201).json({
       success: true,
       message: 'Study material created successfully',
@@ -1012,6 +1073,8 @@ exports.updateMaterial = async (req, res) => {
         message: 'Study material not found',
       });
     }
+
+    const wasPublished = material.isPublished;
 
     const {
       title,
@@ -1135,6 +1198,17 @@ exports.updateMaterial = async (req, res) => {
       .populate('category', 'name slug')
       .populate('createdBy', 'name role');
 
+    if (!wasPublished && material.isPublished) {
+      await notifyStudentsLearningMaterialPublished(req.user, material);
+    }
+
+    await notifyAdminsLearningChange({
+      title: 'Learning material updated',
+      message: `${editorLabel(req.user)} updated “${material.title}”.`,
+      type: 'learning_material_updated',
+      metadata: { materialId: material._id },
+    });
+
     res.status(200).json({
       success: true,
       message: 'Study material updated successfully',
@@ -1185,6 +1259,13 @@ exports.deleteMaterial = async (req, res) => {
         message: 'Study material not found',
       });
     }
+
+    await notifyAdminsLearningChange({
+      title: 'Learning material deleted',
+      message: `${editorLabel(req.user)} deleted “${deleted.title}”.`,
+      type: 'learning_material_deleted',
+      metadata: { materialId: id },
+    });
 
     await LearningProgress.deleteMany({ material: id });
 
@@ -1260,6 +1341,15 @@ exports.createMaterialFromImageUpload = async (req, res) => {
       .populate('category', 'name slug')
       .populate('createdBy', 'name role');
 
+    await notifyStudentsLearningMaterialPublished(req.user, material);
+
+    await notifyAdminsLearningChange({
+      title: 'Learning material created (upload)',
+      message: `${editorLabel(req.user)} created “${material.title}” from an image upload.`,
+      type: 'learning_material_image_created',
+      metadata: { materialId: material._id },
+    });
+
     res.status(201).json({
       success: true,
       message: 'Study material created from image',
@@ -1296,6 +1386,7 @@ exports.importMaterialsFromSheet = async (req, res) => {
 
     const categoryCache = new Map();
     const results = [];
+    let publishedImported = 0;
 
     for (const row of rows) {
       const title = asString(row.title);
@@ -1332,6 +1423,7 @@ exports.importMaterialsFromSheet = async (req, res) => {
       }
 
       const slug = await ensureUniqueMaterialSlug(slugify(title));
+      const rowPublished = row.ispublished === '' ? true : Boolean(row.ispublished);
       await StudyMaterial.create({
         title,
         slug,
@@ -1344,13 +1436,41 @@ exports.importMaterialsFromSheet = async (req, res) => {
         estimatedReadMinutes: Number(row.estimatedreadminutes) || 5,
         category: categoryId,
         createdBy: req.user._id,
-        isPublished: row.ispublished === '' ? true : Boolean(row.ispublished),
+        isPublished: rowPublished,
       });
+      if (rowPublished) publishedImported += 1;
 
       results.push({ title, ok: true, message: 'Created' });
     }
 
+    if (publishedImported > 0) {
+      const recipientIds = await getStudentRecipientIdsForEditor(req.user);
+      if (recipientIds.length) {
+        await createBulkNotifications({
+          recipientIds,
+          title: 'New study materials',
+          message:
+            publishedImported === 1
+              ? 'A new study resource was added to the learning hub.'
+              : `${publishedImported} new study resources were added to the learning hub.`,
+          category: 'learning',
+          type: 'material_imported',
+          actionUrl: '/dashboard/learning',
+          metadata: { importedCount: publishedImported },
+        });
+      }
+    }
+
     const created = results.filter((r) => r.ok).length;
+    if (created > 0) {
+      await notifyAdminsLearningChange({
+        title: 'Learning materials imported',
+        message: `${editorLabel(req.user)} imported ${created} study material row(s) via spreadsheet.`,
+        type: 'learning_material_import',
+        metadata: { created },
+      });
+    }
+
     const failed = results.length - created;
 
     res.status(200).json({

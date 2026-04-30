@@ -75,6 +75,17 @@ exports.submitAssessment = async (req, res) => {
       });
     }
 
+    const isDocumentOnly =
+      assessment.deliveryMode === 'document' &&
+      (!assessment.questions || assessment.questions.length === 0);
+    if (isDocumentOnly) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'This assessment is provided as a downloadable document only. Open the assessment page to view or download the paper.',
+      });
+    }
+
     const existing = await AssessmentSubmission.findOne({
       user: req.user._id,
       assessment: assessmentId,
@@ -202,11 +213,11 @@ exports.getSubmissionById = async (req, res) => {
     }
 
     const isOwner = submission.user._id.toString() === req.user._id.toString();
-    const isFaculty =
-      req.user.role === 'faculty' &&
+    const isAuthor =
+      (req.user.role === 'faculty' || req.user.role === 'college') &&
       submission.assessment?.createdBy?.toString() === req.user._id.toString();
 
-    if (!isOwner && !isFaculty) {
+    if (!isOwner && !isAuthor) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view this submission',
@@ -246,10 +257,10 @@ exports.getSubmissionsByAssessment = async (req, res) => {
       });
     }
 
-    if (req.user.role !== 'faculty') {
+    if (req.user.role !== 'faculty' && req.user.role !== 'college') {
       return res.status(403).json({
         success: false,
-        message: 'Only faculty can view submissions by assessment.',
+        message: 'Only faculty or college authors can view submissions by assessment.',
       });
     }
 

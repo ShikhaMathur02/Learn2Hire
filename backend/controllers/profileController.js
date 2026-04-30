@@ -1,4 +1,5 @@
 const StudentProfile = require('../models/StudentProfile');
+const { notifyPlatformAdmins } = require('../utils/notificationService');
 const { getLearnerInsights } = require('../utils/learnerInsights');
 const {
   CONTACT_PROFILE_KEYS,
@@ -6,6 +7,11 @@ const {
 } = require('../utils/studentProfileFieldValidation');
 
 const USER_POPULATE_FIELDS = 'name email role profilePhoto';
+
+function sanitizeProfileForClient(doc) {
+  if (!doc) return null;
+  return doc.toObject ? doc.toObject() : { ...doc };
+}
 
 // @desc    Get current user's student profile
 // @route   GET /api/profile
@@ -75,7 +81,7 @@ exports.getMyProfile = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: { profile },
+      data: { profile: sanitizeProfileForClient(profile) },
     });
   } catch (err) {
     res.status(500).json({
@@ -225,7 +231,7 @@ exports.createProfile = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Profile created',
-      data: { profile: populated },
+      data: { profile: sanitizeProfileForClient(populated) },
     });
   } catch (err) {
     if (err.name === 'ValidationError') {
@@ -340,10 +346,23 @@ exports.updateProfile = async (req, res) => {
       });
     }
 
+    try {
+      await notifyPlatformAdmins({
+        title: 'Student profile updated',
+        message: `${req.user.name} (${req.user.email}, student) updated their profile.`,
+        category: 'system',
+        type: 'student_profile_updated',
+        actionUrl: '/dashboard',
+        metadata: { studentId: req.user._id },
+      });
+    } catch (e) {
+      console.error('[Learn2Hire] student profile admin notify:', e.message || e);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Profile updated',
-      data: { profile },
+      data: { profile: sanitizeProfileForClient(profile) },
     });
   } catch (err) {
     res.status(500).json({
@@ -400,7 +419,7 @@ exports.updateSkills = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Skills updated',
-      data: { profile },
+      data: { profile: sanitizeProfileForClient(profile) },
     });
   } catch (err) {
     res.status(500).json({

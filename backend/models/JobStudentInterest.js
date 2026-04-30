@@ -17,6 +17,16 @@ const jobStudentInterestSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    resumeRelativePath: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    resumeOriginalName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
   },
   {
     timestamps: true,

@@ -27,6 +27,15 @@ const questionSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const questionPaperSchema = new mongoose.Schema(
+  {
+    relativePath: { type: String, default: '' },
+    originalName: { type: String, default: '' },
+    mimeType: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
 const assessmentSchema = new mongoose.Schema(
   {
     title: {
@@ -46,13 +55,19 @@ const assessmentSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    /** MCQ list and/or uploaded question paper (PDF / Word). */
+    deliveryMode: {
+      type: String,
+      enum: ['mcq', 'document', 'mixed'],
+      default: 'mcq',
+    },
+    questionPaper: {
+      type: questionPaperSchema,
+      default: () => ({}),
+    },
     questions: {
       type: [questionSchema],
       default: [],
-      validate: {
-        validator: (v) => Array.isArray(v) && v.length > 0,
-        message: 'At least one question required',
-      },
     },
     maxScore: {
       type: Number,
@@ -75,10 +90,31 @@ const assessmentSchema = new mongoose.Schema(
   }
 );
 
+assessmentSchema.pre('validate', function (next) {
+  const hasPaper = !!(this.questionPaper && this.questionPaper.relativePath);
+  const hasMcq = Array.isArray(this.questions) && this.questions.length > 0;
+  if (!hasPaper && !hasMcq) {
+    return next(
+      new Error('Add at least one question or upload a question paper (PDF or Word).')
+    );
+  }
+  if (hasPaper && hasMcq) {
+    this.deliveryMode = 'mixed';
+  } else if (hasPaper) {
+    this.deliveryMode = 'document';
+  } else {
+    this.deliveryMode = 'mcq';
+  }
+  next();
+});
+
 // Calculate maxScore from questions if not set
 assessmentSchema.pre('save', function (next) {
   if (this.questions && this.questions.length > 0 && this.maxScore === 0) {
     this.maxScore = this.questions.reduce((sum, q) => sum + (q.marks || 1), 0);
+  }
+  if (this.deliveryMode === 'document' && (!this.questions || this.questions.length === 0)) {
+    this.maxScore = 0;
   }
   next();
 });

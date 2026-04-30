@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import {
   BriefcaseBusiness,
   Building2,
@@ -13,28 +13,10 @@ import {
   DashboardTopNav,
   workspaceDashboardHeaderClassName,
 } from "../dashboard/DashboardTopNav";
+import { DashboardMetricCard } from "../dashboard/DashboardMetricCard";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { readApiResponse } from "../../lib/api";
-
-function MetricCard({ title, value, subtitle, icon: Icon }) {
-  return (
-    <Card className="border border-white/10 bg-white/5 shadow-[0_18px_40px_rgba(2,6,23,0.25)]">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-slate-400">{title}</p>
-            <h3 className="mt-3 text-3xl font-bold text-white">{value}</h3>
-            <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
-          </div>
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
-            <Icon className="h-6 w-6" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 const initialForm = {
   title: "",
@@ -43,10 +25,19 @@ const initialForm = {
   employmentType: "full-time",
   skillsRequired: "",
   status: "draft",
+  postingAudience: "all_colleges",
+  targetCollegeId: "",
 };
 
 function CompanyDashboard({ user, onLogout }) {
   const navigate = useNavigate();
+  const [profileForm, setProfileForm] = useState({
+    companyBio: "",
+    companyDetails: "",
+    companyGoals: "",
+    companyFocusAreas: "",
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
   const [dashboard, setDashboard] = useState({
     metrics: {
       totalJobs: 0,
@@ -63,6 +54,28 @@ function CompanyDashboard({ user, onLogout }) {
   const [updatingApplicationId, setUpdatingApplicationId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [colleges, setColleges] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/approved-colleges");
+        const data = await readApiResponse(
+          res,
+          "Colleges list returned an unexpected response."
+        );
+        if (!res.ok || cancelled) return;
+        const list = data.data?.colleges ?? [];
+        setColleges(list.filter((c) => c.collegeApprovalStatus !== "rejected"));
+      } catch {
+        /* optional: company can still post platform-wide */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const fetchDashboard = useCallback(async () => {
     const token = localStorage.getItem("token");
@@ -73,29 +86,65 @@ function CompanyDashboard({ user, onLogout }) {
 
     try {
       setError("");
-      const response = await fetch("/api/jobs/company/dashboard", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await readApiResponse(
-        response,
-        "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
-      );
+      const [dashRes, meRes] = await Promise.all([
+        fetch("/api/jobs/company/dashboard", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-      if (response.status === 401) {
+      const [dashData, meData] = await Promise.all([
+        readApiResponse(
+          dashRes,
+          "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
+        ),
+        readApiResponse(
+          meRes,
+          "Auth API returned HTML instead of JSON. Restart the backend server and refresh the page."
+        ),
+      ]);
+
+      if (dashRes.status === 401 || meRes.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         navigate("/login");
         return;
       }
 
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to load company dashboard.");
+      if (!dashRes.ok) {
+        throw new Error(dashData.message || "Failed to load company dashboard.");
+      }
+
+      if (meRes.ok && meData.data?.user) {
+        const u = meData.data.user;
+        setProfileForm({
+          companyBio: u.companyBio || "",
+          companyDetails: u.companyDetails || "",
+          companyGoals: u.companyGoals || "",
+          companyFocusAreas: u.companyFocusAreas || "",
+        });
+        try {
+          const raw = localStorage.getItem("user");
+          const prev = raw ? JSON.parse(raw) : {};
+          localStorage.setItem(
+            "user",
+            JSON.stringify({
+              ...prev,
+              companyBio: u.companyBio || "",
+              companyDetails: u.companyDetails || "",
+              companyGoals: u.companyGoals || "",
+              companyFocusAreas: u.companyFocusAreas || "",
+            })
+          );
+        } catch {
+          /* ignore */
+        }
       }
 
       setDashboard(
-        data.data || {
+        dashData.data || {
           metrics: {
             totalJobs: 0,
             openJobs: 0,
@@ -117,6 +166,58 @@ function CompanyDashboard({ user, onLogout }) {
     fetchDashboard();
   }, [fetchDashboard]);
 
+  const handleSaveCompanyProfile = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    setProfileSaving(true);
+    try {
+      const response = await fetch("/api/auth/me/company", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(profileForm),
+      });
+      const data = await readApiResponse(
+        response,
+        "Auth API returned HTML instead of JSON. Restart the backend server and refresh the page."
+      );
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to save company profile.");
+      }
+      const u = data.data?.user;
+      if (u) {
+        setProfileForm({
+          companyBio: u.companyBio || "",
+          companyDetails: u.companyDetails || "",
+          companyGoals: u.companyGoals || "",
+          companyFocusAreas: u.companyFocusAreas || "",
+        });
+        try {
+          const raw = localStorage.getItem("user");
+          const prev = raw ? JSON.parse(raw) : {};
+          localStorage.setItem("user", JSON.stringify({ ...prev, ...u }));
+        } catch {
+          /* ignore */
+        }
+      }
+      setSuccess("Company profile saved. Learners will see this on your job listings.");
+    } catch (err) {
+      setError(err.message || "Unable to save company profile.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const handleCreateJob = async (e) => {
     e.preventDefault();
     setError("");
@@ -130,6 +231,11 @@ function CompanyDashboard({ user, onLogout }) {
 
     if (!form.title.trim()) {
       setError("Please provide a job title.");
+      return;
+    }
+
+    if (form.postingAudience === "single_college" && !form.targetCollegeId.trim()) {
+      setError('Select a college for a campus-only listing, or choose "All partner colleges".');
       return;
     }
 
@@ -148,6 +254,8 @@ function CompanyDashboard({ user, onLogout }) {
             .split(",")
             .map((item) => item.trim())
             .filter(Boolean),
+          targetCollegeId:
+            form.postingAudience === "single_college" ? form.targetCollegeId.trim() : undefined,
         }),
       });
 
@@ -214,7 +322,7 @@ function CompanyDashboard({ user, onLogout }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading company dashboard...
@@ -224,13 +332,13 @@ function CompanyDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
       <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
           workspaceLabel="Company Workspace"
           title={`Welcome, ${user.name}`}
-          description="Create job posts, monitor applicant activity, and track hiring progress in one place."
+          description="Post roles visible across every partner college, manage applicants, and share your company story with candidates."
           user={{ name: user.name, email: user.email, role: user.role }}
           onLogout={onLogout}
           actionItems={[
@@ -255,29 +363,33 @@ function CompanyDashboard({ user, onLogout }) {
           ) : null}
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
+            <DashboardMetricCard
               title="Job Posts"
               value={dashboard.metrics.totalJobs}
               subtitle="Total roles created by your company"
               icon={BriefcaseBusiness}
+              scrollTargetId="company-dash-recent-jobs"
             />
-            <MetricCard
+            <DashboardMetricCard
               title="Open Roles"
               value={dashboard.metrics.openJobs}
-              subtitle="Visible to student and alumni applicants"
+              subtitle="Listed platform-wide for students at all colleges"
               icon={Building2}
+              to="/company/jobs"
             />
-            <MetricCard
+            <DashboardMetricCard
               title="Applications"
               value={dashboard.metrics.totalApplications}
               subtitle="All incoming candidate applications"
               icon={Users}
+              scrollTargetId="company-dash-applications"
             />
-            <MetricCard
+            <DashboardMetricCard
               title="Shortlisted"
               value={dashboard.metrics.shortlistedCount}
               subtitle="Candidates moved to shortlist"
               icon={FileSearch}
+              to="/company/talent"
             />
           </div>
 
@@ -289,7 +401,8 @@ function CompanyDashboard({ user, onLogout }) {
                   <div>
                     <h2 className="text-2xl font-bold text-white">Create Job Post</h2>
                     <p className="mt-1 text-sm text-slate-400">
-                      Add a new opening for students and alumni to apply.
+                      Choose whether this role is open to every partner college or restricted to one
+                      campus. Only students tied to that campus will see a campus-only listing.
                     </p>
                   </div>
                 </div>
@@ -343,6 +456,54 @@ function CompanyDashboard({ user, onLogout }) {
                     <option value="open">Open</option>
                     <option value="closed">Closed</option>
                   </select>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Visibility
+                    </label>
+                    <select
+                      value={form.postingAudience}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          postingAudience: e.target.value,
+                          targetCollegeId:
+                            e.target.value === "single_college" ? prev.targetCollegeId : "",
+                        }))
+                      }
+                      className={inputClassName}
+                    >
+                      <option value="all_colleges">All partner colleges on Learn2Hire</option>
+                      <option value="single_college">One specific college only</option>
+                    </select>
+                  </div>
+                  {form.postingAudience === "single_college" ? (
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-300">
+                        College
+                      </label>
+                      <select
+                        value={form.targetCollegeId}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, targetCollegeId: e.target.value }))
+                        }
+                        className={inputClassName}
+                        required
+                      >
+                        <option value="">Select a college…</option>
+                        {colleges.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      {colleges.length === 0 ? (
+                        <p className="mt-2 text-xs text-amber-200/90">
+                          No approved colleges loaded. You can still save as draft and try again, or
+                          post to all colleges.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <textarea
                     value={form.description}
                     onChange={(e) =>
@@ -363,7 +524,8 @@ function CompanyDashboard({ user, onLogout }) {
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold text-white">Company Profile</h2>
                 <p className="mt-2 text-sm text-slate-400">
-                  Your company account details used across job posting and review workflows.
+                  Account details plus your story—bio, what you do, goals, and focus areas—shown to
+                  candidates on job pages.
                 </p>
 
                 <div className="mt-6 space-y-4">
@@ -375,17 +537,79 @@ function CompanyDashboard({ user, onLogout }) {
                     <p className="text-sm text-slate-400">Email</p>
                     <p className="mt-2 text-lg font-semibold text-white">{user.email}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-                    <p className="text-sm text-slate-400">Role</p>
-                    <p className="mt-2 text-lg font-semibold capitalize text-white">{user.role}</p>
-                  </div>
                 </div>
+
+                <form onSubmit={handleSaveCompanyProfile} className="mt-6 space-y-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Short bio
+                    </label>
+                    <textarea
+                      value={profileForm.companyBio}
+                      onChange={(e) =>
+                        setProfileForm((prev) => ({ ...prev, companyBio: e.target.value }))
+                      }
+                      placeholder="One or two sentences about who you are as an employer."
+                      rows={3}
+                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Company details
+                    </label>
+                    <textarea
+                      value={profileForm.companyDetails}
+                      onChange={(e) =>
+                        setProfileForm((prev) => ({ ...prev, companyDetails: e.target.value }))
+                      }
+                      placeholder="What you build, your culture, team size, locations, or products."
+                      rows={4}
+                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Goals
+                    </label>
+                    <textarea
+                      value={profileForm.companyGoals}
+                      onChange={(e) =>
+                        setProfileForm((prev) => ({ ...prev, companyGoals: e.target.value }))
+                      }
+                      placeholder="Hiring objectives, growth plans, or what you want from campus talent."
+                      rows={3}
+                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                      Focus areas
+                    </label>
+                    <textarea
+                      value={profileForm.companyFocusAreas}
+                      onChange={(e) =>
+                        setProfileForm((prev) => ({ ...prev, companyFocusAreas: e.target.value }))
+                      }
+                      placeholder="Industries, technologies, or domains you work in (comma-separated or short paragraphs)."
+                      rows={3}
+                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                    />
+                  </div>
+                  <Button type="submit" disabled={profileSaving} variant="outline">
+                    {profileSaving ? "Saving…" : "Save company profile"}
+                  </Button>
+                </form>
               </CardContent>
             </Card>
           </div>
 
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card
+              id="company-dash-recent-jobs"
+              tabIndex={-1}
+              className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+            >
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold text-white">Recent Job Posts</h2>
                 <p className="mt-2 text-sm text-slate-400">
@@ -431,7 +655,11 @@ function CompanyDashboard({ user, onLogout }) {
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card
+              id="company-dash-applications"
+              tabIndex={-1}
+              className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+            >
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold text-white">Recent Applicants</h2>
                 <p className="mt-2 text-sm text-slate-400">
@@ -490,7 +718,7 @@ function CompanyDashboard({ user, onLogout }) {
                     ))
                   ) : (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
-                      No applicants yet. Once students or alumni apply, they will appear here.
+                      No applicants yet. Once students apply, they will appear here.
                     </div>
                   )}
                 </div>
@@ -505,3 +733,4 @@ function CompanyDashboard({ user, onLogout }) {
 }
 
 export default CompanyDashboard;
+

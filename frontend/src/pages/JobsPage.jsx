@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   BriefcaseBusiness,
@@ -68,8 +68,8 @@ function JobsPage() {
       return;
     }
 
-    if (!["student", "alumni"].includes(parsedUser.role)) {
-      setError("This jobs page is available only for student and alumni accounts.");
+    if (parsedUser.role !== "student") {
+      setError("This jobs page is available only for student accounts.");
       setLoading(false);
       return;
     }
@@ -225,7 +225,7 @@ function JobsPage() {
     return (
       <DarkWorkspaceShell
         title="Open Jobs"
-        description="Search roles, save opportunities, and open full job details before applying."
+        description="Search open roles from companies across all partner colleges—listings are shared network-wide with students."
         workspaceLabel="Student Workspace"
         brandSubtitle="Student Workspace"
         navItems={studentNavItems}
@@ -250,9 +250,9 @@ function JobsPage() {
     );
   }
 
-  if (user && !["student", "alumni"].includes(user.role) && error) {
+  if (user && user.role !== "student" && error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 text-center text-slate-200">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-4 text-center text-slate-200">
         <p className="max-w-md text-sm">{error}</p>
       </div>
     );
@@ -261,7 +261,7 @@ function JobsPage() {
   return (
     <DarkWorkspaceShell
       title="Open Jobs"
-      description="Search roles, save opportunities, and open full job details before applying."
+      description="Search open roles from companies across all partner colleges—listings are shared network-wide with students."
       workspaceLabel="Student Workspace"
       brandSubtitle="Student Workspace"
       navItems={studentNavItems}
@@ -408,15 +408,10 @@ function JobsPage() {
                       </div>
 
                       <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-400">
-                        {application.resumeLink ? (
-                          <a
-                            href={application.resumeLink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded-full bg-white/10 px-3 py-1 text-slate-200 transition hover:bg-white/20"
-                          >
-                            Resume Link
-                          </a>
+                        {application.hasResumeFile ? (
+                          <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-emerald-200">
+                            Résumé on file
+                          </span>
                         ) : null}
                         {application.portfolioLink ? (
                           <a
@@ -475,6 +470,11 @@ function JobsPage() {
                                 <h3 className="font-semibold text-white">{job.title}</h3>
                                 <p className="mt-1 text-sm text-slate-400">
                                   {job.createdBy?.name || "Company"}
+                                </p>
+                                <p className="mt-1.5 text-xs text-slate-500">
+                                  {job.postingAudience === "single_college" && job.targetCollege?.name
+                                    ? `Posted for ${job.targetCollege.name} students only`
+                                    : "Posted to all partner colleges"}
                                 </p>
                               </div>
                             </div>
@@ -554,3 +554,4 @@ function JobsPage() {
 }
 
 export default JobsPage;
+

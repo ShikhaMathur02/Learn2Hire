@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Bell, CheckCheck, Filter, LoaderCircle, Sparkles } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -205,7 +205,7 @@ function NotificationsPage() {
     }
   };
 
-  const isLearner = ["student", "alumni"].includes(viewerUser?.role || viewerRole);
+  const isLearner = (viewerUser?.role || viewerRole) === "student";
 
   const filterDropdown = (
     <NavDropdown
@@ -364,7 +364,7 @@ function NotificationsPage() {
       );
     }
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading notifications...
@@ -399,7 +399,7 @@ function NotificationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
       <div className="p-3 sm:p-4">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
@@ -421,3 +421,4 @@ function NotificationsPage() {
 }
 
 export default NotificationsPage;
+

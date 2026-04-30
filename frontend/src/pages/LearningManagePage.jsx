@@ -205,7 +205,7 @@ function LearningManagePage() {
 
   if (!bootstrapped) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
         <LoaderCircle className="h-8 w-8 animate-spin text-cyan-400" />
       </div>
     );
@@ -381,7 +381,7 @@ function LearningManagePage() {
   const showCohortBranchField = audience === "cohort";
 
   return (
-    <div className="min-h-screen bg-slate-950 px-3 py-6 text-slate-100 sm:px-4 sm:py-8">
+    <div className="l2h-dark-ui min-h-screen bg-slate-950 px-3 py-6 text-slate-100 sm:px-4 sm:py-8">
       <div className="w-full">
         <div className="sticky top-0 z-40 -mx-3 mb-8 border-b border-white/10 bg-slate-950/90 px-3 py-4 backdrop-blur-xl sm:-mx-4 sm:px-4">
           <div className="flex flex-wrap items-center justify-between gap-4">

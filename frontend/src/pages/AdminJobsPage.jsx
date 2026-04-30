@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BriefcaseBusiness,
   ExternalLink,
+  FileText,
   LoaderCircle,
   Search,
   Trash2,
@@ -15,11 +16,12 @@ import { Card, CardContent } from "../components/ui/card";
 
 function AdminJobsPage() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null); //current logged-in user
-  const [jobs, setJobs] = useState([]); //jobs ka list store karega
-  const [selectedJobId, setSelectedJobId] = useState(""); //selected job ka id
-  const [applications, setApplications] = useState([]); //job user ne select ki hai
-  const [filters, setFilters] = useState({ 
+  const [user, setUser] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [applications, setApplications] = useState([]);
+  const [interests, setInterests] = useState([]);
+  const [filters, setFilters] = useState({
     search: "",
     company: "",
     status: "",
@@ -136,6 +138,33 @@ function AdminJobsPage() {
     [navigate]
   );
 
+  const fetchInterests = useCallback(
+    async (jobId) => {
+      if (!jobId) {
+        setInterests([]);
+        return;
+      }
+      const token = localStorage.getItem("token");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+      const response = await fetch(`/api/jobs/${jobId}/interests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await readApiResponse(
+        response,
+        "Jobs API returned HTML instead of JSON. Restart the backend server and refresh the page."
+      );
+      if (!response.ok) {
+        setInterests([]);
+        return;
+      }
+      setInterests(data.data?.interests || []);
+    },
+    [navigate]
+  );
+
   const refreshPage = useCallback(async () => {
     try {
       setError("");
@@ -152,15 +181,17 @@ function AdminJobsPage() {
 
       if (nextSelectedJobId) {
         await fetchApplications(nextSelectedJobId);
+        await fetchInterests(nextSelectedJobId);
       } else {
         setApplications([]);
+        setInterests([]);
       }
     } catch (err) {
       setError(err.message || "Unable to load admin jobs.");
     } finally {
       setLoading(false);
     }
-  }, [fetchApplications, fetchJobs, selectedJobId]);
+  }, [fetchApplications, fetchInterests, fetchJobs, selectedJobId]);
 
   useEffect(() => {
     refreshPage();
@@ -284,6 +315,7 @@ function AdminJobsPage() {
 
       setSuccess("Applicant status updated.");
       await fetchApplications(selectedJobId);
+      await fetchInterests(selectedJobId);
     } catch (err) {
       setError(err.message || "Unable to update applicant status.");
     } finally {
@@ -291,9 +323,33 @@ function AdminJobsPage() {
     }
   };
 
+  const handleDownloadApplicantResume = async (studentId, downloadName) => {
+    const token = localStorage.getItem("token");
+    if (!token || !selectedJobId || !studentId) return;
+    setError("");
+    try {
+      const res = await fetch(`/api/jobs/${selectedJobId}/students/${studentId}/resume`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await readApiResponse(res);
+        throw new Error(data.message || "Could not download résumé.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = downloadName || "resume.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || "Résumé download failed.");
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading admin job management...
@@ -303,7 +359,7 @@ function AdminJobsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
       <div className="w-full">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -395,6 +451,7 @@ function AdminJobsPage() {
                         setSelectedJobId(job._id);
                         setStatusDraft(job.status || "draft");
                         await fetchApplications(job._id);
+                        await fetchInterests(job._id);
                       }}
                       className={`w-full rounded-2xl border p-4 text-left transition ${
                         selectedJobId === job._id
@@ -544,17 +601,6 @@ function AdminJobsPage() {
                           ) : null}
 
                           <div className="flex flex-wrap gap-3">
-                            {application.resumeLink ? (
-                              <a
-                                href={application.resumeLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
-                              >
-                                Resume Link
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            ) : null}
                             {application.portfolioLink ? (
                               <a
                                 href={application.portfolioLink}
@@ -565,6 +611,22 @@ function AdminJobsPage() {
                                 Portfolio Link
                                 <ExternalLink className="h-4 w-4" />
                               </a>
+                            ) : null}
+                            {application.hasResumeFile && application.student?._id ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="border-cyan-400/40 text-cyan-100"
+                                onClick={() =>
+                                  handleDownloadApplicantResume(
+                                    application.student._id,
+                                    application.resumeOriginalName
+                                  )
+                                }
+                              >
+                                <FileText className="h-4 w-4" />
+                                Download résumé
+                              </Button>
                             ) : null}
                           </div>
 
@@ -598,6 +660,59 @@ function AdminJobsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="border border-white/10 bg-white/5 shadow-none">
+              <CardContent className="p-6">
+                <h2 className="text-2xl font-bold text-white">Interested candidates</h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Interest-only notifications for the selected job (snapshot résumé if uploaded).
+                </p>
+                <div className="mt-6 space-y-4">
+                  {interests.length ? (
+                    interests.map((row) => (
+                      <div
+                        key={row._id}
+                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <h3 className="font-semibold text-white">
+                              {row.student?.name || "Learner"}
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-400">{row.student?.email}</p>
+                            {row.message ? (
+                              <p className="mt-2 text-sm text-slate-300">{row.message}</p>
+                            ) : null}
+                          </div>
+                          {row.hasResumeFile && row.student?._id ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="shrink-0 border-cyan-400/40 text-cyan-100"
+                              onClick={() =>
+                                handleDownloadApplicantResume(
+                                  row.student._id,
+                                  row.resumeOriginalName
+                                )
+                              }
+                            >
+                              <FileText className="h-4 w-4" />
+                              Download résumé
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-slate-500">No file résumé on record</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                      No interest entries for this job.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
@@ -606,3 +721,4 @@ function AdminJobsPage() {
 }
 
 export default AdminJobsPage;
+

@@ -247,6 +247,129 @@ async function sendPasswordResetOtpEmail(to, code) {
   }
 }
 
+const loginPageUrl = () => `${frontendBaseUrl()}/login`;
+
+/**
+ * Notifies a user by email that their registration/approval request was approved.
+ * Does not throw: logs on failure. Skips silently when SMTP is not configured.
+ *
+ * @param {string} toEmail
+ * @param {{ recipientName?: string, variant: string }} opts
+ *   variant: 'college' | 'student' | 'company' | 'faculty_full' | 'faculty_pending_platform' | 'faculty_pending_campus'
+ */
+async function sendApprovalGrantedEmail(toEmail, opts) {
+  const to = String(toEmail || '').trim().toLowerCase();
+  if (!to) {
+    console.warn('[Learn2Hire] Approval email skipped (no recipient address)');
+    return { sent: false, reason: 'no_email' };
+  }
+
+  if (!isSmtpConfigured()) {
+    console.error(
+      '[Learn2Hire] Approval email NOT sent — SMTP is not configured. Set SMTP_USER, SMTP_PASS, and SMTP_HOST or SMTP_SERVICE in backend/.env (same as signup OTP). Recipient:',
+      to
+    );
+    return { sent: false, reason: 'smtp_not_configured' };
+  }
+
+  const name = String(opts?.recipientName || '').trim();
+  const greeting = name ? `Hello ${name},` : 'Hello,';
+  const variant = opts?.variant || 'student';
+  const loginUrl = loginPageUrl();
+  const loginUrlAttr = loginUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+  const copy = {
+    college: {
+      subject: 'Your account request was approved - Learn2Hire',
+      lead: 'Your college account request on Learn2Hire has been approved.',
+      detail:
+        'You can sign in now with the email you registered with and your password. After signing in, you can manage your campus, roster, learning materials, and more.',
+    },
+    student: {
+      subject: 'Your account request was approved - Learn2Hire',
+      lead: 'Your student account request on Learn2Hire has been approved.',
+      detail:
+        'You can sign in now with the email you registered with and your password to access learning materials, assessments, jobs, and your profile.',
+    },
+    company: {
+      subject: 'Your account request was approved - Learn2Hire',
+      lead: 'Your company account request on Learn2Hire has been approved.',
+      detail:
+        'You can sign in now with the email you registered with and your password to post roles and manage hiring.',
+    },
+    faculty_full: {
+      subject: 'Your account request was approved - Learn2Hire',
+      lead: 'Your faculty account request on Learn2Hire has been fully approved.',
+      detail:
+        'You can sign in now with the email you registered with and your password to manage learning content, assessments, and campus tools.',
+    },
+    faculty_pending_platform: {
+      subject: 'Your college approved your faculty request — Learn2Hire',
+      lead: 'Your college has approved your faculty request on Learn2Hire.',
+      detail:
+        'A Learn2Hire platform administrator must still approve your account. You will receive another email when you can sign in and use the full platform.',
+    },
+    faculty_pending_campus: {
+      subject: 'Platform approved your faculty account — Learn2Hire',
+      lead: 'The Learn2Hire platform has approved your faculty account.',
+      detail:
+        'Your college must still approve your join request before you can access the platform. You will receive another email when your campus has approved you.',
+    },
+  };
+
+  const block = copy[variant] || copy.student;
+  const subject = block.subject;
+  const text = [
+    greeting,
+    '',
+    block.lead,
+    '',
+    block.detail,
+    '',
+    'Sign in:',
+    loginUrl,
+    '',
+    'If you did not register on Learn2Hire, you can ignore this email.',
+  ].join('\n');
+
+  const safeName = name
+    ? name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    : '';
+  const greetingHtml = name
+    ? `<p>Hello <strong>${safeName}</strong>,</p>`
+    : '<p>Hello,</p>';
+
+  const html = `
+    ${greetingHtml}
+    <p>${block.lead}</p>
+    <p style="color:#374151;font-size:15px;line-height:1.55;font-family:Arial,Helvetica,sans-serif;">${block.detail}</p>
+    <p style="margin:16px 0 8px;font-weight:600;font-size:15px;color:#111827;font-family:Arial,Helvetica,sans-serif;">Sign in to Learn2Hire</p>
+    ${emailPrimaryButtonHtml(loginUrl, 'Go to sign in')}
+    <p style="color:#6b7280;font-size:13px;line-height:1.5;margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;">If the button does not work, copy this link:<br/><a href="${loginUrlAttr}" style="color:#4f46e5;word-break:break-all;">${loginUrl}</a></p>
+    <p style="color:#555;font-size:0.9rem;line-height:1.5;font-family:Arial,Helvetica,sans-serif;">If you did not register on Learn2Hire, you can ignore this email.</p>
+  `.trim();
+
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: fromAddress(),
+      to,
+      subject,
+      text,
+      html,
+    });
+    console.info(`[Learn2Hire] Approval email sent to ${to} (${variant})`);
+    return { sent: true };
+  } catch (err) {
+    console.error(
+      '[Learn2Hire] sendApprovalGrantedEmail failed for',
+      to,
+      humanizeSmtpError(err) || err.message || err
+    );
+    return { sent: false, reason: 'send_failed', error: humanizeSmtpError(err) };
+  }
+}
+
 /** User-facing message when OTP email cannot be sent because SMTP env vars are missing. */
 function smtpNotConfiguredClientMessage() {
   return (
@@ -262,4 +385,5 @@ module.exports = {
   smtpNotConfiguredClientMessage,
   sendSignupOtpEmail,
   sendPasswordResetOtpEmail,
+  sendApprovalGrantedEmail,
 };

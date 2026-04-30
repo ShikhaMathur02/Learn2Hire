@@ -49,7 +49,7 @@ function SiteHeader() {
                 className={`text-sm font-medium transition-colors ${
                   item.key === "learning" && isLearningRoute
                     ? "text-[var(--primary)]"
-                    : "text-slate-600 hover:text-[var(--primary)]"
+                    : "text-slate-700 hover:text-[var(--primary)]"
                 }`}
               >
                 {item.label}
@@ -58,7 +58,7 @@ function SiteHeader() {
               <a
                 key={item.key}
                 href={isLandingHome ? item.href : `/${item.href}`}
-                className="text-sm font-medium text-slate-600 transition-colors hover:text-[var(--primary)]"
+                className="text-sm font-medium text-slate-700 transition-colors hover:text-[var(--primary)]"
               >
                 {item.label}
               </a>

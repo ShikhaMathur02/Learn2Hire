@@ -7,7 +7,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-/** Student / alumni left-nav destinations (dashboard sections + routes). */
+/** Student left-nav destinations (dashboard sections + routes). */
 export const studentNavItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "profile", label: "Profile", icon: UserRound },

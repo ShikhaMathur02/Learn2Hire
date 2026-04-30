@@ -13,6 +13,7 @@ const {
   deleteUser,
   createCollegeAccount,
   setCollegeApproval,
+  setPlatformUserApproval,
   getCollegeDetail,
   deleteCollege,
 } = require('../controllers/adminController');
@@ -31,6 +32,7 @@ router.get('/users/:id', getAdminUserDetail);
 router.patch('/users/:id/faculty-profile', patchFacultyProfile);
 router.post('/colleges', createCollegeAccount);
 router.patch('/colleges/:id/approval', setCollegeApproval);
+router.patch('/users/:id/platform-approval', setPlatformUserApproval);
 router.get('/colleges/:id', getCollegeDetail);
 router.delete('/colleges/:id', deleteCollege);
 router.patch('/users/:id/student-profile', patchStudentCohort);

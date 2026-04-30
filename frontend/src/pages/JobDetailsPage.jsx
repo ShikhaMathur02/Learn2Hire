@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -38,7 +38,6 @@ function JobDetailsPage() {
   const [savedJobs, setSavedJobs] = useState([]);
   const [form, setForm] = useState({
     coverLetter: "",
-    resumeLink: "",
     portfolioLink: "",
   });
   const [loading, setLoading] = useState(true);
@@ -47,6 +46,7 @@ function JobDetailsPage() {
   const [interestSubmitting, setInterestSubmitting] = useState(false);
   const [hasExpressedInterest, setHasExpressedInterest] = useState(false);
   const [interestNote, setInterestNote] = useState("");
+  const [applyResumeFile, setApplyResumeFile] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -89,8 +89,8 @@ function JobDetailsPage() {
       return;
     }
 
-    if (!["student", "alumni"].includes(parsedUser.role)) {
-      setError("This page is available only for student and alumni accounts.");
+    if (parsedUser.role !== "student") {
+      setError("This page is available only for student accounts.");
       setLoading(false);
       return;
     }
@@ -268,22 +268,27 @@ function JobDetailsPage() {
       return;
     }
 
+    if (!applyResumeFile) {
+      setError("Please attach your résumé (PDF or Word) before submitting.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
     setSuccess("");
 
     try {
+      const fd = new FormData();
+      fd.append("coverLetter", form.coverLetter.trim());
+      fd.append("portfolioLink", form.portfolioLink.trim());
+      fd.append("resume", applyResumeFile);
+
       const response = await fetch(`/api/jobs/${id}/apply`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          coverLetter: form.coverLetter.trim(),
-          resumeLink: form.resumeLink.trim(),
-          portfolioLink: form.portfolioLink.trim(),
-        }),
+        body: fd,
       });
 
       const data = await readApiResponse(
@@ -296,6 +301,7 @@ function JobDetailsPage() {
       }
 
       setSuccess("Application submitted successfully.");
+      setApplyResumeFile(null);
       window.dispatchEvent(new CustomEvent("learn2hire-notifications-changed"));
       await fetchData();
     } catch (err) {
@@ -348,9 +354,9 @@ function JobDetailsPage() {
     );
   }
 
-  if (user && !["student", "alumni"].includes(user.role) && error) {
+  if (user && user.role !== "student" && error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] px-4 text-center text-slate-200">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-4 text-center text-slate-200">
         <p className="max-w-md text-sm">{error}</p>
       </div>
     );
@@ -359,7 +365,7 @@ function JobDetailsPage() {
   return (
     <DarkWorkspaceShell
       title={job?.title || "Job details"}
-      description="Review the full opportunity details and complete your application with links and a short note."
+      description="Review the full opportunity details and submit your application with a résumé, optional links, and a short note."
       workspaceLabel="Student Workspace"
       brandSubtitle="Student Workspace"
       showHistoryBack={false}
@@ -406,6 +412,11 @@ function JobDetailsPage() {
                     <h2 className="text-2xl font-bold text-white">{job?.title}</h2>
                     <p className="mt-1 text-sm text-slate-400">
                       {job?.createdBy?.name || "Company"}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      {job?.postingAudience === "single_college" && job?.targetCollege?.name
+                        ? `Listed for students at ${job.targetCollege.name} only.`
+                        : "Open to students at all partner colleges on Learn2Hire."}
                     </p>
                   </div>
                 </div>
@@ -484,6 +495,9 @@ function JobDetailsPage() {
             <Card className="border border-white/10 bg-white/5 shadow-none">
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold text-white">Company Info</h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  Employers on Learn2Hire reach students at every partner college.
+                </p>
                 <div className="mt-6 space-y-4">
                   <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
                     <p className="text-sm text-slate-400">Company</p>
@@ -495,12 +509,46 @@ function JobDetailsPage() {
                     <p className="text-sm text-slate-400">Contact</p>
                     <p className="mt-2 text-sm text-white">{job?.createdBy?.email || "Not shared"}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-                    <p className="text-sm text-slate-400">Your Role</p>
-                    <p className="mt-2 text-lg font-semibold capitalize text-white">
-                      {user?.role || "learner"}
+                  {job?.createdBy?.companyBio?.trim() ? (
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                      <p className="text-sm text-slate-400">Bio</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                        {job.createdBy.companyBio}
+                      </p>
+                    </div>
+                  ) : null}
+                  {job?.createdBy?.companyDetails?.trim() ? (
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                      <p className="text-sm text-slate-400">About the company</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                        {job.createdBy.companyDetails}
+                      </p>
+                    </div>
+                  ) : null}
+                  {job?.createdBy?.companyGoals?.trim() ? (
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                      <p className="text-sm text-slate-400">Goals</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                        {job.createdBy.companyGoals}
+                      </p>
+                    </div>
+                  ) : null}
+                  {job?.createdBy?.companyFocusAreas?.trim() ? (
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                      <p className="text-sm text-slate-400">Focus areas</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                        {job.createdBy.companyFocusAreas}
+                      </p>
+                    </div>
+                  ) : null}
+                  {!job?.createdBy?.companyBio?.trim() &&
+                  !job?.createdBy?.companyDetails?.trim() &&
+                  !job?.createdBy?.companyGoals?.trim() &&
+                  !job?.createdBy?.companyFocusAreas?.trim() ? (
+                    <p className="text-sm text-slate-500">
+                      This employer has not added a profile narrative yet.
                     </p>
-                  </div>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -530,16 +578,11 @@ function JobDetailsPage() {
                         </div>
                       ) : null}
                       <div className="flex flex-wrap gap-3">
-                        {existingApplication.resumeLink ? (
-                          <a
-                            href={existingApplication.resumeLink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
-                          >
-                            Resume Link
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
+                        {existingApplication.hasResumeFile ? (
+                          <span className="text-xs text-slate-400">
+                            Résumé file submitted:{" "}
+                            {existingApplication.resumeOriginalName || "attachment"}
+                          </span>
                         ) : null}
                         {existingApplication.portfolioLink ? (
                           <a
@@ -559,7 +602,9 @@ function JobDetailsPage() {
                   <>
                     <h2 className="text-2xl font-bold text-white">Apply to this job</h2>
                     <p className="mt-2 text-sm text-slate-400">
-                      Add a cover letter and optional links to help the company review your profile.
+                      Attach your résumé (PDF or Word, max 5 MB), add an optional cover letter and
+                      links, then submit. Your file is stored securely and shared only with this
+                      employer for this application.
                     </p>
 
                     {hasExpressedInterest ? (
@@ -574,7 +619,8 @@ function JobDetailsPage() {
                       <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
                         <p className="text-sm font-semibold text-white">Show interest (optional)</p>
                         <p className="mt-1 text-xs text-slate-400">
-                          Sends the company a notification without submitting a full application yet.
+                          Sends the company a notification without submitting a full application
+                          yet. To share your résumé, complete the application form below.
                         </p>
                         <textarea
                           value={interestNote}
@@ -613,15 +659,29 @@ function JobDetailsPage() {
                         placeholder="Write a short note about your skills, projects, or why this role fits you."
                         className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
                       />
-                      <input
-                        type="url"
-                        value={form.resumeLink}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, resumeLink: e.target.value }))
-                        }
-                        placeholder="Resume link (optional)"
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
-                      />
+                      <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                        <label className="text-sm font-medium text-white" htmlFor="apply-resume">
+                          Résumé <span className="text-rose-300">*</span>
+                        </label>
+                        <p className="mt-1 text-xs text-slate-400">
+                          PDF, .doc, or .docx — required for this application.
+                        </p>
+                        <input
+                          id="apply-resume"
+                          type="file"
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                          className="mt-3 block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-500/20 file:px-3 file:py-2 file:text-cyan-100"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] || null;
+                            setApplyResumeFile(f);
+                          }}
+                        />
+                        {applyResumeFile ? (
+                          <p className="mt-2 text-xs text-emerald-300">
+                            Selected: {applyResumeFile.name}
+                          </p>
+                        ) : null}
+                      </div>
                       <input
                         type="url"
                         value={form.portfolioLink}
@@ -647,3 +707,4 @@ function JobDetailsPage() {
 }
 
 export default JobDetailsPage;
+

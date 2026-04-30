@@ -5,7 +5,7 @@ function AuthField({ label, htmlFor, error, children, hint }) {
         <label htmlFor={htmlFor} className="text-sm font-medium text-slate-700">
           {label}
         </label>
-        {hint ? <span className="text-xs text-slate-400">{hint}</span> : null}
+        {hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
       </div>
       {children}
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}

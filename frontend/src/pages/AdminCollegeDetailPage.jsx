@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -133,7 +133,7 @@ function AdminCollegeDetailPage() {
   const campusAssessments = detail?.campusAssessments || [];
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
@@ -426,3 +426,4 @@ function AdminCollegeDetailPage() {
 }
 
 export default AdminCollegeDetailPage;
+

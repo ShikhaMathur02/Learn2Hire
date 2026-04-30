@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { BriefcaseBusiness } from "lucide-react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import AdminDashboard from "../components/admin-dashboard/AdminDashboard";
@@ -46,7 +45,7 @@ function Dashboard() {
 
   if (loading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
         Loading...
       </div>
     );
@@ -72,51 +71,8 @@ function Dashboard() {
     return <AdminDashboard user={user} onLogout={handleLogout} />;
   }
 
-  if (user.role === "alumni") {
-    return (
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
-        <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
-          <DashboardTopNav
-            className={workspaceDashboardHeaderClassName}
-            workspaceLabel="Alumni Workspace"
-            title={`Welcome, ${user.name}`}
-            description="Browse open company roles and track your applications from Learn2Hire."
-            user={{ name: user.name, email: user.email, role: user.role }}
-            onLogout={handleLogout}
-            actions={
-              <DashboardTopNav.ToolbarLink to="/jobs" icon={BriefcaseBusiness}>
-                Browse jobs
-              </DashboardTopNav.ToolbarLink>
-            }
-          />
-          <div className="mt-4 rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
-            <Card className="border-0 bg-transparent shadow-none">
-              <CardContent className="space-y-6 p-5 sm:p-8">
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-                  <h2 className="text-xl font-semibold text-white">Career Opportunities</h2>
-                  <p className="mt-2 text-slate-400">
-                    Your alumni account now has access to the jobs workspace. Open the jobs page to
-                    review company openings and apply directly.
-                  </p>
-                </div>
-
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-                  <h2 className="text-xl font-semibold text-white">Learning Hub</h2>
-                  <p className="mt-2 text-slate-400">
-                    Your alumni account can open the public learning hub to read study materials and
-                    placement preparation content.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
       <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
@@ -146,3 +102,4 @@ function Dashboard() {
 }
 
 export default Dashboard;
+

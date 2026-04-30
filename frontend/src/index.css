@@ -8,7 +8,7 @@
   --accent: #f59e0b;
   --light: #f8fafc;
   --dark: #1f2937;
-  --text: #334155;
+  --text: #0f172a;
   --student: #ff7e5f;
   --college: #8a4fff;
   --company: #2dd4bf;
@@ -32,6 +32,8 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
   /* Soft ambient background for light pages; full-bleed dark routes still read cleanly at edges. */
   background-color: #f1f5f9;
   background-image:
@@ -72,4 +74,38 @@ a[class=""] {
 img {
   max-width: 100%;
   display: block;
+}
+
+/**
+ * Applied to purple-gradient and slate-950 full-page shells (not light landing/marketing).
+ * Maps common Tailwind slate text steps one notch brighter so body copy is less “washed out”.
+ */
+.l2h-dark-ui {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.l2h-dark-ui .text-slate-100 {
+  color: rgb(248 250 252) !important;
+}
+
+.l2h-dark-ui .text-slate-200 {
+  color: rgb(241 245 249) !important;
+}
+
+.l2h-dark-ui .text-slate-300 {
+  color: rgb(226 232 240) !important;
+}
+
+.l2h-dark-ui .text-slate-400 {
+  color: rgb(203 213 225) !important;
+}
+
+.l2h-dark-ui .text-slate-500 {
+  color: rgb(186 198 216) !important;
+}
+
+.l2h-dark-ui .text-slate-600 {
+  color: rgb(165 180 203) !important;
 }

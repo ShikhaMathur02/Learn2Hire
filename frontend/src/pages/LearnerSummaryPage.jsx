@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -104,7 +104,7 @@ export default function LearnerSummaryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#312e81_0%,#0f172a_45%,#020617_100%)] text-white">
+    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
       <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
@@ -257,3 +257,4 @@ export default function LearnerSummaryPage() {
     </div>
   );
 }
+
