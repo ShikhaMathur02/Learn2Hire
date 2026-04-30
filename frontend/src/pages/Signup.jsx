@@ -112,6 +112,7 @@ function Signup() {
   const [otpVerified, setOtpVerified] = useState(false);
   const [studentStep, setStudentStep] = useState(1);
   const [collegeId, setCollegeId] = useState("");
+  const [partnerCollegeId, setPartnerCollegeId] = useState("");
   const [colleges, setColleges] = useState([]);
   const [collegesLoading, setCollegesLoading] = useState(true);
 
@@ -156,6 +157,9 @@ function Signup() {
   useEffect(() => {
     if (role !== "student" && role !== "faculty") {
       setCollegeId("");
+    }
+    if (role !== "company") {
+      setPartnerCollegeId("");
     }
   }, [role]);
 
@@ -355,6 +359,10 @@ function Signup() {
         payload.semester = semester.trim();
       }
 
+      if (role === "company" && partnerCollegeId.trim()) {
+        payload.partnerCollegeId = partnerCollegeId.trim();
+      }
+
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -372,6 +380,18 @@ function Signup() {
         queueMicrotask(() =>
           document.getElementById("signup-form-alert")?.scrollIntoView({ behavior: "smooth", block: "nearest" })
         );
+        return;
+      }
+
+      if (data.data?.requiresApproval && role === "student") {
+        setAlertLines([]);
+        navigate("/login", {
+          state: {
+            notice:
+              data.message ||
+              "Your student registration was received. Your college, an approved faculty member on your campus, or a Learn2Hire administrator must approve your account before you can sign in.",
+          },
+        });
         return;
       }
 
@@ -393,7 +413,7 @@ function Signup() {
           state: {
             notice:
               data.message ||
-              "Your company registration was received. A platform administrator will approve it before you can sign in.",
+              "Your company registration was received. If you chose a partner campus, that college or a Learn2Hire administrator can approve your account; otherwise only an administrator can approve it.",
           },
         });
         return;
@@ -549,6 +569,33 @@ function Signup() {
                     approves your college.
                   </p>
                 ) : null}
+              </AuthField>
+            ) : null}
+
+            {role === "company" ? (
+              <AuthField label="Partner campus (optional)" htmlFor="partnerCollegeId">
+                <select
+                  id="partnerCollegeId"
+                  value={partnerCollegeId}
+                  onChange={(e) => setPartnerCollegeId(e.target.value)}
+                  disabled={loading || collegesLoading}
+                  className={selectClassName}
+                  style={selectChevronStyle}
+                >
+                  <option value="">No specific campus (platform admin approval only)</option>
+                  {colleges.map((c) => {
+                    const pending = c.collegeApprovalStatus === "pending";
+                    return (
+                      <option key={c.id} value={c.id} disabled={pending}>
+                        {pending ? `${c.name} (awaiting platform approval)` : c.name}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="mt-1.5 text-xs text-slate-600">
+                  Select a campus if you plan to hire or collaborate mainly there—either that college or a platform
+                  admin can approve your company.
+                </p>
               </AuthField>
             ) : null}
 

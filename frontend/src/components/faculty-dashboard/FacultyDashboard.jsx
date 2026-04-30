@@ -5,6 +5,7 @@ import {
   ClipboardList,
   LoaderCircle,
   Pencil,
+  ShieldCheck,
   Sparkles,
   UserPlus,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import {
   STUDENT_COHORT_SEMESTER_OPTIONS,
   STUDENT_COHORT_YEAR_OPTIONS,
 } from "../../lib/studentCohortFieldOptions";
+import { COHORT_OTHER } from "../../lib/cohortPresets";
 import {
   PROFILE_PHOTO_MAX_BYTES,
   persistUserProfilePhotoInLocalStorage,
@@ -28,6 +30,9 @@ import { ProfileAvatarBlock } from "../profile/ProfileAvatarBlock";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { VisibleFileInput } from "../ui/visible-file-input";
+import { StudentRosterSheetFormatHelp } from "../bulk-import/StudentRosterSheetFormatHelp";
+import { STUDENT_ROSTER_IMPORT_SUMMARY } from "../../lib/studentRosterImportFormat";
+import { BULK_SPREADSHEET_ACCEPT } from "../../lib/bulkSpreadsheetAccept";
 
 function SectionTitle({ title, description, action }) {
   return (
@@ -79,6 +84,20 @@ function FacultyDashboard({ user, onLogout }) {
   const [bulkImportBusy, setBulkImportBusy] = useState(false);
   const [bulkImportMessage, setBulkImportMessage] = useState("");
   const [bulkImportError, setBulkImportError] = useState("");
+  const [pendingStudents, setPendingStudents] = useState([]);
+  const [studentCampusBusyId, setStudentCampusBusyId] = useState("");
+  const [manualName, setManualName] = useState("");
+  const [manualEmail, setManualEmail] = useState("");
+  const [manualPassword, setManualPassword] = useState("");
+  const [manualCourse, setManualCourse] = useState("");
+  const [manualBranch, setManualBranch] = useState("");
+  const [manualBranchCustom, setManualBranchCustom] = useState("");
+  const [manualYear, setManualYear] = useState("");
+  const [manualSemester, setManualSemester] = useState("");
+  const [manualDepartment, setManualDepartment] = useState("");
+  const [manualAddBusy, setManualAddBusy] = useState(false);
+  const [singleAddMessage, setSingleAddMessage] = useState("");
+  const [singleAddError, setSingleAddError] = useState("");
 
   useEffect(() => {
     const sid = location.state?.facultySection;
@@ -134,6 +153,18 @@ function FacultyDashboard({ user, onLogout }) {
         );
 
         setAssessments(ownAssessments);
+
+        let pendingStudentRows = [];
+        const facSt = currentUser.facultyApprovalStatus;
+        const facApproved =
+          currentUser.role === "faculty" &&
+          (facSt === "approved" || facSt === undefined || facSt === null);
+        if (facApproved) {
+          const psRes = await fetch("/api/college/students/pending", { headers });
+          const psData = await readApiResponse(psRes);
+          if (psRes.ok) pendingStudentRows = psData.data?.users || [];
+        }
+        setPendingStudents(pendingStudentRows);
 
         const submissionEntries = await Promise.all(
           ownAssessments.map(async (assessment) => {
@@ -245,6 +276,105 @@ function FacultyDashboard({ user, onLogout }) {
   );
   const recentAssessments = assessments.slice(0, 4);
 
+  const handleStudentCampusApproval = async (userId, decision) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setBulkImportError("");
+    setBulkImportMessage("");
+    setStudentCampusBusyId(userId);
+    try {
+      const res = await fetch(`/api/college/students/${userId}/campus-approval`, {
+        method: "PATCH",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await readApiResponse(res);
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return;
+      }
+      if (!res.ok) throw new Error(data.message || "Update failed.");
+      setBulkImportMessage(data.message || "Updated.");
+      const psRes = await fetch("/api/college/students/pending", { headers: { Authorization: `Bearer ${token}` } });
+      const psData = await readApiResponse(psRes);
+      if (psRes.ok) setPendingStudents(psData.data?.users || []);
+    } catch (err) {
+      setBulkImportError(err.message || "Could not update student.");
+    } finally {
+      setStudentCampusBusyId("");
+    }
+  };
+
+  const handleAddOneRosterStudent = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    const branchVal =
+      manualBranch === COHORT_OTHER ? manualBranchCustom.trim() : manualBranch.trim();
+    if (!manualName.trim() || !manualEmail.trim() || !manualPassword.trim()) {
+      setSingleAddError("Enter the student’s name, email, and initial password.");
+      return;
+    }
+    if (!manualCourse.trim() || !branchVal || !manualYear.trim()) {
+      setSingleAddError("Select program (course), branch, and year for this student’s class.");
+      return;
+    }
+    setSingleAddError("");
+    setSingleAddMessage("");
+    setBulkImportError("");
+    setBulkImportMessage("");
+    setManualAddBusy(true);
+    try {
+      const res = await fetch("/api/college/roster", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: manualName.trim(),
+          email: manualEmail.trim(),
+          password: manualPassword,
+          role: "student",
+          course: manualCourse.trim(),
+          branch: branchVal,
+          year: manualYear.trim(),
+          semester: manualSemester.trim(),
+          department: manualDepartment.trim(),
+        }),
+      });
+      const data = await readApiResponse(res);
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        return;
+      }
+      if (!res.ok) throw new Error(data.message || "Could not create student.");
+      setSingleAddMessage(data.message || "Student account created with the class you selected.");
+      setManualName("");
+      setManualEmail("");
+      setManualPassword("");
+      setManualCourse("");
+      setManualBranch("");
+      setManualBranchCustom("");
+      setManualYear("");
+      setManualSemester("");
+      setManualDepartment("");
+    } catch (err) {
+      setSingleAddError(err.message || "Could not create student.");
+    } finally {
+      setManualAddBusy(false);
+    }
+  };
+
   const handleFacultyStudentImport = async () => {
     const token = localStorage.getItem("token");
     if (!token || !studentSheetFile) return;
@@ -256,6 +386,8 @@ function FacultyDashboard({ user, onLogout }) {
     }
     setBulkImportError("");
     setBulkImportMessage("");
+    setSingleAddError("");
+    setSingleAddMessage("");
     setBulkImportBusy(true);
     try {
       const fd = new FormData();
@@ -370,21 +502,254 @@ function FacultyDashboard({ user, onLogout }) {
         />
       </div>
 
+      {pendingStudents.length > 0 ? (
+        <Card className="border border-sky-400/25 bg-sky-500/5 shadow-none">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 text-sky-200">
+              <ShieldCheck className="h-5 w-5 shrink-0" />
+              <h3 className="text-lg font-semibold text-white">Students awaiting campus approval</h3>
+            </div>
+            <p className="mt-2 text-sm text-slate-300">
+              Learners who signed up under your college. Approve or reject so they can use Learn2Hire.
+            </p>
+            <div className="mt-4 space-y-3">
+              {pendingStudents.map((u) => (
+                <div
+                  key={u._id}
+                  className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-medium text-white">{u.name}</p>
+                    <p className="text-sm text-slate-400">{u.email}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="success"
+                      disabled={studentCampusBusyId === u._id}
+                      onClick={() => handleStudentCampusApproval(u._id, "approved")}
+                    >
+                      {studentCampusBusyId === u._id ? "…" : "Approve"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      disabled={studentCampusBusyId === u._id}
+                      onClick={() => handleStudentCampusApproval(u._id, "rejected")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card className="border border-white/10 bg-white/5 shadow-none">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2 text-cyan-200">
+            <UserPlus className="h-5 w-5 shrink-0" />
+            <h3 className="text-lg font-semibold text-white">Add one student</h3>
+          </div>
+          <p className="mt-2 text-sm text-slate-300">
+            Creates an approved student account under your campus. Set their class (program, branch,
+            year) so materials and cohort filters match.
+          </p>
+          {singleAddMessage ? (
+            <div className="mt-4 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              {singleAddMessage}
+            </div>
+          ) : null}
+          {singleAddError ? (
+            <div className="mt-4 rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              {singleAddError}
+            </div>
+          ) : null}
+          <form className="mt-4 space-y-4" onSubmit={handleAddOneRosterStudent}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-course">
+                  Program (course)
+                </label>
+                <select
+                  id="fac-cr-course"
+                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  value={manualCourse}
+                  onChange={(e) => setManualCourse(e.target.value)}
+                  required
+                >
+                  <option value="">Select program</option>
+                  {STUDENT_COHORT_PROGRAM_OPTIONS.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-branch">
+                  Branch
+                </label>
+                <select
+                  id="fac-cr-branch"
+                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  value={manualBranch}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setManualBranch(v);
+                    if (v !== COHORT_OTHER) setManualBranchCustom("");
+                  }}
+                  required
+                >
+                  <option value="">Select branch</option>
+                  {STUDENT_COHORT_BRANCH_OPTIONS.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                  <option value={COHORT_OTHER}>Other…</option>
+                </select>
+                {manualBranch === COHORT_OTHER ? (
+                  <input
+                    id="fac-cr-branch-custom"
+                    className="mt-2 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500"
+                    value={manualBranchCustom}
+                    onChange={(e) => setManualBranchCustom(e.target.value)}
+                    placeholder="Type branch"
+                    autoComplete="off"
+                  />
+                ) : null}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-year">
+                  Year
+                </label>
+                <select
+                  id="fac-cr-year"
+                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  value={manualYear}
+                  onChange={(e) => setManualYear(e.target.value)}
+                  required
+                >
+                  <option value="">Select</option>
+                  {STUDENT_COHORT_YEAR_OPTIONS.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-sem">
+                  Semester (optional)
+                </label>
+                <select
+                  id="fac-cr-sem"
+                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  value={manualSemester}
+                  onChange={(e) => setManualSemester(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {STUDENT_COHORT_SEMESTER_OPTIONS.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-dept">
+                  Department (optional)
+                </label>
+                <input
+                  id="fac-cr-dept"
+                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500"
+                  value={manualDepartment}
+                  onChange={(e) => setManualDepartment(e.target.value)}
+                  placeholder="e.g. School of Engineering"
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-name">
+                  Full name
+                </label>
+                <input
+                  id="fac-cr-name"
+                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  autoComplete="name"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-email">
+                  Email
+                </label>
+                <input
+                  id="fac-cr-email"
+                  type="email"
+                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  value={manualEmail}
+                  onChange={(e) => setManualEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-pw">
+                  Initial password
+                </label>
+                <input
+                  id="fac-cr-pw"
+                  type="password"
+                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  value={manualPassword}
+                  onChange={(e) => setManualPassword(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+            </div>
+            <Button
+              type="submit"
+              disabled={
+                manualAddBusy ||
+                !manualName.trim() ||
+                !manualEmail.trim() ||
+                !manualPassword.trim() ||
+                !manualCourse.trim() ||
+                !(manualBranch === COHORT_OTHER ? manualBranchCustom.trim() : manualBranch.trim()) ||
+                !manualYear.trim()
+              }
+            >
+              {manualAddBusy ? "Creating…" : "Create student"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
       <Card className="border border-slate-400/30 bg-slate-800/40 shadow-none">
         <CardContent className="p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-cyan-200">
-                <UserPlus className="h-5 w-5" />
-                <h3 className="text-lg font-semibold text-white">Bulk student import</h3>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-cyan-200">
+                <div className="flex items-center gap-2">
+                  <UserPlus className="h-5 w-5 shrink-0" />
+                  <h3 className="text-lg font-semibold text-white">Bulk student import</h3>
+                </div>
+                <StudentRosterSheetFormatHelp className="!border-cyan-400/40 !text-cyan-100 hover:!bg-cyan-400/10" />
               </div>
               <p className="mt-2 text-sm text-slate-300">
-                Upload Excel or CSV for your campus: columns{" "}
-                <span className="text-slate-200">
-                  S.No, Course, Program, Year, Contact number, Email id
+                {STUDENT_ROSTER_IMPORT_SUMMARY}{" "}
+                <span className="text-slate-400">
+                  New accounts use <code className="text-cyan-200">Firstname@123</code>.
                 </span>
-                . Optional <span className="text-slate-200">Name</span>. Rows must match the class you
-                select. New accounts use password <code className="text-cyan-200">Firstname@123</code>.
               </p>
             </div>
           </div>
@@ -464,7 +829,7 @@ function FacultyDashboard({ user, onLogout }) {
             className="mt-4"
             id="faculty-bulk-students"
             label="Spreadsheet file"
-            accept=".xlsx,.xls,.csv"
+            accept={BULK_SPREADSHEET_ACCEPT}
             onChange={(e) => setStudentSheetFile(e.target.files?.[0] || null)}
             disabled={bulkImportBusy}
           />

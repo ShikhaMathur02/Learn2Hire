@@ -8,7 +8,7 @@ import { cn } from "../../lib/utils";
  * white face, thin indigo border, indigo label, ~10px radius, fixed height; hover → solid indigo + white label.
  */
 const baseClasses =
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] text-sm font-semibold leading-none no-underline transition-[color,background-color,border-color,box-shadow] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 active:brightness-[0.97]";
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[10px] text-sm font-semibold leading-none no-underline transition-[color,background-color,border-color,box-shadow] disabled:pointer-events-none disabled:opacity-[0.72] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 active:brightness-[0.97]";
 
 const standardOutline =
   "border border-indigo-600 bg-white !text-indigo-700 shadow-sm hover:bg-indigo-600 hover:!text-white hover:border-indigo-600";

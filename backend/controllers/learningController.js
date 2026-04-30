@@ -6,7 +6,7 @@ const LearningProgress = require('../models/LearningProgress');
 const StudentProfile = require('../models/StudentProfile');
 const StudyMaterial = require('../models/StudyMaterial');
 const { getLearnerInsights } = require('../utils/learnerInsights');
-const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
+const { asString, parseTabularFileRows } = require('../utils/uploadParsers');
 const { createBulkNotifications, notifyPlatformAdmins } = require('../utils/notificationService');
 const { getStudentRecipientIdsForEditor } = require('../utils/campusNotificationRecipients');
 
@@ -1372,11 +1372,11 @@ exports.importMaterialsFromSheet = async (req, res) => {
     if (!req.file?.buffer) {
       return res.status(400).json({
         success: false,
-        message: 'Please upload an Excel file.',
+        message: 'Please upload an Excel (.xlsx, .xls) or CSV file.',
       });
     }
 
-    const rows = parseWorkbookRows(req.file.buffer);
+    const rows = parseTabularFileRows(req.file.buffer, req.file.originalname || '');
     if (!rows.length) {
       return res.status(400).json({
         success: false,

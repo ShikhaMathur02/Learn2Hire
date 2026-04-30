@@ -22,6 +22,8 @@ const {
 } = require('../controllers/learningController');
 const { protect, optionalProtect } = require('../middleware/authMiddleware');
 
+const { singleSpreadsheet } = require('../utils/multerSpreadsheet');
+
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -42,7 +44,7 @@ router.delete('/manage/categories/:id', deleteCategory);
 router.get('/manage/materials', getManageMaterials);
 router.post('/manage/materials', createMaterial);
 router.post('/manage/materials/from-image', upload.single('image'), createMaterialFromImageUpload);
-router.post('/manage/materials/import', upload.single('file'), importMaterialsFromSheet);
+router.post('/manage/materials/import', singleSpreadsheet('file'), importMaterialsFromSheet);
 router.put('/manage/materials/:id', updateMaterial);
 router.delete('/manage/materials/:id', deleteMaterial);
 

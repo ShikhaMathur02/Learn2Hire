@@ -12,7 +12,7 @@ const StudentProfile = require('../models/StudentProfile');
 const StudyMaterial = require('../models/StudyMaterial');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
-const { asString, parseWorkbookRows } = require('../utils/uploadParsers');
+const { asString, parseTabularFileRows } = require('../utils/uploadParsers');
 const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
 const { createNotification } = require('../utils/notificationService');
 const { sendApprovalGrantedEmail } = require('../utils/otpDelivery');
@@ -22,6 +22,7 @@ const {
   validateStudentProfileContactFields,
 } = require('../utils/studentProfileFieldValidation');
 const { JOB_CREATED_BY_SELECT } = require('../constants/jobCreatedBySelect');
+const { syncCompanyFullyApproved } = require('../utils/campusApproval');
 
 const validRoles = ['student', 'faculty', 'company', 'admin', 'college'];
 
@@ -349,10 +350,11 @@ exports.getPlatformInsights = async (req, res) => {
       registeredCompanies,
       registeredFaculty,
       collegeAccountCount,
+      pendingStudentCampusCount,
     ] = await Promise.all([
       User.find()
         .select(
-          'name email role managedByCollege facultyApprovalStatus collegeApprovalStatus platformApprovalStatus affiliatedCollege facultyQualification facultySubjects createdAt updatedAt'
+          'name email role managedByCollege facultyApprovalStatus studentCampusApprovalStatus collegeApprovalStatus platformApprovalStatus affiliatedCollege facultyQualification facultySubjects createdAt updatedAt'
         )
         .sort({ createdAt: -1 })
         .limit(300)
@@ -414,6 +416,7 @@ exports.getPlatformInsights = async (req, res) => {
         .limit(250)
         .lean(),
       User.countDocuments({ role: 'college' }),
+      User.countDocuments({ role: 'student', studentCampusApprovalStatus: 'pending' }),
     ]);
 
     const roleCounts = {
@@ -465,7 +468,7 @@ exports.getPlatformInsights = async (req, res) => {
       .filter((u) => u.role === 'student')
       .map((u) => u._id);
     const profileSelect =
-      'user course branch year semester bio studentPhone fatherName motherName fatherPhone motherPhone address city state pincode dateOfBirth bloodGroup emergencyContactName emergencyContactPhone';
+      'user course department branch year semester bio studentPhone fatherName motherName fatherPhone motherPhone address city state pincode dateOfBirth bloodGroup emergencyContactName emergencyContactPhone';
     const studentProfiles =
       studentIds.length > 0
         ? await StudentProfile.find({ user: { $in: studentIds } }).select(profileSelect).lean()
@@ -511,6 +514,7 @@ exports.getPlatformInsights = async (req, res) => {
           totalJobs: jobs.length,
           totalApplications: applications.length,
           pendingFacultyCount,
+          pendingStudentCampusCount,
           pendingCollegesCount,
           pendingPlatformCount,
           managedStudentsCount,
@@ -547,11 +551,11 @@ exports.importStudentsFromSheet = async (req, res) => {
     if (!req.file?.buffer) {
       return res.status(400).json({
         success: false,
-        message: 'Please upload an Excel file.',
+        message: 'Please upload an Excel (.xlsx, .xls) or CSV file.',
       });
     }
 
-    const rows = parseWorkbookRows(req.file.buffer);
+    const rows = parseTabularFileRows(req.file.buffer, req.file.originalname || '');
     if (!rows.length) {
       return res.status(400).json({
         success: false,
@@ -975,7 +979,11 @@ exports.setPlatformUserApproval = async (req, res) => {
       });
     }
 
-    user.platformApprovalStatus = decision;
+    if (decision === 'approved') {
+      syncCompanyFullyApproved(user);
+    } else {
+      user.platformApprovalStatus = decision;
+    }
     await user.save();
 
     let approvalEmailSent = false;
@@ -1040,6 +1048,7 @@ exports.setPlatformUserApproval = async (req, res) => {
           email: user.email,
           role: user.role,
           platformApprovalStatus: user.platformApprovalStatus,
+          partnerCollegeApprovalStatus: user.partnerCollegeApprovalStatus || null,
         },
         approvalEmailSent,
         approvalEmailNote,

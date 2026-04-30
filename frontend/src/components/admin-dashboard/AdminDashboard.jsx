@@ -14,6 +14,7 @@ import {
   Sparkles,
   Trash2,
   UserCheck,
+  UserPlus,
   UserRound,
   Users,
 } from "lucide-react";
@@ -26,6 +27,16 @@ import {
 } from "../dashboard/DashboardTopNav";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
+import { VisibleFileInput } from "../ui/visible-file-input";
+import { StudentRosterSheetFormatHelp } from "../bulk-import/StudentRosterSheetFormatHelp";
+import { STUDENT_ROSTER_IMPORT_SUMMARY } from "../../lib/studentRosterImportFormat";
+import { BULK_SPREADSHEET_ACCEPT } from "../../lib/bulkSpreadsheetAccept";
+import {
+  STUDENT_COHORT_BRANCH_OPTIONS,
+  STUDENT_COHORT_PROGRAM_OPTIONS,
+  STUDENT_COHORT_SEMESTER_OPTIONS,
+  STUDENT_COHORT_YEAR_OPTIONS,
+} from "../../lib/studentCohortFieldOptions";
 import { cn } from "../../lib/utils";
 
 /** Persist scroll when opening admin profile/campus routes so browser "back" returns to the same place. */
@@ -207,6 +218,7 @@ const emptyInsights = {
     totalJobs: 0,
     totalApplications: 0,
     pendingFacultyCount: 0,
+    pendingStudentCampusCount: 0,
     pendingCollegesCount: 0,
     pendingPlatformCount: 0,
     managedStudentsCount: 0,
@@ -289,10 +301,19 @@ function AdminDashboard({ user, onLogout }) {
   const [materialTitle, setMaterialTitle] = useState("");
   const [materialCategoryId, setMaterialCategoryId] = useState("");
   const [importBusy, setImportBusy] = useState(false);
+  const [campusStudentSheetFile, setCampusStudentSheetFile] = useState(null);
+  const [campusImportCollegeId, setCampusImportCollegeId] = useState("");
+  const [campusImportCourse, setCampusImportCourse] = useState("");
+  const [campusImportProgram, setCampusImportProgram] = useState("");
+  const [campusImportYear, setCampusImportYear] = useState("");
+  const [campusImportSemester, setCampusImportSemester] = useState("");
+  const [campusImportBusy, setCampusImportBusy] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState("");
   const [deletingJobId, setDeletingJobId] = useState("");
   const [collegeApprovalBusyId, setCollegeApprovalBusyId] = useState("");
   const [platformApprovalBusyId, setPlatformApprovalBusyId] = useState("");
+  const [pendingCampusStudents, setPendingCampusStudents] = useState([]);
+  const [studentCampusApprovalBusyId, setStudentCampusApprovalBusyId] = useState("");
   const [deletingCollegeId, setDeletingCollegeId] = useState("");
   /** Directory tables: show 5 rows until expanded. */
   const [showAllDirColleges, setShowAllDirColleges] = useState(false);
@@ -313,17 +334,23 @@ function AdminDashboard({ user, onLogout }) {
         setError("");
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [analyticsRes, insightsRes] = await Promise.all([
+        const [analyticsRes, insightsRes, pendingStudentsRes] = await Promise.all([
           fetch("/api/admin/analytics", { cache: "no-store", headers }),
           fetch("/api/admin/insights", { cache: "no-store", headers }),
+          fetch("/api/college/students/pending", { cache: "no-store", headers }),
         ]);
 
-        const [analyticsData, insightsData] = await Promise.all([
+        const [analyticsData, insightsData, pendingStudentsData] = await Promise.all([
           readApiResponse(analyticsRes),
           readApiResponse(insightsRes),
+          readApiResponse(pendingStudentsRes),
         ]);
 
-        if (analyticsRes.status === 401 || insightsRes.status === 401) {
+        if (
+          analyticsRes.status === 401 ||
+          insightsRes.status === 401 ||
+          pendingStudentsRes.status === 401
+        ) {
           localStorage.removeItem("token");
           localStorage.removeItem("user");
           navigate("/login");
@@ -340,6 +367,9 @@ function AdminDashboard({ user, onLogout }) {
         setAnalytics(analyticsData.data || emptyAnalytics);
         const nextInsights = insightsData.data || emptyInsights;
         setInsights(nextInsights);
+        setPendingCampusStudents(
+          pendingStudentsRes.ok ? pendingStudentsData.data?.users || [] : []
+        );
       } catch (err) {
         setError(err.message || "Unable to load admin dashboard.");
       } finally {
@@ -391,6 +421,7 @@ function AdminDashboard({ user, onLogout }) {
         u.year,
         u.semester,
         u.bio,
+        u.department,
         u.studentPhone,
         u.fatherName,
         u.motherName,
@@ -418,6 +449,14 @@ function AdminDashboard({ user, onLogout }) {
   }, [insights.roleCounts]);
 
   const registeredCollegesList = useMemo(() => insights.registeredColleges || [], [insights.registeredColleges]);
+
+  const approvedCollegesForImport = useMemo(
+    () =>
+      registeredCollegesList.filter(
+        (c) => c.collegeApprovalStatus !== "pending" && c.collegeApprovalStatus !== "rejected"
+      ),
+    [registeredCollegesList]
+  );
 
   /** Same total as Live overview "Colleges" card and role distribution (server countDocuments). */
   const collegeAccountsTotal = useMemo(
@@ -502,6 +541,37 @@ function AdminDashboard({ user, onLogout }) {
       setError(err.message || "Platform approval failed.");
     } finally {
       setPlatformApprovalBusyId("");
+    }
+  };
+
+  const handleAdminStudentCampusApproval = async (studentUserId, decision) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setStudentCampusApprovalBusyId(studentUserId);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch(`/api/college/students/${studentUserId}/campus-approval`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await readApiResponse(res);
+      if (!res.ok) {
+        throw new Error(data.message || "Could not update student approval.");
+      }
+      setSuccess(data.message || "Updated.");
+      await fetchDashboard({ silent: true });
+    } catch (err) {
+      setError(err.message || "Student campus approval failed.");
+    } finally {
+      setStudentCampusApprovalBusyId("");
     }
   };
 
@@ -637,6 +707,47 @@ function AdminDashboard({ user, onLogout }) {
       setError(err.message || "Student import failed.");
     } finally {
       setImportBusy(false);
+    }
+  };
+
+  const handleAdminCampusStudentImport = async () => {
+    const token = localStorage.getItem("token");
+    if (!token || !campusStudentSheetFile) return;
+    if (
+      !campusImportCollegeId.trim() ||
+      !campusImportCourse.trim() ||
+      !campusImportProgram.trim() ||
+      !campusImportYear.trim()
+    ) {
+      setError("Choose an approved college and the class (course, program, year) that matches each row in the file.");
+      setSuccess("");
+      return;
+    }
+    setError("");
+    setSuccess("");
+    setCampusImportBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", campusStudentSheetFile);
+      fd.append("collegeId", campusImportCollegeId.trim());
+      fd.append("targetCourse", campusImportCourse.trim());
+      fd.append("targetProgram", campusImportProgram.trim());
+      fd.append("targetYear", campusImportYear.trim());
+      fd.append("targetSemester", campusImportSemester.trim());
+      const response = await fetch("/api/college/roster/import/students", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await readApiResponse(response);
+      if (!response.ok) throw new Error(data.message || "Campus student import failed.");
+      setSuccess(data.message || "Campus student import completed.");
+      setCampusStudentSheetFile(null);
+      await fetchDashboard({ silent: true });
+    } catch (err) {
+      setError(err.message || "Campus student import failed.");
+    } finally {
+      setCampusImportBusy(false);
     }
   };
 
@@ -808,7 +919,7 @@ function AdminDashboard({ user, onLogout }) {
           </div>
 
             <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
               <MetricCard
                 title="Students"
                 value={insights.roleCounts.student || 0}
@@ -824,6 +935,17 @@ function AdminDashboard({ user, onLogout }) {
                 subtitle="Waiting for approval"
                 icon={ShieldCheck}
                 onClick={() => goToAdminHash("admin-section-faculty")}
+              />
+              <MetricCard
+                title="Students Pending"
+                value={insights.totals.pendingStudentCampusCount || 0}
+                subtitle="Campus signup review"
+                icon={UserPlus}
+                onClick={() =>
+                  goToAdminHash(
+                    pendingCampusStudents.length > 0 ? "admin-pending-students" : "admin-section-all-people"
+                  )
+                }
               />
               <MetricCard
                 title="Colleges Pending"
@@ -939,6 +1061,75 @@ function AdminDashboard({ user, onLogout }) {
                               e.stopPropagation();
                               handleCollegeApproval(c._id, "rejected");
                             }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {pendingCampusStudents.length > 0 ? (
+              <Card
+                id="admin-pending-students"
+                className="scroll-mt-28 overflow-hidden border border-indigo-400/35 bg-gradient-to-br from-indigo-500/[0.12] via-slate-950/40 to-transparent shadow-[0_20px_50px_-20px_rgba(99,102,241,0.15)]"
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-200 ring-1 ring-indigo-400/25">
+                      <UserPlus className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-bold text-white sm:text-xl">Student signups pending campus approval</h2>
+                      <p className="mt-0.5 text-sm text-slate-400">
+                        Learners who registered under a college. Approve or reject here—the same action college and
+                        faculty approvers can take from their campus dashboards.
+                      </p>
+                    </div>
+                  </div>
+                  <ul className="mt-5 space-y-3">
+                    {pendingCampusStudents.map((u) => (
+                      <li
+                        key={u._id}
+                        className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/55 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-semibold text-white">{u.name}</p>
+                          <p className="truncate text-sm text-slate-400">{u.email}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Requested {u.createdAt ? new Date(u.createdAt).toLocaleString() : "—"}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10"
+                            onClick={() => {
+                              saveAdminDashboardScrollBeforeNavigate();
+                              navigate(`/dashboard/learners/${u._id}`);
+                            }}
+                          >
+                            View profile
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="success"
+                            className="h-10"
+                            disabled={studentCampusApprovalBusyId === u._id}
+                            onClick={() => handleAdminStudentCampusApproval(u._id, "approved")}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            className="h-10"
+                            disabled={studentCampusApprovalBusyId === u._id}
+                            onClick={() => handleAdminStudentCampusApproval(u._id, "rejected")}
                           >
                             Reject
                           </Button>
@@ -1130,16 +1321,26 @@ function AdminDashboard({ user, onLogout }) {
             defaultOpen={false}
             sectionId="admin-section-bulk-imports"
           >
-          <div className="grid gap-6 xl:grid-cols-3">
+          <div className="space-y-6">
+            <div className="grid gap-6 xl:grid-cols-3">
             <Card className="border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm transition hover:border-white/15">
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-white">Bulk students (Excel)</h3>
+                <h3 className="text-lg font-semibold text-white">Bulk students (platform)</h3>
                 <p className="mt-1 text-sm text-slate-400">
-                  Upload `.xlsx` with name, email, password columns.
+                  Creates student logins not tied to a campus. Upload{" "}
+                  <code className="text-slate-300">.xlsx</code>, <code className="text-slate-300">.xls</code>, or{" "}
+                  <code className="text-slate-300">.csv</code> with columns:{" "}
+                  <strong className="text-slate-300">name</strong>,{" "}
+                  <strong className="text-slate-300">email</strong>, <strong className="text-slate-300">password</strong>{" "}
+                  (one row per student).
+                </p>
+                <p className="mt-3 text-xs text-slate-500">
+                  To import learners under an approved college with the roster sheet (S.No., Department, Branch, …), use
+                  <span className="text-slate-400"> Campus roster import</span> below.
                 </p>
                 <input
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept={BULK_SPREADSHEET_ACCEPT}
                   className="mt-4 w-full text-sm text-slate-300"
                   onChange={(e) => setStudentSheetFile(e.target.files?.[0] || null)}
                 />
@@ -1150,13 +1351,13 @@ function AdminDashboard({ user, onLogout }) {
             </Card>
             <Card className="border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm transition hover:border-white/15">
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-white">Bulk materials (Excel)</h3>
+                <h3 className="text-lg font-semibold text-white">Bulk materials (Excel or CSV)</h3>
                 <p className="mt-1 text-sm text-slate-400">
                   Use title, summary, content, categorySlug/categoryId columns.
                 </p>
                 <input
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept={BULK_SPREADSHEET_ACCEPT}
                   className="mt-4 w-full text-sm text-slate-300"
                   onChange={(e) => setMaterialSheetFile(e.target.files?.[0] || null)}
                 />
@@ -1192,6 +1393,126 @@ function AdminDashboard({ user, onLogout }) {
                   onClick={handleMaterialImageCreate}
                 >
                   Create from image
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+            <Card className="border border-cyan-400/20 bg-gradient-to-b from-cyan-500/[0.07] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm">
+              <CardContent className="p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Campus roster import (Excel or CSV)</h3>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Adds students to an <strong className="text-slate-300">approved</strong> college with managed campus
+                      accounts. {STUDENT_ROSTER_IMPORT_SUMMARY}{" "}
+                      <span className="text-slate-500">Default password: </span>
+                      <code className="text-cyan-200">Firstname@123</code>.
+                    </p>
+                  </div>
+                  <StudentRosterSheetFormatHelp className="shrink-0 !border-cyan-400/40 !text-cyan-100 hover:!bg-cyan-400/10" />
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="sm:col-span-2 lg:col-span-1">
+                    <label className="text-xs font-medium text-slate-400">College</label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      value={campusImportCollegeId}
+                      onChange={(e) => setCampusImportCollegeId(e.target.value)}
+                      disabled={campusImportBusy}
+                    >
+                      <option value="">Select college</option>
+                      {approvedCollegesForImport.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-400">Course (match file)</label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      value={campusImportCourse}
+                      onChange={(e) => setCampusImportCourse(e.target.value)}
+                      disabled={campusImportBusy}
+                    >
+                      <option value="">Select</option>
+                      {STUDENT_COHORT_PROGRAM_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-400">Program / branch</label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      value={campusImportProgram}
+                      onChange={(e) => setCampusImportProgram(e.target.value)}
+                      disabled={campusImportBusy}
+                    >
+                      <option value="">Select</option>
+                      {STUDENT_COHORT_BRANCH_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-400">Year</label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      value={campusImportYear}
+                      onChange={(e) => setCampusImportYear(e.target.value)}
+                      disabled={campusImportBusy}
+                    >
+                      <option value="">Select</option>
+                      {STUDENT_COHORT_YEAR_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-400">Semester (optional)</label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      value={campusImportSemester}
+                      onChange={(e) => setCampusImportSemester(e.target.value)}
+                      disabled={campusImportBusy}
+                    >
+                      <option value="">—</option>
+                      {STUDENT_COHORT_SEMESTER_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <VisibleFileInput
+                  className="mt-4"
+                  id="admin-campus-roster-file"
+                  label="Spreadsheet file"
+                  accept={BULK_SPREADSHEET_ACCEPT}
+                  disabled={campusImportBusy}
+                />
+                <Button
+                  className="mt-4 w-full sm:w-auto"
+                  disabled={
+                    campusImportBusy ||
+                    !campusStudentSheetFile ||
+                    !campusImportCollegeId.trim() ||
+                    !campusImportCourse.trim() ||
+                    !campusImportProgram.trim() ||
+                    !campusImportYear.trim()
+                  }
+                  onClick={handleAdminCampusStudentImport}
+                >
+                  {campusImportBusy ? "Importing…" : "Import campus students"}
                 </Button>
               </CardContent>
             </Card>

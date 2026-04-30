@@ -40,11 +40,11 @@ export function NavDropdown({
 
   const rowBase = cn(
     "flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium transition",
-    isDark ? "text-slate-200 hover:bg-white/5" : "text-slate-700 hover:bg-slate-50"
+    isDark ? "text-slate-50 hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"
   );
 
   const rowDestructive = isDark
-    ? "text-rose-300 hover:bg-white/5"
+    ? "text-rose-200 hover:bg-white/10"
     : "text-rose-600 hover:bg-rose-50";
 
   return (
@@ -57,15 +57,20 @@ export function NavDropdown({
         className={cn(
           "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition",
           isDark
-            ? "border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10 hover:text-white"
+            ? "border-white/15 bg-white/[0.08] text-slate-50 hover:border-cyan-400/35 hover:bg-white/12 hover:text-white"
             : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
           className
         )}
       >
-        {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" aria-hidden /> : null}
+        {Icon ? (
+          <Icon
+            className={cn("h-4 w-4 shrink-0", isDark ? "text-cyan-200" : "text-indigo-600")}
+            aria-hidden
+          />
+        ) : null}
         <span className="max-w-[180px] truncate sm:max-w-none">{label}</span>
         <ChevronDown
-          className={cn("h-4 w-4 shrink-0 opacity-70 transition", open && "rotate-180")}
+          className={cn("h-4 w-4 shrink-0 text-current opacity-90 transition", open && "rotate-180")}
           aria-hidden
         />
       </button>
@@ -100,7 +105,7 @@ export function NavDropdown({
             const row = cn(
               rowBase,
               item.destructive && rowDestructive,
-              item.disabled && "pointer-events-none opacity-45"
+              item.disabled && "pointer-events-none opacity-60"
             );
 
             if (item.to) {
@@ -123,7 +128,7 @@ export function NavDropdown({
                         item.destructive
                           ? ""
                           : isDark
-                            ? "text-cyan-300/85"
+                            ? "text-cyan-200"
                             : "text-indigo-600"
                       )}
                       aria-hidden
@@ -151,7 +156,7 @@ export function NavDropdown({
                   <item.icon
                     className={cn(
                       "h-4 w-4 shrink-0",
-                      item.destructive ? "" : isDark ? "text-cyan-300/85" : "text-indigo-600"
+                      item.destructive ? "" : isDark ? "text-cyan-200" : "text-indigo-600"
                     )}
                     aria-hidden
                   />

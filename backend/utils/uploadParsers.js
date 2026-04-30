@@ -59,16 +59,31 @@ const pickFirst = (row, keys) => {
 };
 
 /**
- * Standard bulk student row: S.No, Course, Program, Year, Contact number, Email id.
- * Optional: Name (recommended — used for display name and default password first name).
+ * Roster sheet columns (header row). Aliases are normalized (spaces removed, lowercased).
+ * Required for import: Course, Branch (or Program), Year, Email id; cohort must match the
+ * class selected in the form. Optional: S.No., Name, Department, Semester, Contact number.
  */
 const extractStudentBulkRow = (row) => {
   const r = row || {};
+  const branch = pickFirst(r, ['branch', 'program', 'specialization', 'stream']);
   return {
-    sno: pickFirst(r, ['sno', 'slno', 'serialno', 'serialnumber', 's.no', '#', 'no']),
-    course: pickFirst(r, ['course']),
-    program: pickFirst(r, ['program', 'branch']),
-    year: pickFirst(r, ['year']),
+    sno: pickFirst(r, [
+      'sno',
+      'slno',
+      'serialno',
+      'serialnumber',
+      's.no',
+      's.no.',
+      '#',
+      'no',
+    ]),
+    name: pickFirst(r, ['name', 'studentname', 'fullname', 'firstname']),
+    department: pickFirst(r, ['department', 'dept', 'discipline', 'school']),
+    branch,
+    program: branch,
+    course: pickFirst(r, ['course', 'degree', 'programme']),
+    semester: pickFirst(r, ['semester', 'sem']),
+    year: pickFirst(r, ['year', 'academicyear', 'yr']),
     contact: pickFirst(r, [
       'contactnumber',
       'contact',
@@ -79,19 +94,23 @@ const extractStudentBulkRow = (row) => {
       'contactno',
     ]),
     email: pickFirst(r, ['email', 'emailid', 'e-mail', 'mail']),
-    name: pickFirst(r, ['name', 'studentname', 'fullname', 'firstname']),
   };
 };
 
 const normKey = (s) => String(s || '').trim().toLowerCase();
 
 const cohortRowMatchesTarget = (row, target) => {
+  const rowBranch = row.branch || row.program;
   return (
     normKey(row.course) === normKey(target.course) &&
-    normKey(row.program) === normKey(target.program) &&
+    normKey(rowBranch) === normKey(target.program) &&
     normKey(row.year) === normKey(target.year)
   );
 };
+
+/** Single-line description for API responses and UI. */
+const STUDENT_ROSTER_SHEET_FORMAT_HINT =
+  'Use a header row with: S.No., Name, Department, Branch, Course, Semester, Year, Contact number, Email id. Branch may be labeled Program. Course, Branch, and Year in each row must match the class you select; Semester in the sheet overrides the optional form value when present. Default password: Firstname@123.';
 
 const displayNameFromEmail = (email) => {
   const local = String(email || '').split('@')[0] || 'student';
@@ -127,4 +146,5 @@ module.exports = {
   cohortRowMatchesTarget,
   displayNameFromEmail,
   defaultStudentPasswordFromRow,
+  STUDENT_ROSTER_SHEET_FORMAT_HINT,
 };

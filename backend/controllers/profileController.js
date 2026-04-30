@@ -40,6 +40,7 @@ exports.getMyProfile = async (req, res) => {
               },
               bio: '',
               course: '',
+              department: '',
               branch: '',
               year: '',
               semester: '',
@@ -154,6 +155,7 @@ exports.createProfile = async (req, res) => {
       bio,
       skills,
       course,
+      department,
       branch,
       year,
       semester,
@@ -201,6 +203,7 @@ exports.createProfile = async (req, res) => {
       user: req.user._id,
       bio: str(bio),
       course: str(course),
+      department: str(department),
       branch: str(branch),
       year: str(year),
       semester: str(semester),
@@ -258,6 +261,7 @@ exports.updateProfile = async (req, res) => {
       skills,
       stats,
       course,
+      department,
       branch,
       year,
       semester,
@@ -282,6 +286,7 @@ exports.updateProfile = async (req, res) => {
 
     if (bio !== undefined) updateFields.bio = trimStr(bio);
     if (course !== undefined) updateFields.course = trimStr(course);
+    if (department !== undefined) updateFields.department = trimStr(department);
     if (branch !== undefined) updateFields.branch = trimStr(branch);
     if (year !== undefined) updateFields.year = trimStr(year);
     if (semester !== undefined) updateFields.semester = trimStr(semester);

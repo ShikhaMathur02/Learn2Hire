@@ -56,7 +56,7 @@ function DarkWorkspaceShell({
   };
 
   const sidebarMenuButtonClass =
-    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition hover:border-white/20 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.08] text-white transition hover:border-cyan-400/35 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 
   return (
     <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-50">
@@ -84,7 +84,7 @@ function DarkWorkspaceShell({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-lg font-semibold text-white">Learn2Hire</p>
-                  <p className="truncate text-sm text-slate-500">{brandSubtitle}</p>
+                  <p className="truncate text-sm font-semibold text-slate-200">{brandSubtitle}</p>
                 </div>
               </div>
             </div>
@@ -101,7 +101,7 @@ function DarkWorkspaceShell({
                 type="button"
                 variant="outline"
                 onClick={onLogout}
-                className="w-full justify-center border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                className="w-full justify-center border-white/25 bg-white/[0.1] !text-white shadow-none hover:bg-white/15 hover:!text-white"
               >
                 <LogOut className="h-4 w-4" aria-hidden />
                 <span className="ml-2">Logout</span>
@@ -145,7 +145,7 @@ function DarkWorkspaceShell({
               onClick={onLogout}
               title="Logout"
               aria-label="Logout"
-              className="border-white/20 bg-white/5 !text-white shadow-none hover:bg-white/10 hover:!text-white focus-visible:ring-cyan-400/40 focus-visible:ring-offset-0"
+              className="border-white/25 bg-white/[0.1] !text-white shadow-none hover:bg-white/15 hover:!text-white focus-visible:ring-cyan-400/40 focus-visible:ring-offset-0"
             >
               <LogOut className="h-4 w-4" aria-hidden />
             </Button>

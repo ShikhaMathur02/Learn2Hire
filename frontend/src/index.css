@@ -78,7 +78,7 @@ img {
 
 /**
  * Applied to purple-gradient and slate-950 full-page shells (not light landing/marketing).
- * Maps common Tailwind slate text steps one notch brighter so body copy is less “washed out”.
+ * Maps Tailwind slate text steps brighter so body copy, labels, and buttons stay readable on dark fills.
  */
 .l2h-dark-ui {
   -webkit-font-smoothing: antialiased;
@@ -95,17 +95,17 @@ img {
 }
 
 .l2h-dark-ui .text-slate-300 {
-  color: rgb(226 232 240) !important;
+  color: rgb(232 238 246) !important;
 }
 
 .l2h-dark-ui .text-slate-400 {
-  color: rgb(203 213 225) !important;
+  color: rgb(220 228 239) !important;
 }
 
 .l2h-dark-ui .text-slate-500 {
-  color: rgb(186 198 216) !important;
+  color: rgb(206 216 230) !important;
 }
 
 .l2h-dark-ui .text-slate-600 {
-  color: rgb(165 180 203) !important;
+  color: rgb(190 202 220) !important;
 }

@@ -42,7 +42,7 @@ function WorkspaceNavPanel({
       collapsed ? "justify-center rounded-xl px-2 py-2.5" : "rounded-2xl px-4 py-3",
       active
         ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-        : "text-slate-400 hover:bg-white/5 hover:text-white"
+        : "text-slate-200 hover:bg-white/[0.08] hover:text-white"
     );
 
   return (

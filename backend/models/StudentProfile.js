@@ -18,6 +18,12 @@ const studentProfileSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    /** School / institute department (e.g. School of Engineering) — optional, can be set via roster import. */
+    department: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     branch: {
       type: String,
       default: '',

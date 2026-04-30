@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
 const { isPlatformApprovalBlockingApi } = require('../utils/platformApproval');
+const { isStudentCampusAccessBlocked } = require('../utils/campusApproval');
 
 /**
  * Protects routes by verifying the JWT token.
@@ -43,6 +44,25 @@ const protect = async (req, res, next) => {
     const role = String(user.role || '')
       .trim()
       .toLowerCase();
+
+    if (role === 'student') {
+      if (isStudentCampusAccessBlocked(user)) {
+        const url = String(req.originalUrl || '');
+        const allowedWhilePending =
+          url.startsWith('/api/auth/me') || url.startsWith('/api/profile/photo');
+        if (!allowedWhilePending) {
+          const st = user.studentCampusApprovalStatus;
+          return res.status(403).json({
+            success: false,
+            message:
+              st === 'pending'
+                ? 'Your student account is awaiting approval from your campus (college or faculty) or a Learn2Hire administrator.'
+                : 'Your student registration was not approved. Contact your campus or support for help.',
+          });
+        }
+      }
+    }
+
     if (role === 'faculty') {
       const st = user.facultyApprovalStatus;
       if (st === 'pending' || st === 'rejected') {
@@ -68,12 +88,25 @@ const protect = async (req, res, next) => {
           url.startsWith('/api/auth/me') || url.startsWith('/api/profile/photo');
         if (!allowedWhilePending) {
           const pst = user.platformApprovalStatus;
+          const pct = user.partnerCollegeApprovalStatus;
+          const hasPartner = Boolean(user.partnerCollege);
+          let msg =
+            'Your company account is awaiting approval from a Learn2Hire administrator.';
+          if (hasPartner && pct === 'pending' && pst === 'pending') {
+            msg =
+              'Your company account is awaiting approval from your partner campus and/or a Learn2Hire administrator.';
+          } else if (hasPartner && pct === 'pending') {
+            msg =
+              'Your company account is awaiting approval from the partner campus you selected.';
+          }
           return res.status(403).json({
             success: false,
             message:
-              pst === 'pending'
-                ? 'Your company account is awaiting approval from a Learn2Hire administrator.'
-                : 'Your company registration was not approved. Contact support for help.',
+              pst === 'rejected' && (pct === 'rejected' || !hasPartner)
+                ? 'Your company registration was not approved. Contact support for help.'
+                : pct === 'rejected' && pst !== 'approved'
+                  ? 'Your partnership request was not approved by the campus. You can contact support or wait for platform review.'
+                  : msg,
           });
         }
       }
@@ -145,7 +178,13 @@ const optionalProtect = async (req, res, next) => {
       const role = String(user.role || '')
         .trim()
         .toLowerCase();
-      if (role === 'faculty') {
+      if (role === 'student') {
+        if (isStudentCampusAccessBlocked(user)) {
+          req.user = undefined;
+        } else {
+          req.user = user;
+        }
+      } else if (role === 'faculty') {
         const st = user.facultyApprovalStatus;
         if (st === 'pending' || st === 'rejected') {
           req.user = undefined;

@@ -135,7 +135,7 @@ function DashboardTopNav({
           "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition",
           !showNavMenuAtLarge && !navMenuLeading && "lg:hidden",
           isDark
-            ? "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white"
+            ? "border-white/15 bg-white/[0.08] text-white hover:border-cyan-400/35 hover:bg-white/15"
             : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
         )}
         aria-label={navMenuAriaLabel}
@@ -151,7 +151,7 @@ function DashboardTopNav({
       className={cn(
         "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition",
         isDark
-          ? "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-400/35 hover:bg-white/10 hover:text-white"
+          ? "border-white/15 bg-white/[0.08] text-white hover:border-cyan-400/40 hover:bg-white/15"
           : "border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-300 hover:bg-white hover:text-slate-900"
       )}
       aria-label="Go back one page"
@@ -204,7 +204,7 @@ function DashboardTopNav({
                 <p
                   className={cn(
                     "text-[11px] font-semibold uppercase tracking-[0.18em]",
-                    isDark ? "text-cyan-300/90" : "text-indigo-600"
+                    isDark ? "text-cyan-200" : "text-indigo-600"
                   )}
                 >
                   Learn2Hire
@@ -216,7 +216,7 @@ function DashboardTopNav({
                 <p
                   className={cn(
                     "text-[11px] font-medium uppercase tracking-wider",
-                    isDark ? "text-slate-500" : "text-slate-500"
+                    isDark ? "text-slate-300" : "text-slate-500"
                   )}
                 >
                   {workspaceLabel}
@@ -266,20 +266,24 @@ function DashboardTopNav({
                 type="button"
                 onClick={() => openNotifications(false)}
                 className={cn(
-                  "relative z-0 inline-flex h-10 w-10 items-center justify-center overflow-visible rounded-lg border transition",
+                  "relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-lg border shadow-sm transition",
                   isDark
-                    ? "border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white"
-                    : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
+                    ? "border-white/18 bg-white/[0.1] text-white hover:border-cyan-400/40 hover:bg-white/[0.16]"
+                    : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-300 hover:bg-white hover:text-slate-900"
                 )}
                 aria-label={
                   unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"
                 }
               >
-                <Bell className="h-[18px] w-[18px]" aria-hidden />
+                <Bell
+                  className="h-5 w-5 shrink-0 stroke-[2.25] text-current drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
+                  strokeWidth={2.25}
+                  aria-hidden
+                />
                 {showUnreadDot ? (
                   <span
                     className={cn(
-                      "pointer-events-none absolute -right-0.5 -top-0.5 z-10 h-2.5 w-2.5 rounded-full border-2 border-red-600 bg-red-500 shadow-sm shadow-red-900/50",
+                      "pointer-events-none absolute -right-0.5 -top-0.5 z-20 h-3 w-3 rounded-full border-2 border-red-700 bg-red-500 shadow-md shadow-red-950/60 ring-2 ring-white/20",
                       isDark ? "border-slate-950" : "border-white"
                     )}
                     aria-hidden
@@ -295,7 +299,7 @@ function DashboardTopNav({
                 className={cn(
                   "flex h-10 max-w-[min(100vw-2rem,280px)] items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition sm:h-10 sm:max-w-[260px] sm:px-2.5",
                   isDark
-                    ? "border-white/10 bg-slate-900/50 text-white hover:border-white/20 hover:bg-slate-900/80"
+                    ? "border-white/15 bg-slate-900/70 text-white hover:border-white/25 hover:bg-slate-900/90"
                     : "border-slate-200 bg-slate-50 text-slate-900 hover:border-slate-300 hover:bg-white"
                 )}
                 aria-expanded={menuOpen}
@@ -324,7 +328,7 @@ function DashboardTopNav({
                     <span
                       className={cn(
                         "mt-0.5 block truncate text-xs leading-tight",
-                        isDark ? "text-slate-400" : "text-slate-500"
+                        isDark ? "text-slate-300" : "text-slate-500"
                       )}
                     >
                       {displayEmail}
@@ -333,7 +337,7 @@ function DashboardTopNav({
                 </span>
                 <ChevronDown
                   className={cn(
-                    "h-4 w-4 shrink-0 opacity-60 transition max-sm:hidden",
+                    "h-4 w-4 shrink-0 text-current opacity-90 transition max-sm:hidden",
                     menuOpen && "rotate-180"
                   )}
                   aria-hidden
@@ -368,14 +372,14 @@ function DashboardTopNav({
                     role="menuitem"
                     className={cn(
                       "flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium transition",
-                      isDark ? "text-slate-200 hover:bg-white/5" : "text-slate-700 hover:bg-slate-50"
+                      isDark ? "text-slate-50 hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"
                     )}
                     onClick={() => setMenuOpen(false)}
                   >
                     <LayoutDashboard
                       className={cn(
                         "h-4 w-4 shrink-0",
-                        isDark ? "text-cyan-300/90" : "text-indigo-600"
+                        isDark ? "text-cyan-200" : "text-indigo-600"
                       )}
                       aria-hidden
                     />
@@ -387,16 +391,17 @@ function DashboardTopNav({
                       role="menuitem"
                       className={cn(
                         "flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium transition",
-                        isDark ? "text-slate-200 hover:bg-white/5" : "text-slate-700 hover:bg-slate-50"
+                        isDark ? "text-slate-50 hover:bg-white/10" : "text-slate-700 hover:bg-slate-50"
                       )}
                       onClick={() => openNotifications(true)}
                     >
                       <span className="relative inline-flex shrink-0">
                         <Bell
                           className={cn(
-                            "h-4 w-4",
-                            isDark ? "text-cyan-300/90" : "text-indigo-600"
+                            "h-4 w-4 shrink-0 stroke-[2.25]",
+                            isDark ? "text-cyan-200" : "text-indigo-600"
                           )}
+                          strokeWidth={2.25}
                           aria-hidden
                         />
                         {showUnreadDot ? (
@@ -423,7 +428,7 @@ function DashboardTopNav({
                     className={cn(
                       "flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium transition",
                       isDark
-                        ? "text-rose-300 hover:bg-white/5"
+                        ? "text-rose-200 hover:bg-white/10"
                         : "text-rose-600 hover:bg-rose-50"
                     )}
                   >
@@ -441,7 +446,7 @@ function DashboardTopNav({
             className={cn(
               "max-w-3xl text-sm leading-relaxed",
               compact ? "mt-2 lg:mt-2" : "mt-4 lg:mt-3",
-              isDark ? "text-slate-400" : "text-slate-600"
+              isDark ? "text-slate-300" : "text-slate-600"
             )}
           >
             {description}
@@ -459,7 +464,7 @@ function ToolbarLink({ to, children, icon: Icon, onClick, theme: linkTheme = "da
   const className = cn(
     "inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition",
     isLinkDark
-      ? "border border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10 hover:text-white"
+      ? "border border-white/15 bg-white/[0.08] text-slate-50 hover:border-cyan-400/30 hover:bg-white/15 hover:text-white"
       : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
   );
 
@@ -470,7 +475,7 @@ function ToolbarLink({ to, children, icon: Icon, onClick, theme: linkTheme = "da
           <Icon
             className={cn(
               "h-4 w-4 shrink-0",
-              isLinkDark ? "text-cyan-300/80" : "text-indigo-600"
+              isLinkDark ? "text-cyan-200" : "text-indigo-600"
             )}
             aria-hidden
           />
@@ -486,7 +491,7 @@ function ToolbarLink({ to, children, icon: Icon, onClick, theme: linkTheme = "da
         <Icon
           className={cn(
             "h-4 w-4 shrink-0",
-            isLinkDark ? "text-cyan-300/80" : "text-indigo-600"
+            isLinkDark ? "text-cyan-200" : "text-indigo-600"
           )}
           aria-hidden
         />

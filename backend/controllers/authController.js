@@ -16,6 +16,7 @@ const {
 } = require('../utils/otpDelivery');
 const { createNotification, notifyPlatformAdmins } = require('../utils/notificationService');
 const { isCollegeNameTaken } = require('../utils/collegeNameNormalize');
+const { isCompanySelfRegistrationBlocked } = require('../utils/campusApproval');
 
 // Generate JWT token (expires in 7 days)
 const generateToken = (id) => {
@@ -34,6 +35,9 @@ const serializeAuthUser = (user) => {
     facultyApprovalStatus: doc.facultyApprovalStatus,
     collegeApprovalStatus: doc.collegeApprovalStatus,
     platformApprovalStatus: doc.platformApprovalStatus,
+    studentCampusApprovalStatus: doc.studentCampusApprovalStatus,
+    partnerCollege: doc.partnerCollege,
+    partnerCollegeApprovalStatus: doc.partnerCollegeApprovalStatus,
     affiliatedCollege: doc.affiliatedCollege,
     managedByCollege: doc.managedByCollege,
     profilePhoto: doc.profilePhoto || '',
@@ -621,10 +625,40 @@ exports.signup = async (req, res) => {
     if (role === 'student') {
       userPayload.managedByCollege = collegeDoc._id;
       userPayload.affiliatedCollege = collegeDoc._id;
+      userPayload.studentCampusApprovalStatus = 'pending';
     }
 
     if (role === 'company') {
       userPayload.platformApprovalStatus = 'pending';
+      const rawPartner = req.body.partnerCollegeId;
+      if (rawPartner != null && String(rawPartner).trim()) {
+        const pid = String(rawPartner).trim();
+        if (!mongoose.Types.ObjectId.isValid(pid)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid partner campus selection.',
+          });
+        }
+        const partnerDoc = await User.findById(pid);
+        if (!partnerDoc || partnerDoc.role !== 'college') {
+          return res.status(400).json({
+            success: false,
+            message: 'Partner campus is not valid.',
+          });
+        }
+        const pcst = partnerDoc.collegeApprovalStatus;
+        if (pcst === 'pending' || pcst === 'rejected') {
+          return res.status(400).json({
+            success: false,
+            message:
+              pcst === 'pending'
+                ? 'That campus is still awaiting platform approval and cannot be selected as a partner yet.'
+                : 'That campus cannot be selected as a partner.',
+          });
+        }
+        userPayload.partnerCollege = partnerDoc._id;
+        userPayload.partnerCollegeApprovalStatus = 'pending';
+      }
     }
 
     const user = await User.create(userPayload);
@@ -694,18 +728,18 @@ exports.signup = async (req, res) => {
       try {
         await createNotification({
           recipient: collegeDoc._id,
-          title: 'New student registered',
-          message: `${name} has signed up under your college on Learn2Hire.`,
+          title: 'Student approval needed',
+          message: `${name} (${normEmail}) registered under your college. Approve or reject pending students in your dashboard.`,
           category: 'system',
           type: 'student_joined_college',
           actionUrl: '/dashboard',
           metadata: { studentId: user._id },
         });
         await notifyPlatformAdmins({
-          title: 'New student registered',
-          message: `${name} (${normEmail}) joined as a student under ${collegeDoc.name}.`,
+          title: 'Student awaiting campus approval',
+          message: `${name} (${normEmail}) registered as a student under ${collegeDoc.name}. A campus approver or administrator must approve them before they can use the platform.`,
           category: 'system',
-          type: 'student_joined_platform',
+          type: 'student_pending_campus',
           actionUrl: '/dashboard',
           metadata: { studentId: user._id, collegeId: collegeDoc._id },
         });
@@ -714,13 +748,22 @@ exports.signup = async (req, res) => {
       }
 
       await EmailOtp.deleteMany({ email: normEmail, purpose: 'signup' });
-      const token = generateToken(user._id);
       return res.status(201).json({
         success: true,
-        message: 'User registered successfully',
+        message:
+          'Registration received. Your campus (college or faculty) or a Learn2Hire administrator must approve your student account before you can use the platform.',
         data: {
-          user: serializeAuthUser(user),
-          token,
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            studentCampusApprovalStatus: 'pending',
+            affiliatedCollege: collegeDoc._id,
+            managedByCollege: collegeDoc._id,
+          },
+          token: null,
+          requiresApproval: true,
         },
       });
     }
@@ -771,20 +814,34 @@ exports.signup = async (req, res) => {
       await EmailOtp.deleteMany({ email: normEmail, purpose: 'signup' });
       try {
         await notifyPlatformAdmins({
-          title: 'Company pending platform approval',
-          message: `${name} (${normEmail}) registered a company account. Approve or reject this account in the admin dashboard.`,
+          title: user.partnerCollege ? 'Company pending approval' : 'Company pending platform approval',
+          message: user.partnerCollege
+            ? `${name} (${normEmail}) registered a company and requested partnership with a campus. A platform admin or that campus can approve the account.`
+            : `${name} (${normEmail}) registered a company account. Approve or reject this account in the admin dashboard.`,
           category: 'system',
           type: 'company_pending_platform',
           actionUrl: '/dashboard',
           metadata: { companyUserId: user._id },
         });
+        if (user.partnerCollege) {
+          await createNotification({
+            recipient: user.partnerCollege,
+            title: 'Company partnership request',
+            message: `${name} registered on Learn2Hire and selected your campus as a partner. Approve or reject in your college dashboard.`,
+            category: 'system',
+            type: 'company_partner_pending',
+            actionUrl: '/dashboard',
+            metadata: { companyUserId: user._id },
+          });
+        }
       } catch (notifyErr) {
         console.error('[Learn2Hire] company signup notify:', notifyErr.message || notifyErr);
       }
       return res.status(201).json({
         success: true,
-        message:
-          'Registration received. A Learn2Hire administrator must approve your company account before you can sign in.',
+        message: user.partnerCollege
+          ? 'Registration received. Your partner campus and/or a Learn2Hire administrator must approve your company before you can sign in.'
+          : 'Registration received. A Learn2Hire administrator must approve your company account before you can sign in.',
         data: {
           user: {
             id: user._id,
@@ -792,6 +849,8 @@ exports.signup = async (req, res) => {
             email: user.email,
             role: user.role,
             platformApprovalStatus: 'pending',
+            partnerCollege: user.partnerCollege || null,
+            partnerCollegeApprovalStatus: user.partnerCollegeApprovalStatus || null,
           },
           token: null,
           requiresApproval: true,
@@ -879,18 +938,29 @@ exports.login = async (req, res) => {
     }
 
     if (user.role === 'company') {
-      const pst = user.platformApprovalStatus;
-      if (pst === 'pending') {
+      if (isCompanySelfRegistrationBlocked(user)) {
+        const pst = user.platformApprovalStatus;
+        const pct = user.partnerCollegeApprovalStatus;
+        const hasPartner = Boolean(user.partnerCollege);
+        if (pst === 'rejected' && (!hasPartner || pct === 'rejected')) {
+          return res.status(403).json({
+            success: false,
+            message: 'Your company registration was not approved. Contact support if you need help.',
+          });
+        }
+        if (hasPartner && pct === 'rejected' && pst !== 'approved') {
+          return res.status(403).json({
+            success: false,
+            message:
+              'Your partnership request was not approved by the campus. Contact support if you need help.',
+          });
+        }
         return res.status(403).json({
           success: false,
           message:
-            'Your company account is awaiting approval from a Learn2Hire administrator. You will be able to sign in after approval.',
-        });
-      }
-      if (pst === 'rejected') {
-        return res.status(403).json({
-          success: false,
-          message: 'Your company registration was not approved. Contact support if you need help.',
+            hasPartner && (pct === 'pending' || pct == null) && pst === 'pending'
+              ? 'Your company account is awaiting approval from your partner campus and/or a Learn2Hire administrator. You will be able to sign in after approval.'
+              : 'Your company account is awaiting approval from a Learn2Hire administrator. You will be able to sign in after approval.',
         });
       }
     }

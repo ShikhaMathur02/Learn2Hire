@@ -11,6 +11,7 @@ const {
   cohortRowMatchesTarget,
   displayNameFromEmail,
   defaultStudentPasswordFromRow,
+  STUDENT_ROSTER_SHEET_FORMAT_HINT,
 } = require('../utils/uploadParsers');
 const { createBulkNotifications } = require('../utils/notificationService');
 const { sendApprovalGrantedEmail } = require('../utils/otpDelivery');
@@ -20,6 +21,7 @@ const {
 } = require('../utils/campusNotificationRecipients');
 const { JOB_CREATED_BY_SELECT } = require('../constants/jobCreatedBySelect');
 const { openJobVisibilityFilterForViewer } = require('../utils/jobPostingVisibility');
+const { syncCompanyFullyApproved } = require('../utils/campusApproval');
 
 const normalizeRole = (r) => String(r || '').trim().toLowerCase();
 
@@ -34,12 +36,74 @@ const isApprovedFaculty = (req) => {
   return st === 'approved' || st === undefined;
 };
 
+/** College, admin, or approved faculty adding students; college/admin may add faculty too. */
+const canCreateRosterUser = (req, targetRole) => {
+  const r = normalizeRole(req.user?.role);
+  if (r === 'admin' || r === 'college') return true;
+  if (r === 'faculty' && isApprovedFaculty(req)) {
+    return targetRole === 'student';
+  }
+  return false;
+};
+
+const resolveRosterCollegeId = async (req) => {
+  const role = normalizeRole(req.user.role);
+  if (role === 'college') {
+    return req.user._id;
+  }
+  if (role === 'faculty') {
+    const cid = req.user.affiliatedCollege || req.user.managedByCollege;
+    if (!cid) {
+      throw new Error('FACULTY_NO_COLLEGE');
+    }
+    return cid;
+  }
+  if (role === 'admin') {
+    const rawCid = req.body.collegeId;
+    if (!rawCid || !mongoose.Types.ObjectId.isValid(String(rawCid))) {
+      throw new Error('ADMIN_COLLEGE_REQUIRED');
+    }
+    const collegeUser = await User.findById(rawCid);
+    if (!collegeUser || collegeUser.role !== 'college') {
+      throw new Error('ADMIN_COLLEGE_INVALID');
+    }
+    const cst = collegeUser.collegeApprovalStatus;
+    if (cst === 'pending' || cst === 'rejected') {
+      throw new Error('ADMIN_COLLEGE_NOT_APPROVED');
+    }
+    return collegeUser._id;
+  }
+  throw new Error('ROLE');
+};
+
 /** College, platform admin, or approved faculty (imports go to their affiliated college). */
 const canBulkImportStudents = (req) => {
   const r = normalizeRole(req.user?.role);
   if (r === 'admin' || r === 'college') return true;
   if (r === 'faculty') return isApprovedFaculty(req);
   return false;
+};
+
+const studentCampusCollegeId = (u) => u.managedByCollege || u.affiliatedCollege;
+
+const canReviewStudentCampusApproval = (req, studentUser) => {
+  if (!studentUser || studentUser.role !== 'student') return false;
+  const r = normalizeRole(req.user.role);
+  if (r === 'admin') return true;
+  const campusId = studentCampusCollegeId(studentUser);
+  if (!campusId) return false;
+  if (r === 'college' && String(req.user._id) === String(campusId)) return true;
+  if (r === 'faculty' && isApprovedFaculty(req)) {
+    const fid = req.user.affiliatedCollege || req.user.managedByCollege;
+    return fid && String(fid) === String(campusId);
+  }
+  return false;
+};
+
+const isCollegeFacultyOrAdmin = (req) => {
+  const r = normalizeRole(req.user.role);
+  if (r === 'college' || r === 'admin') return true;
+  return r === 'faculty' && isApprovedFaculty(req);
 };
 
 const resolveStudentImportCollegeId = async (req) => {
@@ -167,17 +231,235 @@ exports.getPendingFaculty = async (req, res) => {
   }
 };
 
-// @desc    Add student or faculty account (pre-approved faculty)
-// @route   POST /api/college/roster
-exports.createRosterUser = async (req, res) => {
+// @desc    Students awaiting campus approval (self-service signups)
+// @route   GET /api/college/students/pending
+exports.getPendingStudents = async (req, res) => {
   try {
-    if (!isCollegeOrAdmin(req)) {
+    if (!isCollegeFacultyOrAdmin(req)) {
       return res.status(403).json({
         success: false,
-        message: 'Only college or admin users can add roster accounts',
+        message: 'Only an approved college account, approved faculty, or admin can view pending students.',
       });
     }
 
+    const q = { role: 'student', studentCampusApprovalStatus: 'pending' };
+    const r = normalizeRole(req.user.role);
+    if (r === 'college') {
+      q.$or = [
+        { affiliatedCollege: req.user._id },
+        { managedByCollege: req.user._id },
+      ];
+    } else if (r === 'faculty') {
+      const cid = req.user.affiliatedCollege || req.user.managedByCollege;
+      if (!cid) {
+        return res.status(200).json({ success: true, count: 0, data: { users: [] } });
+      }
+      q.$or = [{ affiliatedCollege: cid }, { managedByCollege: cid }];
+    }
+
+    const pending = await User.find(q)
+      .select(
+        'name email affiliatedCollege managedByCollege studentCampusApprovalStatus createdAt'
+      )
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      count: pending.length,
+      data: { users: pending },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Approve or reject a self-registered student for a campus
+// @route   PATCH /api/college/students/:id/campus-approval
+exports.setStudentCampusApproval = async (req, res) => {
+  try {
+    if (!isCollegeFacultyOrAdmin(req)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only an approved college account, approved faculty, or admin can approve students.',
+      });
+    }
+
+    const { id } = req.params;
+    const { decision } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user id',
+      });
+    }
+
+    if (!['approved', 'rejected'].includes(decision)) {
+      return res.status(400).json({
+        success: false,
+        message: 'decision must be approved or rejected',
+      });
+    }
+
+    const user = await User.findById(id);
+    if (!user || user.role !== 'student') {
+      return res.status(404).json({
+        success: false,
+        message: 'Student user not found',
+      });
+    }
+
+    if (!canReviewStudentCampusApproval(req, user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to approve this student.',
+      });
+    }
+
+    user.studentCampusApprovalStatus = decision;
+    await user.save();
+
+    if (decision === 'approved') {
+      try {
+        await createNotification({
+          recipient: user._id,
+          title: 'Campus approval granted',
+          message: 'Your student account was approved. You can now use Learn2Hire.',
+          category: 'system',
+          type: 'student_campus_approved',
+          actionUrl: '/dashboard',
+          metadata: { studentId: user._id },
+        });
+      } catch (e) {
+        console.error('[Learn2Hire] student campus approval notify:', e.message || e);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message:
+        decision === 'approved'
+          ? 'Student account approved.'
+          : 'Student registration was not approved.',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          studentCampusApprovalStatus: user.studentCampusApprovalStatus,
+        },
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Partner college approves or rejects a company that selected this campus
+// @route   PATCH /api/college/companies/:id/partner-approval
+exports.setCompanyPartnerApproval = async (req, res) => {
+  try {
+    if (normalizeRole(req.user.role) !== 'college') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only campus accounts can respond to partnership requests.',
+      });
+    }
+
+    const { id } = req.params;
+    const { decision } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user id',
+      });
+    }
+
+    if (!['approved', 'rejected'].includes(decision)) {
+      return res.status(400).json({
+        success: false,
+        message: 'decision must be approved or rejected',
+      });
+    }
+
+    const companyUser = await User.findById(id);
+    if (!companyUser || companyUser.role !== 'company') {
+      return res.status(404).json({
+        success: false,
+        message: 'Company account not found',
+      });
+    }
+
+    if (
+      !companyUser.partnerCollege ||
+      String(companyUser.partnerCollege) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'This employer did not request partnership with your campus.',
+      });
+    }
+
+    if (decision === 'approved') {
+      syncCompanyFullyApproved(companyUser);
+    } else {
+      companyUser.partnerCollegeApprovalStatus = 'rejected';
+    }
+    await companyUser.save();
+
+    if (decision === 'approved') {
+      try {
+        await createNotification({
+          recipient: companyUser._id,
+          title: 'Partnership approved',
+          message: `${req.user.name} approved your campus partnership on Learn2Hire. You can sign in if you have not already.`,
+          category: 'system',
+          type: 'company_partner_approved',
+          actionUrl: '/login',
+          metadata: { companyId: companyUser._id },
+        });
+      } catch (e) {
+        console.error('[Learn2Hire] company partner notify:', e.message || e);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message:
+        decision === 'approved'
+          ? 'Partnership approved. The company account is fully approved on the platform.'
+          : 'Partnership request was not approved.',
+      data: {
+        user: {
+          id: companyUser._id,
+          platformApprovalStatus: companyUser.platformApprovalStatus,
+          partnerCollegeApprovalStatus: companyUser.partnerCollegeApprovalStatus,
+        },
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Add student or faculty to campus roster. Students require class (course, branch, year); optional semester/department.
+//          College or admin may add students or faculty; approved faculty may add students only.
+// @route   POST /api/college/roster
+exports.createRosterUser = async (req, res) => {
+  try {
     const { name, email, password, role } = req.body;
     const targetRole = normalizeRole(role);
 
@@ -192,6 +474,17 @@ exports.createRosterUser = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Roster role must be student or faculty',
+      });
+    }
+
+    if (!canCreateRosterUser(req, targetRole)) {
+      const r = normalizeRole(req.user.role);
+      return res.status(403).json({
+        success: false,
+        message:
+          r === 'faculty'
+            ? 'Faculty can add students to the roster. To add another teacher, ask your college admin.'
+            : 'You are not allowed to create roster accounts.',
       });
     }
 
@@ -211,36 +504,64 @@ exports.createRosterUser = async (req, res) => {
       });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    let collegeId =
-      normalizeRole(req.user.role) === 'college' ? req.user._id : null;
-
-    if (normalizeRole(req.user.role) === 'admin') {
-      const rawCid = req.body.collegeId;
-      if (!rawCid || !mongoose.Types.ObjectId.isValid(String(rawCid))) {
+    let collegeId;
+    try {
+      collegeId = await resolveRosterCollegeId(req);
+    } catch (e) {
+      const code = e.message;
+      if (code === 'FACULTY_NO_COLLEGE') {
+        return res.status(400).json({
+          success: false,
+          message: 'Your faculty profile must be linked to a college before adding students.',
+        });
+      }
+      if (code === 'ADMIN_COLLEGE_REQUIRED') {
         return res.status(400).json({
           success: false,
           message: 'Admin must specify collegeId (approved college user id) when adding roster accounts.',
         });
       }
-      const collegeUser = await User.findById(rawCid);
-      if (!collegeUser || collegeUser.role !== 'college') {
+      if (code === 'ADMIN_COLLEGE_INVALID') {
         return res.status(400).json({
           success: false,
           message: 'Invalid collegeId. Must be an existing college account.',
         });
       }
-      const cst = collegeUser.collegeApprovalStatus;
-      if (cst === 'pending' || cst === 'rejected') {
+      if (code === 'ADMIN_COLLEGE_NOT_APPROVED') {
         return res.status(400).json({
           success: false,
           message: 'That college is not approved yet; choose an approved college.',
         });
       }
-      collegeId = collegeUser._id;
+      return res.status(403).json({
+        success: false,
+        message: 'Not allowed to resolve college for this roster action.',
+      });
     }
+
+    let course = '';
+    let branch = '';
+    let year = '';
+    let semester = '';
+    let department = '';
+
+    if (targetRole === 'student') {
+      course = asString(req.body.course);
+      branch = asString(req.body.branch);
+      year = asString(req.body.year);
+      semester = asString(req.body.semester);
+      department = asString(req.body.department);
+      if (!course || !branch || !year) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'For each student, provide class details: program (course), branch, and year. Optional: semester, department.',
+        });
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     const doc = {
       name: name.trim(),
@@ -251,11 +572,26 @@ exports.createRosterUser = async (req, res) => {
       affiliatedCollege: collegeId,
     };
 
+    if (targetRole === 'student') {
+      doc.studentCampusApprovalStatus = 'approved';
+    }
+
     if (targetRole === 'faculty') {
       doc.facultyApprovalStatus = 'approved';
     }
 
     const user = await User.create(doc);
+
+    if (targetRole === 'student') {
+      await StudentProfile.create({
+        user: user._id,
+        course,
+        branch,
+        year,
+        semester: semester || '',
+        department: department || '',
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -409,10 +745,33 @@ exports.getCollegeInsights = async (req, res) => {
       ? { status: 'open', ...openJobVisibilityFilterForViewer(req.user) }
       : { status: 'open' };
 
+    const pendingFacultyQuery = isCollege
+      ? {
+          role: 'faculty',
+          facultyApprovalStatus: 'pending',
+          affiliatedCollege: collegeId,
+        }
+      : { role: 'faculty', facultyApprovalStatus: 'pending' };
+
+    const pendingStudentQuery = isCollege
+      ? {
+          role: 'student',
+          studentCampusApprovalStatus: 'pending',
+          $or: [
+            { affiliatedCollege: collegeId },
+            { managedByCollege: collegeId },
+          ],
+        }
+      : {
+          role: 'student',
+          studentCampusApprovalStatus: 'pending',
+        };
+
     const [
       rosterStudents,
       rosterFaculty,
       pendingFacultyCount,
+      pendingStudentsCount,
       registeredCompanies,
       companyCount,
       openJobsList,
@@ -421,7 +780,8 @@ exports.getCollegeInsights = async (req, res) => {
     ] = await Promise.all([
       User.countDocuments({ ...campusFilter, role: 'student' }),
       User.countDocuments({ ...campusFilter, role: 'faculty' }),
-      User.countDocuments({ role: 'faculty', facultyApprovalStatus: 'pending' }),
+      User.countDocuments(pendingFacultyQuery),
+      User.countDocuments(pendingStudentQuery),
       User.find({ role: 'company' })
         .select('name email createdAt')
         .sort({ createdAt: -1 })
@@ -472,6 +832,21 @@ exports.getCollegeInsights = async (req, res) => {
             .limit(35)
             .lean();
 
+    let pendingPartnerCompanies = [];
+    if (isCollege) {
+      pendingPartnerCompanies = await User.find({
+        role: 'company',
+        partnerCollege: collegeId,
+        partnerCollegeApprovalStatus: 'pending',
+      })
+        .select(
+          'name email platformApprovalStatus partnerCollegeApprovalStatus createdAt'
+        )
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .lean();
+    }
+
     res.status(200).json({
       success: true,
       data: {
@@ -481,12 +856,15 @@ exports.getCollegeInsights = async (req, res) => {
           rosterFaculty,
           rosterTotal: rosterStudents + rosterFaculty,
           pendingFacultyReview: pendingFacultyCount,
+          pendingStudentReview: pendingStudentsCount,
         },
         hiring: {
           registeredCompanies: companyCount,
           openRoles: openJobsCount,
           companies: registeredCompanies,
           openJobs: openJobsList,
+          pendingPartnerCompanies,
+          pendingPartnerReview: pendingPartnerCompanies.length,
         },
         placements: {
           applicationsTotal,
@@ -505,9 +883,9 @@ exports.getCollegeInsights = async (req, res) => {
 
 // @desc    Bulk import students (Excel or CSV). College, approved faculty, or admin.
 //          Form fields: targetCourse, targetProgram, targetYear, targetSemester (optional).
-//          Admin also sends collegeId. Each row must match the target class (course, program, year).
-//          Columns: S.No, Course, Program, Year, Contact number, Email id (optional Name).
-//          Password default: Firstname@123
+//          Admin also sends collegeId. Each row must match the target class (course, branch, year).
+//          Sheet headers: S.No., Name, Department, Branch, Course, Semester, Year, Contact number, Email id
+//          (Branch may be labeled Program). Password default: Firstname@123
 // @route   POST /api/college/roster/import/students
 exports.importStudentsFromSheet = async (req, res) => {
   try {
@@ -603,7 +981,7 @@ exports.importStudentsFromSheet = async (req, res) => {
         results.push({
           email,
           ok: false,
-          message: `Row class (${extracted.course} / ${extracted.program} / ${extracted.year}) does not match selected class (${targetCourse} / ${targetProgram} / ${targetYear}).`,
+          message: `Row class (${extracted.course} / ${extracted.branch || extracted.program} / ${extracted.year}) does not match selected class (${targetCourse} / ${targetProgram} / ${targetYear}).`,
           sno: extracted.sno || '',
         });
         continue;
@@ -632,14 +1010,18 @@ exports.importStudentsFromSheet = async (req, res) => {
         role: 'student',
         managedByCollege: collegeId,
         affiliatedCollege: collegeId,
+        studentCampusApprovalStatus: 'approved',
       });
+
+      const semesterVal = asString(extracted.semester) || asString(targetSemester);
 
       await StudentProfile.create({
         user: user._id,
         course: extracted.course,
-        branch: extracted.program,
+        department: asString(extracted.department),
+        branch: extracted.branch || extracted.program,
         year: extracted.year,
-        semester: targetSemester,
+        semester: semesterVal,
         studentPhone: asString(extracted.contact),
       });
 
@@ -662,8 +1044,7 @@ exports.importStudentsFromSheet = async (req, res) => {
         created,
         failed,
         results,
-        templateHint:
-          'Columns: S.No, Course, Program, Year, Contact number, Email id (optional Name). Password: Firstname@123',
+        templateHint: STUDENT_ROSTER_SHEET_FORMAT_HINT,
       },
     });
   } catch (err) {

@@ -46,13 +46,13 @@ function MobileNavDrawer({
             ) : null}
             <div className="min-w-0">
               <p className="truncate text-base font-semibold text-white">{brandTitle}</p>
-              <p className="truncate text-xs text-slate-500">{brandSubtitle}</p>
+              <p className="truncate text-xs font-medium text-slate-300">{brandSubtitle}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.08] text-white transition hover:bg-white/15 hover:text-white"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" aria-hidden />
@@ -77,7 +77,7 @@ function MobileNavDrawer({
               onClose();
               onLogout();
             }}
-            className="w-full justify-center border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+            className="w-full justify-center border-white/25 bg-white/[0.1] !text-white hover:bg-white/15 hover:!text-white"
           >
             Logout
           </Button>

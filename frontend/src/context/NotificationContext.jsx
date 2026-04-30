@@ -201,16 +201,16 @@ function NotificationProvider({ children }) {
         <div
           className={cn(
             "fixed bottom-4 right-4 z-[100] flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-2xl",
-            "border-white/10 bg-slate-900 text-slate-100 ring-1 ring-black/50"
+            "border-white/15 bg-slate-900 text-slate-50 ring-1 ring-black/50"
           )}
           role="status"
         >
-          <Bell className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300/90" aria-hidden />
-          <p className="min-w-0 flex-1 text-sm leading-snug">{notifyToast.message}</p>
+          <Bell className="mt-0.5 h-5 w-5 shrink-0 text-cyan-200" strokeWidth={2.25} aria-hidden />
+          <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-slate-50">{notifyToast.message}</p>
           <button
             type="button"
             onClick={dismissToast}
-            className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="shrink-0 rounded-md px-2 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/15 hover:text-white"
           >
             Dismiss
           </button>

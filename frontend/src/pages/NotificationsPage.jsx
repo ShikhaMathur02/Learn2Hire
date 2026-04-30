@@ -267,8 +267,8 @@ function NotificationsPage() {
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
-                        <Bell className="h-5 w-5" />
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/25 text-cyan-200">
+                        <Bell className="h-5 w-5 stroke-[2.25]" strokeWidth={2.25} />
                       </div>
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -276,15 +276,15 @@ function NotificationsPage() {
                             {notification.title}
                           </h2>
                           {!notification.isRead ? (
-                            <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-300">
+                            <span className="rounded-full bg-cyan-400/20 px-3 py-1 text-xs font-semibold text-cyan-100">
                               New
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-300">
+                        <p className="mt-2 text-sm font-medium leading-6 text-slate-200">
                           {notification.message}
                         </p>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-slate-400">
                           <span className="rounded-full bg-white/5 px-3 py-1 capitalize">
                             {notification.category}
                           </span>
@@ -324,7 +324,7 @@ function NotificationsPage() {
             ))
           ) : (
             <Card className="border border-white/10 bg-white/5 shadow-none">
-              <CardContent className="p-6 text-sm text-slate-400">
+              <CardContent className="p-6 text-sm font-medium text-slate-300">
                 No notifications found for the selected filter.
               </CardContent>
             </Card>
@@ -355,7 +355,7 @@ function NotificationsPage() {
           actions={filterDropdown}
         >
           <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
-            <div className="flex items-center gap-3 text-slate-300">
+            <div className="flex items-center gap-3 text-slate-100">
               <LoaderCircle className="h-6 w-6 animate-spin" />
               Loading notifications...
             </div>
@@ -364,7 +364,7 @@ function NotificationsPage() {
       );
     }
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
+      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-100">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading notifications...

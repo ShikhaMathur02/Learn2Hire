@@ -6,6 +6,7 @@ import {
   Building2,
   Factory,
   GraduationCap,
+  Handshake,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
@@ -31,6 +32,10 @@ import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { VisibleFileInput } from "../ui/visible-file-input";
+import { StudentRosterSheetFormatHelp } from "../bulk-import/StudentRosterSheetFormatHelp";
+import { STUDENT_ROSTER_IMPORT_SUMMARY } from "../../lib/studentRosterImportFormat";
+import { BULK_SPREADSHEET_ACCEPT } from "../../lib/bulkSpreadsheetAccept";
+import { COHORT_OTHER } from "../../lib/cohortPresets";
 
 function formatSnapshotLabel(iso) {
   if (!iso) return "";
@@ -68,6 +73,7 @@ function CollegeDashboard({ user, onLogout }) {
   const [jobs, setJobs] = useState([]);
   const [roster, setRoster] = useState([]);
   const [pendingFaculty, setPendingFaculty] = useState([]);
+  const [pendingStudents, setPendingStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [peopleMessage, setPeopleMessage] = useState("");
@@ -76,8 +82,16 @@ function CollegeDashboard({ user, onLogout }) {
   const [addEmail, setAddEmail] = useState("");
   const [addPassword, setAddPassword] = useState("");
   const [addRole, setAddRole] = useState("student");
+  const [rosterAddCourse, setRosterAddCourse] = useState("");
+  const [rosterAddBranch, setRosterAddBranch] = useState("");
+  const [rosterAddBranchCustom, setRosterAddBranchCustom] = useState("");
+  const [rosterAddYear, setRosterAddYear] = useState("");
+  const [rosterAddSemester, setRosterAddSemester] = useState("");
+  const [rosterAddDepartment, setRosterAddDepartment] = useState("");
   const [addingUser, setAddingUser] = useState(false);
   const [approvalBusyId, setApprovalBusyId] = useState("");
+  const [studentCampusBusyId, setStudentCampusBusyId] = useState("");
+  const [partnerApprovalBusyId, setPartnerApprovalBusyId] = useState("");
   const [insights, setInsights] = useState(null);
   const [insightsError, setInsightsError] = useState("");
   const [insightsRefreshing, setInsightsRefreshing] = useState(false);
@@ -142,37 +156,53 @@ function CollegeDashboard({ user, onLogout }) {
         Authorization: `Bearer ${token}`,
       };
 
-      const [meRes, assessmentsRes, jobsRes, rosterRes, pendingRes, insightsRes] =
-        await Promise.all([
-          fetch("/api/auth/me", { headers }),
-          fetch("/api/assessments", { headers }),
-          fetch("/api/jobs", { headers }),
-          fetch("/api/college/roster", { cache: "no-store", headers }),
-          fetch("/api/college/faculty/pending", { cache: "no-store", headers }),
-          fetch("/api/college/insights", { cache: "no-store", headers }),
-        ]);
+      const [
+        meRes,
+        assessmentsRes,
+        jobsRes,
+        rosterRes,
+        pendingFacultyRes,
+        pendingStudentsRes,
+        insightsRes,
+      ] = await Promise.all([
+        fetch("/api/auth/me", { headers }),
+        fetch("/api/assessments", { headers }),
+        fetch("/api/jobs", { headers }),
+        fetch("/api/college/roster", { cache: "no-store", headers }),
+        fetch("/api/college/faculty/pending", { cache: "no-store", headers }),
+        fetch("/api/college/students/pending", { cache: "no-store", headers }),
+        fetch("/api/college/insights", { cache: "no-store", headers }),
+      ]);
 
-      const [meData, assessmentsData, jobsData, rosterData, pendingData, insightsJson] =
-        await Promise.all([
-          readApiResponse(
-            meRes,
-            "API returned HTML instead of JSON. Restart the backend server and refresh the page."
-          ),
-          readApiResponse(
-            assessmentsRes,
-            "API returned HTML instead of JSON. Restart the backend server and refresh the page."
-          ),
-          readApiResponse(
-            jobsRes,
-            "API returned HTML instead of JSON. Restart the backend server and refresh the page."
-          ),
-          readApiResponse(rosterRes),
-          readApiResponse(pendingRes),
-          readApiResponse(insightsRes),
-        ]);
+      const [
+        meData,
+        assessmentsData,
+        jobsData,
+        rosterData,
+        pendingFacultyData,
+        pendingStudentsData,
+        insightsJson,
+      ] = await Promise.all([
+        readApiResponse(
+          meRes,
+          "API returned HTML instead of JSON. Restart the backend server and refresh the page."
+        ),
+        readApiResponse(
+          assessmentsRes,
+          "API returned HTML instead of JSON. Restart the backend server and refresh the page."
+        ),
+        readApiResponse(
+          jobsRes,
+          "API returned HTML instead of JSON. Restart the backend server and refresh the page."
+        ),
+        readApiResponse(rosterRes),
+        readApiResponse(pendingFacultyRes),
+        readApiResponse(pendingStudentsRes),
+        readApiResponse(insightsRes),
+      ]);
 
       if (
-        [meRes, assessmentsRes, jobsRes, rosterRes, pendingRes, insightsRes].some(
+        [meRes, assessmentsRes, jobsRes, rosterRes, pendingFacultyRes, pendingStudentsRes, insightsRes].some(
           (response) => response.status === 401
         )
       ) {
@@ -196,8 +226,11 @@ function CollegeDashboard({ user, onLogout }) {
       if (rosterRes.ok) {
         setRoster(rosterData.data?.users || []);
       }
-      if (pendingRes.ok) {
-        setPendingFaculty(pendingData.data?.users || []);
+      if (pendingFacultyRes.ok) {
+        setPendingFaculty(pendingFacultyData.data?.users || []);
+      }
+      if (pendingStudentsRes.ok) {
+        setPendingStudents(pendingStudentsData.data?.users || []);
       }
 
       if (insightsRes.ok) {
@@ -243,14 +276,17 @@ function CollegeDashboard({ user, onLogout }) {
     if (!token) return;
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      const [rosterRes, pendingRes] = await Promise.all([
+      const [rosterRes, pendingFacultyRes, pendingStudentsRes] = await Promise.all([
         fetch("/api/college/roster", { cache: "no-store", headers }),
         fetch("/api/college/faculty/pending", { cache: "no-store", headers }),
+        fetch("/api/college/students/pending", { cache: "no-store", headers }),
       ]);
       const rosterData = await readApiResponse(rosterRes);
-      const pendingData = await readApiResponse(pendingRes);
+      const pendingFacultyData = await readApiResponse(pendingFacultyRes);
+      const pendingStudentsData = await readApiResponse(pendingStudentsRes);
       if (rosterRes.ok) setRoster(rosterData.data?.users || []);
-      if (pendingRes.ok) setPendingFaculty(pendingData.data?.users || []);
+      if (pendingFacultyRes.ok) setPendingFaculty(pendingFacultyData.data?.users || []);
+      if (pendingStudentsRes.ok) setPendingStudents(pendingStudentsData.data?.users || []);
     } catch {
       /* ignore */
     }
@@ -270,8 +306,20 @@ function CollegeDashboard({ user, onLogout }) {
     setPeopleMessage("");
     const token = localStorage.getItem("token");
     if (!token) return;
+
+    if (addRole === "student") {
+      const branchVal =
+        rosterAddBranch === COHORT_OTHER ? rosterAddBranchCustom.trim() : rosterAddBranch.trim();
+      if (!rosterAddCourse.trim() || !branchVal || !rosterAddYear.trim()) {
+        setPeopleError("Choose the student’s class: program (course), branch, and year.");
+        return;
+      }
+    }
+
     setAddingUser(true);
     try {
+      const branchResolved =
+        rosterAddBranch === COHORT_OTHER ? rosterAddBranchCustom.trim() : rosterAddBranch.trim();
       const res = await fetch("/api/college/roster", {
         method: "POST",
         cache: "no-store",
@@ -284,6 +332,15 @@ function CollegeDashboard({ user, onLogout }) {
           email: addEmail.trim(),
           password: addPassword,
           role: addRole,
+          ...(addRole === "student"
+            ? {
+                course: rosterAddCourse.trim(),
+                branch: branchResolved,
+                year: rosterAddYear.trim(),
+                semester: rosterAddSemester.trim(),
+                department: rosterAddDepartment.trim(),
+              }
+            : {}),
         }),
       });
       const data = await readApiResponse(res);
@@ -302,6 +359,12 @@ function CollegeDashboard({ user, onLogout }) {
       setAddName("");
       setAddEmail("");
       setAddPassword("");
+      setRosterAddCourse("");
+      setRosterAddBranch("");
+      setRosterAddBranchCustom("");
+      setRosterAddYear("");
+      setRosterAddSemester("");
+      setRosterAddDepartment("");
       await refreshPeople();
       await fetchInsights({ silent: true });
     } catch (err) {
@@ -341,6 +404,73 @@ function CollegeDashboard({ user, onLogout }) {
       setPeopleError(err.message || "Could not update approval.");
     } finally {
       setApprovalBusyId("");
+    }
+  };
+
+  const handleStudentCampusApproval = async (userId, decision) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setPeopleError("");
+    setPeopleMessage("");
+    setStudentCampusBusyId(userId);
+    try {
+      const res = await fetch(`/api/college/students/${userId}/campus-approval`, {
+        method: "PATCH",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await readApiResponse(res);
+      if (res.status === 401) {
+        navigate("/login");
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(data.message || "Update failed.");
+      }
+      setPeopleMessage(data.message || "Updated.");
+      await refreshPeople();
+      await fetchInsights({ silent: true });
+    } catch (err) {
+      setPeopleError(err.message || "Could not update student approval.");
+    } finally {
+      setStudentCampusBusyId("");
+    }
+  };
+
+  const handlePartnerCompanyApproval = async (companyUserId, decision) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setPeopleError("");
+    setPeopleMessage("");
+    setPartnerApprovalBusyId(companyUserId);
+    try {
+      const res = await fetch(`/api/college/companies/${companyUserId}/partner-approval`, {
+        method: "PATCH",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await readApiResponse(res);
+      if (res.status === 401) {
+        navigate("/login");
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(data.message || "Update failed.");
+      }
+      setPeopleMessage(data.message || "Updated.");
+      await fetchInsights({ silent: true });
+    } catch (err) {
+      setPeopleError(err.message || "Could not update partnership.");
+    } finally {
+      setPartnerApprovalBusyId("");
     }
   };
 
@@ -533,7 +663,7 @@ function CollegeDashboard({ user, onLogout }) {
               </Button>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
               <DashboardMetricCard
                 title="Your students"
                 value={insights?.campus?.rosterStudents ?? "—"}
@@ -556,6 +686,13 @@ function CollegeDashboard({ user, onLogout }) {
                 scrollTargetId="college-dash-pending-faculty"
               />
               <DashboardMetricCard
+                title="Students in review"
+                value={insights?.campus?.pendingStudentReview ?? "—"}
+                subtitle="Self-signups awaiting campus action"
+                icon={UserPlus}
+                scrollTargetId="college-dash-pending-students"
+              />
+              <DashboardMetricCard
                 title="Recruiters"
                 value={insights?.hiring?.registeredCompanies ?? "—"}
                 subtitle="Company accounts on the platform"
@@ -568,6 +705,13 @@ function CollegeDashboard({ user, onLogout }) {
                 subtitle="Shared across all colleges"
                 icon={BriefcaseBusiness}
                 scrollTargetId="college-dash-open-jobs"
+              />
+              <DashboardMetricCard
+                title="Employer requests"
+                value={insights?.hiring?.pendingPartnerReview ?? "—"}
+                subtitle="Campus partnership pending"
+                icon={Handshake}
+                scrollTargetId="college-dash-partner-employers"
               />
               <DashboardMetricCard
                 title="Student applications"
@@ -694,17 +838,64 @@ function CollegeDashboard({ user, onLogout }) {
                 </CardContent>
               </Card>
             </div>
+
+            {insights?.hiring?.pendingPartnerCompanies?.length ? (
+              <Card
+                id="college-dash-partner-employers"
+                tabIndex={-1}
+                className="scroll-mt-28 mt-5 border border-cyan-400/20 bg-cyan-500/[0.06] shadow-none outline-none focus:outline-none"
+              >
+                <CardContent className="p-5">
+                  <h3 className="text-lg font-semibold text-white">Employer partnership requests</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Companies that chose your campus at signup. Approving here fully activates their account (same as
+                    an admin platform approval).
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {insights.hiring.pendingPartnerCompanies.map((c) => (
+                      <div
+                        key={c._id}
+                        className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="font-medium text-white">{c.name}</p>
+                          <p className="text-sm text-slate-400">{c.email}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="success"
+                            disabled={partnerApprovalBusyId === c._id}
+                            onClick={() => handlePartnerCompanyApproval(c._id, "approved")}
+                          >
+                            {partnerApprovalBusyId === c._id ? "…" : "Approve"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={partnerApprovalBusyId === c._id}
+                            onClick={() => handlePartnerCompanyApproval(c._id, "rejected")}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
 
           <div className="mt-10 rounded-[28px] border border-white/10 bg-slate-950/55 p-6 xl:p-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-medium text-cyan-300">People management</p>
-                <h2 className="mt-1 text-2xl font-bold text-white">Campus roster & faculty approval</h2>
+                <h2 className="mt-1 text-2xl font-bold text-white">Campus roster, student & faculty approval</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                  Approve self-registered faculty, then add student and faculty accounts your college
-                  owns. Faculty who sign up on the public form stay pending until you approve them
-                  here.
+                  Approve self-registered students and faculty from the public signup flow, then add accounts your
+                  college owns. Students who sign up stay pending until a campus approver or platform administrator
+                  allows them.
                 </p>
               </div>
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/20 text-cyan-200">
@@ -723,7 +914,7 @@ function CollegeDashboard({ user, onLogout }) {
               </div>
             ) : null}
 
-            <div className="mt-5 grid gap-6 xl:grid-cols-2">
+            <div className="mt-5 grid gap-6 xl:grid-cols-3">
               <Card
                 id="college-dash-pending-faculty"
                 tabIndex={-1}
@@ -774,6 +965,57 @@ function CollegeDashboard({ user, onLogout }) {
                 </CardContent>
               </Card>
 
+              <Card
+                id="college-dash-pending-students"
+                tabIndex={-1}
+                className="scroll-mt-28 border border-sky-400/20 bg-sky-500/5 shadow-none outline-none focus:outline-none"
+              >
+                <CardContent className="p-6">
+                  <h3 className="text-lg font-semibold text-white">Pending students (self-registration)</h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Learners who signed up and selected your college. Approve or reject before they can use the
+                    platform.
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {pendingStudents.length ? (
+                      pendingStudents.map((u) => (
+                        <div
+                          key={u._id}
+                          className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <p className="font-medium text-white">{u.name}</p>
+                            <p className="text-sm text-slate-400">{u.email}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="success"
+                              disabled={studentCampusBusyId === u._id}
+                              onClick={() => handleStudentCampusApproval(u._id, "approved")}
+                            >
+                              {studentCampusBusyId === u._id ? "…" : "Approve"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={studentCampusBusyId === u._id}
+                              onClick={() => handleStudentCampusApproval(u._id, "rejected")}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                        No students are waiting for campus approval.
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card className="border border-white/10 bg-white/5 shadow-none">
                 <CardContent className="p-6">
                   <div className="flex items-center gap-2 text-cyan-200">
@@ -781,9 +1023,134 @@ function CollegeDashboard({ user, onLogout }) {
                     <h3 className="text-lg font-semibold text-white">Add student or faculty</h3>
                   </div>
                   <p className="mt-1 text-sm text-slate-400">
-                    Creates an active account attached to your college. {strongPasswordHint}
+                    Creates an active account attached to your college.{" "}
+                    {addRole === "student"
+                      ? "For students, set their class (program, branch, year) so materials and drives match their cohort."
+                      : null}{" "}
+                    {strongPasswordHint}
                   </p>
                   <form className="mt-4 space-y-4" onSubmit={handleAddRosterUser}>
+                    <div>
+                      <label className="text-xs font-medium text-slate-400" htmlFor="cr-role">
+                        Role
+                      </label>
+                      <select
+                        id="cr-role"
+                        className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white"
+                        value={addRole}
+                        onChange={(e) => setAddRole(e.target.value)}
+                      >
+                        <option value="student">Student</option>
+                        <option value="faculty">Faculty</option>
+                      </select>
+                    </div>
+                    {addRole === "student" ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="sm:col-span-2">
+                          <label className="text-xs font-medium text-slate-400" htmlFor="cr-course-add">
+                            Program (course)
+                          </label>
+                          <select
+                            id="cr-course-add"
+                            className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white"
+                            value={rosterAddCourse}
+                            onChange={(e) => setRosterAddCourse(e.target.value)}
+                            required
+                          >
+                            <option value="">Select program</option>
+                            {STUDENT_COHORT_PROGRAM_OPTIONS.map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-400" htmlFor="cr-branch-add">
+                            Branch
+                          </label>
+                          <select
+                            id="cr-branch-add"
+                            className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white"
+                            value={rosterAddBranch}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setRosterAddBranch(v);
+                              if (v !== COHORT_OTHER) setRosterAddBranchCustom("");
+                            }}
+                            required
+                          >
+                            <option value="">Select branch</option>
+                            {STUDENT_COHORT_BRANCH_OPTIONS.map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                            <option value={COHORT_OTHER}>Other…</option>
+                          </select>
+                          {rosterAddBranch === COHORT_OTHER ? (
+                            <input
+                              id="cr-branch-custom-add"
+                              className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white placeholder:text-slate-500"
+                              value={rosterAddBranchCustom}
+                              onChange={(e) => setRosterAddBranchCustom(e.target.value)}
+                              placeholder="Type branch"
+                              autoComplete="off"
+                            />
+                          ) : null}
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-400" htmlFor="cr-year-add">
+                            Year
+                          </label>
+                          <select
+                            id="cr-year-add"
+                            className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white"
+                            value={rosterAddYear}
+                            onChange={(e) => setRosterAddYear(e.target.value)}
+                            required
+                          >
+                            <option value="">Select</option>
+                            {STUDENT_COHORT_YEAR_OPTIONS.map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-400" htmlFor="cr-sem-add">
+                            Semester (optional)
+                          </label>
+                          <select
+                            id="cr-sem-add"
+                            className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white"
+                            value={rosterAddSemester}
+                            onChange={(e) => setRosterAddSemester(e.target.value)}
+                          >
+                            <option value="">—</option>
+                            {STUDENT_COHORT_SEMESTER_OPTIONS.map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="text-xs font-medium text-slate-400" htmlFor="cr-dept-add">
+                            Department (optional)
+                          </label>
+                          <input
+                            id="cr-dept-add"
+                            className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white placeholder:text-slate-500"
+                            value={rosterAddDepartment}
+                            onChange={(e) => setRosterAddDepartment(e.target.value)}
+                            placeholder="e.g. School of Engineering"
+                            autoComplete="off"
+                          />
+                        </div>
+                      </div>
+                    ) : null}
                     <div>
                       <label className="text-xs font-medium text-slate-400" htmlFor="cr-name">
                         Full name
@@ -808,20 +1175,6 @@ function CollegeDashboard({ user, onLogout }) {
                         onChange={(e) => setAddEmail(e.target.value)}
                         required
                       />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-slate-400" htmlFor="cr-role">
-                        Role
-                      </label>
-                      <select
-                        id="cr-role"
-                        className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-white"
-                        value={addRole}
-                        onChange={(e) => setAddRole(e.target.value)}
-                      >
-                        <option value="student">Student</option>
-                        <option value="faculty">Faculty</option>
-                      </select>
                     </div>
                     <div>
                       <label className="text-xs font-medium text-slate-400" htmlFor="cr-password">
@@ -910,17 +1263,16 @@ function CollegeDashboard({ user, onLogout }) {
           <div className="mt-5 space-y-6">
             <Card className="border border-slate-400/30 bg-slate-800/40 shadow-none">
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-white">Bulk students (Excel or CSV)</h3>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <h3 className="text-lg font-semibold text-white">Bulk students (Excel or CSV)</h3>
+                  <StudentRosterSheetFormatHelp className="shrink-0 !border-cyan-400/40 !text-cyan-100 hover:!bg-cyan-400/10" />
+                </div>
                 <p className="mt-1 text-sm text-slate-300">
-                  Standard columns: <strong className="text-slate-200">S.No</strong>,{" "}
-                  <strong className="text-slate-200">Course</strong>,{" "}
-                  <strong className="text-slate-200">Program</strong>,{" "}
-                  <strong className="text-slate-200">Year</strong>,{" "}
-                  <strong className="text-slate-200">Contact number</strong>,{" "}
-                  <strong className="text-slate-200">Email id</strong>. Optional:{" "}
-                  <strong className="text-slate-200">Name</strong> (recommended for display name and default
-                  password). Every row must match the class you select below. Default password pattern:{" "}
-                  <code className="text-cyan-200">Firstname@123</code>.
+                  {STUDENT_ROSTER_IMPORT_SUMMARY}{" "}
+                  <span className="text-slate-400">
+                    Default password for new accounts:{" "}
+                    <code className="text-cyan-200">Firstname@123</code>.
+                  </span>
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
@@ -988,8 +1340,7 @@ function CollegeDashboard({ user, onLogout }) {
                   className="mt-4"
                   id="college-bulk-students"
                   label="Spreadsheet file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={(e) => setStudentSheetFile(e.target.files?.[0] || null)}
+                  accept={BULK_SPREADSHEET_ACCEPT}
                   disabled={bulkBusy}
                 />
                 <Button
@@ -1010,7 +1361,7 @@ function CollegeDashboard({ user, onLogout }) {
             <div className="grid gap-6 xl:grid-cols-2">
             <Card className="border border-slate-400/30 bg-slate-800/40 shadow-none">
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-white">Bulk materials (Excel)</h3>
+                <h3 className="text-lg font-semibold text-white">Bulk materials (Excel or CSV)</h3>
                 <p className="mt-1 text-sm text-slate-300">
                   Columns: title, summary, content, categorySlug/categoryId.
                 </p>
@@ -1018,7 +1369,7 @@ function CollegeDashboard({ user, onLogout }) {
                   className="mt-4"
                   id="college-bulk-materials"
                   label="Materials spreadsheet"
-                  accept=".xlsx,.xls"
+                  accept={BULK_SPREADSHEET_ACCEPT}
                   onChange={(e) => setMaterialSheetFile(e.target.files?.[0] || null)}
                   disabled={bulkBusy}
                 />

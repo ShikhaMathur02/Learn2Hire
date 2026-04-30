@@ -34,9 +34,23 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['approved', 'pending', 'rejected'],
     },
-    // Company self-registration: pending until a platform admin approves.
-    // Omitted or "approved" for legacy users and accounts created by an admin.
+    // Company self-registration: pending until a platform admin and/or partner college approves (see campusApproval.js).
     platformApprovalStatus: {
+      type: String,
+      enum: ['approved', 'pending', 'rejected'],
+    },
+    /** Company ↔ campus partnership: optional college that this employer asked to collaborate with. */
+    partnerCollege: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    partnerCollegeApprovalStatus: {
+      type: String,
+      enum: ['approved', 'pending', 'rejected'],
+    },
+    // Student self-registration under a campus: pending until college, faculty, or admin approves.
+    studentCampusApprovalStatus: {
       type: String,
       enum: ['approved', 'pending', 'rejected'],
     },
