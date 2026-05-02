@@ -15,7 +15,7 @@ const {
   STUDENT_ROSTER_SHEET_FORMAT_HINT,
   FACULTY_ROSTER_SHEET_FORMAT_HINT,
 } = require('../utils/uploadParsers');
-const { createBulkNotifications } = require('../utils/notificationService');
+const { createBulkNotifications, notifyPlatformAdmins, createNotification } = require('../utils/notificationService');
 const { sendApprovalGrantedEmail } = require('../utils/otpDelivery');
 const {
   getCampusStudentIds,
@@ -497,6 +497,18 @@ exports.setCompanyPartnerApproval = async (req, res) => {
     await companyUser.save();
 
     if (decision === 'approved') {
+      try {
+        await notifyPlatformAdmins({
+          title: 'Company approved by campus',
+          message: `${companyUser.name} (${companyUser.email}) is fully active on Learn2Hire — ${req.user.name} approved the partnership. Admins do not need to approve this registration separately.`,
+          category: 'system',
+          type: 'company_approved_by_campus',
+          actionUrl: '/dashboard',
+          metadata: { companyUserId: companyUser._id, collegeUserId: req.user._id },
+        });
+      } catch (e) {
+        console.error('[Learn2Hire] company campus-approve admin notify:', e.message || e);
+      }
       try {
         await createNotification({
           recipient: companyUser._id,

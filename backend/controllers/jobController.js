@@ -1300,28 +1300,88 @@ exports.getCompanyDashboard = async (req, res) => {
       .sort({ createdAt: -1 });
     const jobIds = jobs.map((job) => job._id);
 
-    const applications = await JobApplication.find({ job: { $in: jobIds } })
-      .populate('student', 'name email role')
-      .populate('job', 'title status location employmentType')
-      .sort({ appliedAt: -1 });
+    const applications =
+      jobIds.length === 0
+        ? []
+        : await JobApplication.find({ job: { $in: jobIds } })
+            .populate('student', 'name email role')
+            .populate('job', 'title status location employmentType')
+            .sort({ appliedAt: -1, createdAt: -1 })
+            .lean();
 
-    const studentIds = applications.map((item) => item.student?._id).filter(Boolean);
-    const profiles = await StudentProfile.find({ user: { $in: studentIds } })
-      .select('user bio overallScore skills stats')
-      .lean();
+    const interests =
+      jobIds.length === 0
+        ? []
+        : await JobStudentInterest.find({ job: { $in: jobIds } })
+            .populate('student', 'name email role')
+            .populate('job', 'title status location employmentType')
+            .sort({ createdAt: -1 })
+            .limit(80)
+            .lean();
 
-    const profileMap = Object.fromEntries(
-      profiles.map((profile) => [profile.user.toString(), profile])
-    );
+    const sidSet = new Set();
+    applications.forEach((item) => {
+      if (item.student?._id) sidSet.add(String(item.student._id));
+    });
+    interests.forEach((item) => {
+      if (item.student?._id) sidSet.add(String(item.student._id));
+    });
+    const studentIdList = [...sidSet].map((id) => new mongoose.Types.ObjectId(id));
+
+    const profiles =
+      studentIdList.length === 0
+        ? []
+        : await StudentProfile.find({ user: { $in: studentIdList } })
+            .select('user bio overallScore skills stats')
+            .lean();
+
+    const profileMap = Object.fromEntries(profiles.map((p) => [String(p.user), p]));
 
     const enrichedApplications = applications.map((application) => {
-      const studentId = application.student?._id?.toString();
+      const studentId = application.student?._id ? String(application.student._id) : '';
       const base = sanitizeJobApplicationClient(application);
-
       return {
+        recordKind: 'application',
         ...base,
         studentProfile: studentId ? profileMap[studentId] || null : null,
       };
+    });
+
+    const enrichedInterests = interests.map((interest) => {
+      const studentId = interest.student?._id ? String(interest.student._id) : '';
+      const hasResumeFile = Boolean(interest.resumeRelativePath);
+      const resumeOriginalName = interest.resumeOriginalName || '';
+      const rest = { ...interest };
+      delete rest.resumeRelativePath;
+      return {
+        recordKind: 'interest',
+        ...rest,
+        hasResumeFile,
+        resumeOriginalName,
+        status: 'interested',
+        appliedAt: interest.createdAt || interest.updatedAt,
+        studentProfile: studentId ? profileMap[studentId] || null : null,
+      };
+    });
+
+    const mergedPipeline = [...enrichedApplications, ...enrichedInterests].sort((a, b) => {
+      const ta = new Date(a.appliedAt || a.createdAt || 0).getTime();
+      const tb = new Date(b.appliedAt || b.createdAt || 0).getTime();
+      return tb - ta;
+    });
+
+    const applicationPairKeys = new Set(
+      enrichedApplications.map((row) => {
+        const jid = row.job?._id != null ? String(row.job._id) : '';
+        const sid = row.student?._id != null ? String(row.student._id) : '';
+        return `${jid}:${sid}`;
+      })
+    );
+    const mergedForDisplay = mergedPipeline.filter((row) => {
+      if (row.recordKind !== 'interest') return true;
+      const jid = row.job?._id != null ? String(row.job._id) : '';
+      const sid = row.student?._id != null ? String(row.student._id) : '';
+      return !applicationPairKeys.has(`${jid}:${sid}`);
     });
 
     const shortlistedCount = enrichedApplications.filter(
@@ -1333,10 +1393,11 @@ exports.getCompanyDashboard = async (req, res) => {
         totalJobs: jobs.length,
         openJobs: jobs.filter((job) => job.status === 'open').length,
         totalApplications: enrichedApplications.length,
+        expressInterestCount: enrichedInterests.length,
         shortlistedCount,
       },
       recentJobs: jobs.slice(0, 5),
-      recentApplications: enrichedApplications.slice(0, 8),
+      recentApplications: mergedForDisplay.slice(0, 8),
     };
 
     res.status(200).json({

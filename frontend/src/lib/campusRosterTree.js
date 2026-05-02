@@ -51,10 +51,24 @@ export function studentProgramBranchKeys(u) {
   };
 }
 
-/** Spreadsheet serial when present; otherwise `ordinal` (1-based, e.g. position in alphabetical list). */
+/** Same ordering everywhere roster people are listed (additions keep A–Z with stable email tie-break). */
+export function compareRosterPersonByName(a, b) {
+  const an = String(a?.name ?? "").trim().toLocaleLowerCase();
+  const bn = String(b?.name ?? "").trim().toLocaleLowerCase();
+  const c = an.localeCompare(bn, undefined, { sensitivity: "base" });
+  if (c !== 0) return c;
+  return String(a?.email ?? "")
+    .toLowerCase()
+    .localeCompare(String(b?.email ?? "").toLowerCase(), undefined, { sensitivity: "base" });
+}
+
+/**
+ * Roster tables pass `ordinal` (1-based index in the current A–Z list) so S.no. stays in sequence when
+ * people are added. Without `ordinal`, falls back to stored import / profile serial (e.g. learner summary).
+ */
 export function campusRosterStudentSerial(cls, ordinal) {
-  const s = cls?.serialNumber?.trim();
-  if (s) return s;
   if (ordinal != null) return String(ordinal);
+  const s = String(cls?.serialNumber ?? "").trim();
+  if (s) return s;
   return "—";
 }

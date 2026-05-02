@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -43,16 +43,37 @@ function CompanyTalentPage() {
       navigate("/login");
       return;
     }
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed.role !== "company") {
-        navigate("/dashboard");
-        return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.role !== "company") {
+          navigate("/dashboard");
+          return;
+        }
+        let nextUser = parsed;
+        try {
+          const meRes = await fetch("/api/auth/me");
+          const meData = await readApiResponse(meRes);
+          if (!cancelled && meRes.ok && meData.data?.user) {
+            nextUser = { ...parsed, ...meData.data.user };
+            try {
+              localStorage.setItem("user", JSON.stringify(nextUser));
+            } catch {
+              /* ignore */
+            }
+          }
+        } catch {
+          /* keep storage snapshot */
+        }
+        if (!cancelled) setUser(nextUser);
+      } catch {
+        navigate("/login");
       }
-      setUser(parsed);
-    } catch {
-      navigate("/login");
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
   const loadTalent = useCallback(async () => {
@@ -122,6 +143,10 @@ function CompanyTalentPage() {
   };
 
   const sendInterest = async () => {
+    if (!hiringEnabled) {
+      setError("Express interest unlocks after your company account is approved. Check Notifications.");
+      return;
+    }
     if (!detailUserId) return;
     if (!localStorage.getItem("user")) return;
     setPickSending(true);
@@ -156,6 +181,8 @@ function CompanyTalentPage() {
   const inputClass =
     "h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20";
 
+  const hiringEnabled = useMemo(() => user?.companyHiringEnabled !== false, [user]);
+
   if (!user) {
     return (
       <div {...workspaceRootProps("company", "flex min-h-screen items-center justify-center text-slate-600")}>
@@ -179,6 +206,7 @@ function CompanyTalentPage() {
             navigate("/login");
           }}
           actionItems={[
+            { label: "Notifications", to: "/notifications" },
             { label: "Manage jobs", to: "/company/jobs" },
             { label: "Company home", onClick: () => navigate("/dashboard") },
           ]}
@@ -207,6 +235,19 @@ function CompanyTalentPage() {
             {success ? (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
                 {success}
+              </div>
+            ) : null}
+
+            {!hiringEnabled ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/95 p-4 text-sm font-medium leading-relaxed text-amber-950">
+                <p className="font-semibold">Browsing only until approved</p>
+                <p className="mt-2 text-amber-900/95">
+                  You can search and open learner profiles. Messaging candidates unlocks after approval — watch{" "}
+                  <Link to="/notifications" className="font-semibold underline underline-offset-2">
+                    Notifications
+                  </Link>
+                  .
+                </p>
               </div>
             ) : null}
 
@@ -406,7 +447,7 @@ function CompanyTalentPage() {
                             type="button"
                             className="mt-3"
                             onClick={sendInterest}
-                            disabled={pickSending}
+                            disabled={pickSending || !hiringEnabled}
                           >
                             {pickSending ? (
                               <LoaderCircle className="h-4 w-4 animate-spin" />

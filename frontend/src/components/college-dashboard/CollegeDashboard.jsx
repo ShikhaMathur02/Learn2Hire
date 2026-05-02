@@ -44,21 +44,11 @@ import { VisibleFileInput } from "../ui/visible-file-input";
 import { StudentRosterSheetFormatHelp } from "../bulk-import/StudentRosterSheetFormatHelp";
 import { STUDENT_ROSTER_DEFAULT_PASSWORD } from "../../lib/studentRosterImportFormat";
 import { BULK_SPREADSHEET_ACCEPT } from "../../lib/bulkSpreadsheetAccept";
-import { campusRosterStudentSerial, rosterRowId } from "../../lib/campusRosterTree";
+import { campusRosterStudentSerial, compareRosterPersonByName, rosterRowId } from "../../lib/campusRosterTree";
 import { COHORT_OTHER } from "../../lib/cohortPresets";
 import { CollegeRosterGroupedPanel } from "./CollegeRosterGroupedPanel";
 
 const CAMPUS_ROSTER_PREVIEW_MAX = 10;
-
-function compareCollegeRosterByName(a, b) {
-  const an = String(a?.name ?? "").trim().toLocaleLowerCase();
-  const bn = String(b?.name ?? "").trim().toLocaleLowerCase();
-  const c = an.localeCompare(bn, undefined, { sensitivity: "base" });
-  if (c !== 0) return c;
-  return String(a?.email ?? "")
-    .toLowerCase()
-    .localeCompare(String(b?.email ?? "").toLowerCase(), undefined, { sensitivity: "base" });
-}
 
 let collegePeopleFullListChunkPrefetchStarted = false;
 
@@ -811,7 +801,7 @@ function CollegeDashboard({ user, onLogout, campusDirectoryPage = false }) {
   };
 
   const sortedRoster = useMemo(
-    () => [...roster].sort(compareCollegeRosterByName),
+    () => [...roster].sort(compareRosterPersonByName),
     [roster]
   );
 
@@ -848,26 +838,36 @@ function CollegeDashboard({ user, onLogout, campusDirectoryPage = false }) {
       });
     }
 
-    return [...list].sort(compareCollegeRosterByName);
+    return [...list].sort(compareRosterPersonByName);
   }, [sortedRoster, campusPeopleKindFilter, campusPeopleSearchQuery]);
 
   const rosterPreviewRows = useMemo(() => {
     return sortedRoster.slice(0, CAMPUS_ROSTER_PREVIEW_MAX);
   }, [sortedRoster]);
 
-  const rosterPreviewRowsStudentOrdinals = useMemo(() => {
-    let n = 0;
+  const rosterPreviewRowsSerialMeta = useMemo(() => {
+    let studentN = 0;
+    let facultyN = 0;
     return rosterPreviewRows.map((u) => {
-      if (u.role === "student") n += 1;
-      return u.role === "student" ? n : null;
+      if (u.role === "student") {
+        studentN += 1;
+        return { studentOrdinal: studentN, facultyOrdinal: null };
+      }
+      facultyN += 1;
+      return { studentOrdinal: null, facultyOrdinal: facultyN };
     });
   }, [rosterPreviewRows]);
 
   const filteredCampusRowsOrdinal = useMemo(() => {
-    let n = 0;
+    let studentN = 0;
+    let facultyN = 0;
     return filteredCampusPeople.map((u) => {
-      if (u.role === "student") n += 1;
-      return { user: u, studentOrdinal: u.role === "student" ? n : null };
+      if (u.role === "student") {
+        studentN += 1;
+        return { user: u, studentOrdinal: studentN, facultyOrdinal: null };
+      }
+      facultyN += 1;
+      return { user: u, studentOrdinal: null, facultyOrdinal: facultyN };
     });
   }, [filteredCampusPeople]);
 
@@ -2029,7 +2029,7 @@ function CollegeDashboard({ user, onLogout, campusDirectoryPage = false }) {
                           <th
                             scope="col"
                             className="sticky top-0 z-10 w-[4.25rem] whitespace-nowrap border-b border-slate-200 bg-slate-100/95 px-3 py-3 font-medium shadow-[0_1px_0_rgb(226_232_240)] backdrop-blur-sm"
-                            title="Imported sheet number when available; otherwise numbering for students (A–Z) in this table."
+                            title="Numbered 1, 2, 3… in A–Z name order (students and teachers counted separately in this table). Stays in sequence when people are added."
                           >
                             S.no.
                           </th>
@@ -2139,7 +2139,7 @@ function CollegeDashboard({ user, onLogout, campusDirectoryPage = false }) {
                             </td>
                           </tr>
                         ) : (
-                          filteredCampusRowsOrdinal.map(({ user: u, studentOrdinal }) => {
+                          filteredCampusRowsOrdinal.map(({ user: u, studentOrdinal, facultyOrdinal }) => {
                             const cls = u.studentClass;
                             const isStudent = u.role === "student";
                             const rid = rosterRowId(u);
@@ -2150,7 +2150,9 @@ function CollegeDashboard({ user, onLogout, campusDirectoryPage = false }) {
                                 className="border-b border-slate-100 align-middle transition-colors last:border-0 hover:bg-slate-50/90"
                               >
                                 <td className="max-w-[6rem] truncate px-3 py-3 text-center tabular-nums font-medium text-slate-700">
-                                  {isStudent ? campusRosterStudentSerial(cls, studentOrdinal) : "—"}
+                                  {isStudent
+                                    ? campusRosterStudentSerial(cls, studentOrdinal)
+                                    : String(facultyOrdinal)}
                                 </td>
                                 <td className="px-4 py-3 font-medium text-[var(--text)]">{u.name}</td>
                                 <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-700">{u.email}</td>
@@ -2262,14 +2264,14 @@ function CollegeDashboard({ user, onLogout, campusDirectoryPage = false }) {
                         ) : (
                           rosterPreviewRows.map((u, idx) => {
                             const isStudent = u.role === "student";
-                            const ord = rosterPreviewRowsStudentOrdinals[idx];
+                            const { studentOrdinal: sOrd, facultyOrdinal: fOrd } = rosterPreviewRowsSerialMeta[idx];
                             return (
                               <tr
                                 key={u._id}
                                 className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/90"
                               >
                                 <td className="max-w-[6rem] truncate px-3 py-3 text-center tabular-nums font-medium text-slate-700">
-                                  {isStudent ? campusRosterStudentSerial(u.studentClass, ord) : "—"}
+                                  {isStudent ? campusRosterStudentSerial(u.studentClass, sOrd) : String(fOrd)}
                                 </td>
                                 <td className="px-4 py-3 font-medium text-[var(--text)]">{u.name}</td>
                                 <td className="max-w-[12rem] truncate px-4 py-3 font-medium text-slate-700">{u.email}</td>

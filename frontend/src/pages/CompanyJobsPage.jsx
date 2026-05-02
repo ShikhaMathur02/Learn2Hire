@@ -56,6 +56,7 @@ function CompanyJobsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [colleges, setColleges] = useState([]);
+  const [jdUploading, setJdUploading] = useState(false);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job._id === selectedJobId) || null,
@@ -88,6 +89,26 @@ function CompanyJobsPage() {
       return [];
     }
 
+    try {
+      const meRes = await fetch("/api/auth/me");
+      const meData = await readApiResponse(
+        meRes,
+        "Auth API returned HTML instead of JSON. Restart the backend server and refresh the page."
+      );
+      if (meRes.ok && meData.data?.user) {
+        const merged = { ...parsedUser, ...meData.data.user };
+        parsedUser = merged;
+        setUser(merged);
+        try {
+          localStorage.setItem("user", JSON.stringify(merged));
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch {
+      /* keep snapshot from storage */
+    }
+
     const response = await fetch("/api/jobs", {
       headers: {},
     });
@@ -118,7 +139,7 @@ function CompanyJobsPage() {
         return;
       }
 
-      if (!user) {
+      if (!localStorage.getItem("user")) {
         navigate("/login");
         return;
       }
@@ -145,7 +166,7 @@ function CompanyJobsPage() {
 
       setApplications(data.data?.applications || []);
     },
-    [navigate, user]
+    [navigate]
   );
 
   const fetchInterests = useCallback(
@@ -155,7 +176,7 @@ function CompanyJobsPage() {
         return;
       }
 
-      if (!user) {
+      if (!localStorage.getItem("user")) {
         navigate("/login");
         return;
       }
@@ -183,7 +204,7 @@ function CompanyJobsPage() {
 
       setInterests(data.data?.interests || []);
     },
-    [navigate, user]
+    [navigate]
   );
 
   const refreshPage = useCallback(async () => {
@@ -284,6 +305,13 @@ function CompanyJobsPage() {
   const handleSave = async (e) => {
     e.preventDefault();
 
+    if (!hiringEnabled) {
+      setError(
+        "Job edits are available after your company account is approved. Check Notifications for updates."
+      );
+      return;
+    }
+
     if (!selectedJobId) {
       setError("Select a job first.");
       return;
@@ -339,6 +367,13 @@ function CompanyJobsPage() {
   };
 
   const handleDelete = async () => {
+    if (!hiringEnabled) {
+      setError(
+        "Job actions are available after your company account is approved. Check Notifications for updates."
+      );
+      return;
+    }
+
     if (!selectedJobId) {
       setError("Select a job first.");
       return;
@@ -383,6 +418,12 @@ function CompanyJobsPage() {
     if (!file || !selectedJobId) return;
     if (file.type !== "application/pdf") {
       setError("Please choose a PDF file for the job description.");
+      return;
+    }
+    if (!hiringEnabled) {
+      setError(
+        "JD uploads are available after your company account is approved. Check Notifications for updates."
+      );
       return;
     }
     if (!user) {
@@ -441,6 +482,12 @@ function CompanyJobsPage() {
   };
 
   const handleApplicationStatus = async (applicationId, status) => {
+    if (!hiringEnabled) {
+      setError(
+        "Applicant updates are available after your company account is approved. Check Notifications for updates."
+      );
+      return;
+    }
     setUpdatingApplicationId(applicationId);
     setError("");
     setSuccess("");
@@ -480,6 +527,8 @@ function CompanyJobsPage() {
   const inputClassName =
     "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20";
 
+  const hiringEnabled = useMemo(() => user?.companyHiringEnabled !== false, [user]);
+
   if (loading) {
     return (
       <div {...workspaceRootProps("company", "flex min-h-screen items-center justify-center text-slate-600")}>
@@ -512,6 +561,13 @@ function CompanyJobsPage() {
               >
                 Talent pool
               </Link>
+              <span className="text-[var(--text-subtle)]">·</span>
+              <Link
+                to="/notifications"
+                className="font-medium text-[var(--primary)] transition hover:underline"
+              >
+                Notifications
+              </Link>
             </div>
             <p className="text-sm font-semibold text-[var(--primary)]">Company Workspace</p>
             <h1 className="mt-1 text-3xl font-bold text-[var(--text)]">Manage Job Posts</h1>
@@ -535,6 +591,23 @@ function CompanyJobsPage() {
         {success ? (
           <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
             {success}
+          </div>
+        ) : null}
+
+        {!hiringEnabled ? (
+          <div
+            className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/95 p-4 text-sm font-medium leading-relaxed text-amber-950"
+            role="status"
+          >
+            <p className="font-semibold">Account pending approval</p>
+            <p className="mt-2 text-amber-900/95">
+              You can view jobs and applicants here in read-only mode. Saving changes, uploads, and pipeline
+              updates unlock once your company is approved. Check{" "}
+              <Link to="/notifications" className="font-semibold underline underline-offset-2">
+                Notifications
+              </Link>{" "}
+              for status updates.
+            </p>
           </div>
         ) : null}
 
@@ -615,6 +688,11 @@ function CompanyJobsPage() {
 
                 {selectedJob ? (
                   <form onSubmit={handleSave} className="mt-6 space-y-4">
+                    <fieldset
+                      disabled={!hiringEnabled}
+                      className="min-w-0 space-y-4 border-0 p-0 disabled:opacity-60 [&:disabled]:pointer-events-none"
+                    >
+                      <legend className="sr-only">Job details (read-only until approved)</legend>
                     <input
                       type="text"
                       value={form.title}
@@ -748,7 +826,7 @@ function CompanyJobsPage() {
                               type="file"
                               accept="application/pdf"
                               className="hidden"
-                              disabled={jdUploading}
+                              disabled={jdUploading || !hiringEnabled}
                               onChange={handleJdFile}
                             />
                           </label>
@@ -757,15 +835,21 @@ function CompanyJobsPage() {
                     </div>
 
                     <div className="flex flex-wrap justify-between gap-3">
-                      <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={handleDelete}
+                        disabled={deleting || !hiringEnabled}
+                      >
                         <Trash2 className="h-4 w-4" />
                         {deleting ? "Deleting..." : "Delete Job"}
                       </Button>
 
-                      <Button type="submit" disabled={saving}>
+                      <Button type="submit" disabled={saving || !hiringEnabled}>
                         {saving ? "Saving..." : "Save Changes"}
                       </Button>
                     </div>
+                    </fieldset>
                   </form>
                 ) : (
                   <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
@@ -899,7 +983,7 @@ function CompanyJobsPage() {
                               onChange={(e) =>
                                 handleApplicationStatus(application._id, e.target.value)
                               }
-                              disabled={updatingApplicationId === application._id}
+                              disabled={!hiringEnabled || updatingApplicationId === application._id}
                               className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                             >
                               <option value="applied">Applied</option>

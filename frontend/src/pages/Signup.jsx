@@ -412,7 +412,7 @@ function Signup() {
           state: {
             notice:
               data.message ||
-              "Your company registration was received. If you chose a partner campus, that college or a Learn2Hire administrator can approve your account; otherwise only an administrator can approve it.",
+              "Your company registration was received. If you selected a partner campus, either that campus or a Learn2Hire administrator can approve you (one approval is enough). If you did not select a campus, only a platform administrator can approve your account.",
           },
         });
         return;

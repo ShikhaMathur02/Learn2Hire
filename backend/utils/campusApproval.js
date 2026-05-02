@@ -16,7 +16,9 @@ function isStudentCampusAccessBlocked(user) {
 /**
  * Company self-registration:
  * - No partner college: only platform (admin) approval applies (legacy: no platform field => ok).
- * - With partner college: either admin OR that college can approve; either action sets both paths approved.
+ * - With partner college: either admin OR that college can approve. The first approval should call
+ *   `syncCompanyFullyApproved` so both `platformApprovalStatus` and `partnerCollegeApprovalStatus` become
+ *   `approved`, keeping every dashboard in sync.
  */
 function isCompanySelfRegistrationBlocked(user) {
   if (!user || String(user.role || '').toLowerCase() !== 'company') return false;

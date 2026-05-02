@@ -193,15 +193,26 @@ const canonicalYearKey = (raw) => {
   return normKey(raw).replace(/\s+/g, '');
 };
 
+/** Compare course+program when degree and branch are split across columns vs merged (e.g. "B.Tech" + "AI & ML" vs Course column "B.Tech AI & ML"). */
+const cohortCombinedNorm = (course, programOrBranch) =>
+  cohortTokenNorm(`${asString(course)} ${asString(programOrBranch)}`.trim());
+
 const cohortRowMatchesTarget = (row, target) => {
   const rowBranch = row.branch || row.program;
   const yRow = canonicalYearKey(row.year);
   const yTarget = canonicalYearKey(target.year);
-  return (
+  const yearOk =
+    yRow && yTarget ? yRow === yTarget : normKey(row.year) === normKey(target.year);
+
+  const splitOk =
     cohortTokenNorm(row.course) === cohortTokenNorm(target.course) &&
-    cohortTokenNorm(rowBranch) === cohortTokenNorm(target.program) &&
-    (yRow && yTarget ? yRow === yTarget : normKey(row.year) === normKey(target.year))
-  );
+    cohortTokenNorm(rowBranch) === cohortTokenNorm(target.program);
+
+  const mergedOk =
+    cohortCombinedNorm(row.course, rowBranch) ===
+    cohortCombinedNorm(target.course, target.program);
+
+  return (splitOk || mergedOk) && yearOk;
 };
 
 /**

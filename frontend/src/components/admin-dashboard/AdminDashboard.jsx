@@ -954,8 +954,9 @@ function AdminDashboard({ user, onLogout }) {
                         Company registrations pending approval
                       </h2>
                       <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-                        Self-service company sign-ups. Approve so they can sign in and post jobs. Use Faculty Pending
-                        or campus profiles for faculty requests.
+                        Self-service company sign-ups. If the employer chose a partner campus, either that campus
+                        or you can approve — the first approval fully activates them across the platform. Companies
+                        without a partner campus appear here for platform administrators only.
                       </p>
                     </div>
                   </div>

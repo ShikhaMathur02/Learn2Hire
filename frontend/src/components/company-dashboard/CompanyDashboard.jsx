@@ -17,6 +17,8 @@ import { DashboardMetricCard } from "../dashboard/DashboardMetricCard";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { readApiResponse } from "../../lib/api";
+import { scrollToElementId } from "../../lib/scrollAnchor";
+import { cn } from "../../lib/utils";
 
 const initialForm = {
   title: "",
@@ -31,6 +33,7 @@ const initialForm = {
 
 function CompanyDashboard({ user, onLogout }) {
   const navigate = useNavigate();
+  const [hiringEnabled, setHiringEnabled] = useState(true);
   const [profileForm, setProfileForm] = useState({
     companyBio: "",
     companyDetails: "",
@@ -43,6 +46,7 @@ function CompanyDashboard({ user, onLogout }) {
       totalJobs: 0,
       openJobs: 0,
       totalApplications: 0,
+      expressInterestCount: 0,
       shortlistedCount: 0,
     },
     recentJobs: [],
@@ -118,6 +122,11 @@ function CompanyDashboard({ user, onLogout }) {
 
       if (meRes.ok && meData.data?.user) {
         const u = meData.data.user;
+        if (typeof u.companyHiringEnabled === "boolean") {
+          setHiringEnabled(u.companyHiringEnabled);
+        } else {
+          setHiringEnabled(true);
+        }
         setProfileForm({
           companyBio: u.companyBio || "",
           companyDetails: u.companyDetails || "",
@@ -131,6 +140,8 @@ function CompanyDashboard({ user, onLogout }) {
             "user",
             JSON.stringify({
               ...prev,
+              companyHiringEnabled:
+                typeof u.companyHiringEnabled === "boolean" ? u.companyHiringEnabled : prev.companyHiringEnabled ?? true,
               companyBio: u.companyBio || "",
               companyDetails: u.companyDetails || "",
               companyGoals: u.companyGoals || "",
@@ -148,6 +159,7 @@ function CompanyDashboard({ user, onLogout }) {
             totalJobs: 0,
             openJobs: 0,
             totalApplications: 0,
+            expressInterestCount: 0,
             shortlistedCount: 0,
           },
           recentJobs: [],
@@ -220,6 +232,13 @@ function CompanyDashboard({ user, onLogout }) {
     setError("");
     setSuccess("");
 
+    if (!hiringEnabled) {
+      setError(
+        "Job posting is available after your company account is approved. Complete your profile below and check Notifications for updates."
+      );
+      return;
+    }
+
     if (!user?.email) {
       navigate("/login");
       return;
@@ -274,6 +293,12 @@ function CompanyDashboard({ user, onLogout }) {
   };
 
   const handleStatusUpdate = async (applicationId, status) => {
+    if (!hiringEnabled) {
+      setError(
+        "Applicant actions are available after your company account is approved. Check Notifications for updates."
+      );
+      return;
+    }
     if (!user?.email) {
       navigate("/login");
       return;
@@ -331,16 +356,26 @@ function CompanyDashboard({ user, onLogout }) {
     >
       <div className="l2h-container-app w-full py-5 sm:py-6">
         <DashboardTopNav
-          className={workspaceDashboardHeaderClassName}
+          className={cn(workspaceDashboardHeaderClassName, "mb-3")}
+          compact
           workspaceLabel="Company Workspace"
           title={`Welcome, ${user.name}`}
-          description="Post roles visible across every partner college, manage applicants, and share your company story with candidates."
           user={{ name: user.name, email: user.email, role: user.role }}
           onLogout={onLogout}
           actionItems={[
+            {
+              key: "dash-create-job",
+              label: "Create job post",
+              onClick: () => scrollToElementId("company-dash-create-job"),
+            },
+            {
+              key: "dash-applications",
+              label: "Recent applicants & interest",
+              onClick: () => scrollToElementId("company-dash-applications"),
+            },
+            { separator: true },
             { label: "Manage jobs", to: "/company/jobs" },
             { label: "Talent pool", to: "/company/talent" },
-            { label: "Go to home", onClick: () => navigate("/") },
           ]}
         />
 
@@ -355,6 +390,23 @@ function CompanyDashboard({ user, onLogout }) {
           {success ? (
             <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
               {success}
+            </div>
+          ) : null}
+
+          {!hiringEnabled ? (
+            <div
+              className="rounded-2xl border border-amber-200 bg-amber-50/95 p-4 text-sm font-medium leading-relaxed text-amber-950 shadow-sm"
+              role="status"
+            >
+              <p className="font-semibold text-amber-950">Account pending approval</p>
+              <p className="mt-2 text-amber-900/95">
+                You can review this dashboard, browse your job list (read-only), edit your company profile, and open{" "}
+                <Link className="font-semibold text-amber-950 underline underline-offset-2" to="/notifications">
+                  Notifications
+                </Link>{" "}
+                for updates. Posting new roles, editing jobs, the talent pool, and applicant actions unlock once a campus
+                or platform administrator approves your company.
+              </p>
             </div>
           ) : null}
 
@@ -376,7 +428,7 @@ function CompanyDashboard({ user, onLogout }) {
             <DashboardMetricCard
               title="Applications"
               value={dashboard.metrics.totalApplications}
-              subtitle="All incoming candidate applications"
+              subtitle="Full applications with résumé (excludes quick interest taps)"
               icon={Users}
               scrollTargetId="company-dash-applications"
             />
@@ -390,7 +442,11 @@ function CompanyDashboard({ user, onLogout }) {
           </div>
 
           <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-            <Card className="border border-slate-200 bg-white shadow-none">
+            <Card
+              id="company-dash-create-job"
+              tabIndex={-1}
+              className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
+            >
               <CardContent className="p-6">
                 <div className="flex items-center gap-3">
                   <PlusCircle className="h-6 w-6 text-[var(--primary)]" />
@@ -404,6 +460,11 @@ function CompanyDashboard({ user, onLogout }) {
                 </div>
 
                 <form onSubmit={handleCreateJob} className="mt-6 space-y-4">
+                  <fieldset
+                    disabled={!hiringEnabled}
+                    className="min-w-0 space-y-4 border-0 p-0 disabled:opacity-60 [&:disabled]:pointer-events-none"
+                  >
+                    <legend className="sr-only">Create job (disabled until account approved)</legend>
                   <input
                     type="text"
                     value={form.title}
@@ -509,14 +570,19 @@ function CompanyDashboard({ user, onLogout }) {
                     rows={5}
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                   />
-                  <Button type="submit" disabled={submitting}>
+                  <Button type="submit" disabled={submitting || !hiringEnabled}>
                     {submitting ? "Creating..." : "Create Job"}
                   </Button>
+                  </fieldset>
                 </form>
               </CardContent>
             </Card>
 
-            <Card className="border border-slate-200 bg-white shadow-none">
+            <Card
+              id="company-dash-company-profile"
+              tabIndex={-1}
+              className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
+            >
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold text-[var(--text)]">Company Profile</h2>
                 <p className="mt-2 text-sm text-slate-400">
@@ -643,7 +709,7 @@ function CompanyDashboard({ user, onLogout }) {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-900/40 p-6 text-sm text-slate-400">
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm font-medium leading-relaxed text-slate-700">
                       No job posts yet. Create your first role from the form above.
                     </div>
                   )}
@@ -657,64 +723,92 @@ function CompanyDashboard({ user, onLogout }) {
               className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
             >
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-[var(--text)]">Recent Applicants</h2>
+                <h2 className="text-2xl font-bold text-[var(--text)]">Recent applicants & interest</h2>
                 <p className="mt-2 text-sm text-[var(--text-muted)]">
-                  Review candidate applications and move them through your hiring pipeline.
+                  Full résumé applications and quick “interested” signals from job listings. Use the
+                  pipeline controls after a student submits a full application.
                 </p>
 
                 <div className="mt-6 space-y-4">
                   {dashboard.recentApplications.length ? (
-                    dashboard.recentApplications.map((application) => (
-                      <div
-                        key={application._id}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                      >
-                        <div className="flex flex-col gap-4">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                              <h3 className="font-semibold text-[var(--text)]">
-                                {application.student?.name || "Applicant"}
-                              </h3>
-                              <p className="mt-1 text-sm text-slate-400">
-                                {application.job?.title || "Job"} · {application.student?.email}
-                              </p>
-                              <p className="mt-2 text-xs text-slate-500">
-                                Score: {application.studentProfile?.overallScore ?? 0}% · Applied{" "}
-                                {new Date(
-                                  application.appliedAt || application.createdAt
-                                ).toLocaleDateString()}
-                              </p>
+                    dashboard.recentApplications.map((application) => {
+                      const kind = application.recordKind === "interest" ? "interest" : "application";
+                      const whenLabel =
+                        kind === "interest"
+                          ? `Interested ${new Date(
+                              application.appliedAt || application.createdAt
+                            ).toLocaleDateString()}`
+                          : `Applied ${new Date(
+                              application.appliedAt || application.createdAt
+                            ).toLocaleDateString()}`;
+                      return (
+                        <div
+                          key={`${kind}-${String(application._id)}`}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                        >
+                          <div className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <h3 className="font-semibold text-[var(--text)]">
+                                  {application.student?.name || "Applicant"}
+                                </h3>
+                                <p className="mt-1 text-sm text-slate-400">
+                                  {application.job?.title || "Job"} · {application.student?.email}
+                                </p>
+                                <p className="mt-2 text-xs text-slate-500">
+                                  Score: {application.studentProfile?.overallScore ?? 0}% · {whenLabel}
+                                </p>
+                                {kind === "interest" && application.message ? (
+                                  <p className="mt-2 text-sm text-slate-600">“{application.message}”</p>
+                                ) : null}
+                              </div>
+                              <span
+                                className={
+                                  kind === "interest"
+                                    ? "rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium capitalize text-sky-950 shadow-sm"
+                                    : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium capitalize text-[var(--text)] shadow-sm"
+                                }
+                              >
+                                {kind === "interest" ? "Interested" : application.status}
+                              </span>
                             </div>
-                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium capitalize text-[var(--text)] shadow-sm">
-                              {application.status}
-                            </span>
-                          </div>
 
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <select
-                              value={application.status}
-                              onChange={(e) =>
-                                handleStatusUpdate(application._id, e.target.value)
-                              }
-                              disabled={updatingApplicationId === application._id}
-                              className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
-                            >
-                              <option value="applied">Applied</option>
-                              <option value="reviewing">Reviewing</option>
-                              <option value="shortlisted">Shortlisted</option>
-                              <option value="rejected">Rejected</option>
-                              <option value="hired">Hired</option>
-                            </select>
-                            <p className="text-xs text-slate-500">
-                              Status updates are saved immediately.
-                            </p>
+                            {kind === "application" ? (
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                <select
+                                  value={application.status}
+                                  onChange={(e) =>
+                                    handleStatusUpdate(application._id, e.target.value)
+                                  }
+                                  disabled={
+                                    !hiringEnabled || updatingApplicationId === application._id
+                                  }
+                                  className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                                >
+                                  <option value="applied">Applied</option>
+                                  <option value="reviewing">Reviewing</option>
+                                  <option value="shortlisted">Shortlisted</option>
+                                  <option value="rejected">Rejected</option>
+                                  <option value="hired">Hired</option>
+                                </select>
+                                <p className="text-xs text-slate-500">
+                                  Status updates are saved immediately.
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-500">
+                                Pipeline status is available after the student submits a full
+                                application with résumé from the job page.
+                              </p>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-900/40 p-6 text-sm text-slate-400">
-                      No applicants yet. Once students apply, they will appear here.
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm font-medium leading-relaxed text-slate-700">
+                      No applications or student interest yet. When students express interest or apply
+                      with a résumé, they will show up here.
                     </div>
                   )}
                 </div>

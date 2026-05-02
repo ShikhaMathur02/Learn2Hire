@@ -5,7 +5,7 @@ import { Button } from "../ui/button";
 import {
   buildCampusStudentTree,
   campusRosterStudentSerial,
-  CAMPUS_ROSTER_UNSET_LABEL,
+  compareRosterPersonByName,
   rosterFaculty,
   rosterRowId,
   rosterStudents,
@@ -129,11 +129,11 @@ export function CollegeRosterGroupedPanel({
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const nSelected = selectedSet.size;
 
-  const facultySorted = useMemo(() => [...faculty].sort((a, b) => sortStrings(String(a.name), String(b.name))), [faculty]);
+  const facultySorted = useMemo(() => [...faculty].sort(compareRosterPersonByName), [faculty]);
 
   /**
-   * One block per program + branch. (Grouping by year as well duplicated headers for the same class when
-   * year text differed or was missing for some rows.) Year stays on each row.
+   * One block per program + branch. Within each block, students are A–Z by name (email tie-break),
+   * so rows and S.no. stay consistent when the roster grows.
    */
   const studentSections = useMemo(() => {
     const out = [];
@@ -142,16 +142,10 @@ export function CollegeRosterGroupedPanel({
       for (const branch of Object.keys(branches).sort(sortStrings)) {
         const years = branches[branch] || {};
         const rows = [];
-        for (const yearKey of Object.keys(years).sort(sortStrings)) {
+        for (const yearKey of Object.keys(years)) {
           rows.push(...(years[yearKey] || []));
         }
-        rows.sort((a, b) => {
-          const ya = String(a.studentClass?.year || "").trim() || CAMPUS_ROSTER_UNSET_LABEL;
-          const yb = String(b.studentClass?.year || "").trim() || CAMPUS_ROSTER_UNSET_LABEL;
-          const yCmp = sortStrings(ya, yb);
-          if (yCmp !== 0) return yCmp;
-          return sortStrings(String(a.name || ""), String(b.name || ""));
-        });
+        rows.sort(compareRosterPersonByName);
         if (rows.length) out.push({ course, branch, rows });
       }
     }
@@ -250,8 +244,17 @@ export function CollegeRosterGroupedPanel({
                           Select all teachers
                         </Button>
                       </GroupHeadingRow>
-                      {facultySorted.map((u) => (
-                        <RosterTableRow key={rosterRowId(u) || u.email} user={u} program="—" branch="—" year="—" selectedSet={selectedSet} onToggle={toggleSelectedId} />
+                      {facultySorted.map((u, facIdx) => (
+                        <RosterTableRow
+                          key={rosterRowId(u) || u.email}
+                          user={u}
+                          program="—"
+                          branch="—"
+                          year="—"
+                          facultyOrdinal={facIdx + 1}
+                          selectedSet={selectedSet}
+                          onToggle={toggleSelectedId}
+                        />
                       ))}
                     </>
                   ) : null}
@@ -263,8 +266,8 @@ export function CollegeRosterGroupedPanel({
                         count={students.length}
                         subtitle={
                           <p className="text-xs font-medium leading-relaxed text-slate-600">
-                            {studentSections.length} program / branch groups · rows are sorted by year, then name. Use the
-                            Year column when a cohort mixes multiple years.
+                            {studentSections.length} program / branch groups · within each group, students are A–Z by name.
+                            Use the Year column when a cohort mixes multiple years.
                           </p>
                         }
                       />
@@ -299,9 +302,10 @@ export function CollegeRosterGroupedPanel({
                             {rows.map((u, idx) => {
                               const yr = String(u.studentClass?.year || "").trim();
                               const yearDisplay = yr || "—";
+                              const sid = rosterRowId(u);
                               return (
                                 <RosterTableRow
-                                  key={rosterRowId(u) || u.email}
+                                  key={sid || u.email}
                                   user={u}
                                   program={course}
                                   branch={branch}
@@ -369,12 +373,16 @@ function GroupHeadingRow({ title, subtitle, count, children }) {
   );
 }
 
-function RosterTableRow({ user, program, branch, year, studentOrdinal, selectedSet, onToggle }) {
+function RosterTableRow({ user, program, branch, year, studentOrdinal, facultyOrdinal, selectedSet, onToggle }) {
   const id = rosterRowId(user);
   const checked = id ? selectedSet.has(id) : false;
   const isStudent = user.role === "student";
   if (!id) return null;
-  const serialLabel = isStudent ? campusRosterStudentSerial(user.studentClass, studentOrdinal) : "—";
+  const serialLabel = isStudent
+    ? campusRosterStudentSerial(user.studentClass, studentOrdinal)
+    : facultyOrdinal != null
+      ? String(facultyOrdinal)
+      : "—";
   const programCell = program === "—" || !program ? "—" : program;
   const branchCell = branch === "—" || !branch ? "—" : branch;
   const yearCell = year === "—" || !year ? "—" : year;

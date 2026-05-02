@@ -16,7 +16,7 @@ function HeroSection() {
         <div className="min-w-0">
           <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-4 py-1.5 text-xs font-semibold text-[var(--primary)] shadow-sm sm:text-sm">
             <Rocket className="h-4 w-4" aria-hidden />
-            Placement &amp; skilling SaaS for India
+            Learn. Build. Get Hired.
           </span>
           <h1 className="mt-5 text-[1.75rem] font-extrabold leading-[1.12] tracking-tight text-[var(--text)] sm:text-4xl lg:text-[2.75rem]">
             Bridging the gap between education &amp; employment

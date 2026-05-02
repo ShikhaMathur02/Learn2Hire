@@ -17,7 +17,8 @@ const {
 const { createNotification, notifyPlatformAdmins } = require('../utils/notificationService');
 const { isCollegeNameTaken } = require('../utils/collegeNameNormalize');
 const { getJwtSecret } = require('../config/secrets');
-const { attachAuthCookie, clearAuthCookie } = require('../config/authCookies');const logger = require('../utils/logger');
+const { attachAuthCookie, clearAuthCookie } = require('../config/authCookies');
+const logger = require('../utils/logger');
 const { isCompanySelfRegistrationBlocked } = require('../utils/campusApproval');
 
 // Generate JWT token (expires in 7 days)
@@ -51,6 +52,8 @@ const serializeAuthUser = (user) => {
       companyDetails: doc.companyDetails || '',
       companyGoals: doc.companyGoals || '',
       companyFocusAreas: doc.companyFocusAreas || '',
+      /** False while platform/partner approval is pending — UI can disable job posting. */
+      companyHiringEnabled: !isCompanySelfRegistrationBlocked(doc),
     };
   }
   return base;
@@ -816,10 +819,12 @@ exports.signup = async (req, res) => {
       await EmailOtp.deleteMany({ email: normEmail, purpose: 'signup' });
       try {
         await notifyPlatformAdmins({
-          title: user.partnerCollege ? 'Company pending approval' : 'Company pending platform approval',
+          title: user.partnerCollege
+            ? 'Company pending approval (partner campus)'
+            : 'Company pending platform approval',
           message: user.partnerCollege
-            ? `${name} (${normEmail}) registered a company and requested partnership with a campus. A platform admin or that campus can approve the account.`
-            : `${name} (${normEmail}) registered a company account. Approve or reject this account in the admin dashboard.`,
+            ? `${name} (${normEmail}) registered a company and selected a partner campus. Either that campus or a platform administrator can approve — one approval fully activates the account everywhere.`
+            : `${name} (${normEmail}) registered a company without a partner campus. Only a platform administrator can approve this account.`,
           category: 'system',
           type: 'company_pending_platform',
           actionUrl: '/dashboard',
@@ -842,7 +847,7 @@ exports.signup = async (req, res) => {
       return res.status(201).json({
         success: true,
         message: user.partnerCollege
-          ? 'Registration received. Your partner campus and/or a Learn2Hire administrator must approve your company before you can sign in.'
+          ? 'Registration received. Either your chosen campus or a Learn2Hire administrator can approve your company — one approval is enough for you to sign in.'
           : 'Registration received. A Learn2Hire administrator must approve your company account before you can sign in.',
         data: {
           user: {
@@ -1010,7 +1015,7 @@ exports.getMe = async (req, res) => {
 // @access  Private (company)
 exports.patchCompanyProfile = async (req, res) => {
   try {
-    if (req.user.role !== 'company') {
+    if (String(req.user.role || '').toLowerCase() !== 'company') {
       return res.status(403).json({
         success: false,
         message: 'Only company accounts can update this profile.',

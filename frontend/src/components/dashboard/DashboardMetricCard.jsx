@@ -1,19 +1,7 @@
 import { Link } from "react-router-dom";
 
+import { scrollToElementId } from "../../lib/scrollAnchor";
 import { cn } from "../../lib/utils";
-
-function scrollToAnchor(id) {
-  if (!id) return;
-  const el = document.getElementById(id);
-  if (el) {
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-    try {
-      el.focus({ preventScroll: true });
-    } catch {
-      /* not focusable */
-    }
-  }
-}
 
 const surfaceClass =
   "rounded-[10px] border border-slate-400/35 bg-[var(--bg-card)] shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.06] backdrop-blur-[2px]";
@@ -46,7 +34,7 @@ export function DashboardMetricCard({
   className,
 }) {
   const handleActivate = () => {
-    scrollToAnchor(scrollTargetId);
+    scrollToElementId(scrollTargetId);
     onActivate?.();
   };
 

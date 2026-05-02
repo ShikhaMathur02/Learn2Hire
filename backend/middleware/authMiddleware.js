@@ -91,8 +91,19 @@ const protect = async (req, res, next) => {
     if (role === 'company') {
       if (isPlatformApprovalBlockingApi(user)) {
         const url = String(req.originalUrl || '');
+        const method = String(req.method || 'GET').toUpperCase();
+        const pathOnly = url.split('?')[0];
+        /**
+         * Pending companies can still sync session, edit company story, read notifications,
+         * and browse their dashboard + job list (read-only). Creating/updating jobs, talent
+         * search, and applications stay blocked until approved.
+         */
         const allowedWhilePending =
-          url.startsWith('/api/auth/me') || url.startsWith('/api/profile/photo');
+          pathOnly.startsWith('/api/auth/me') ||
+          pathOnly.startsWith('/api/profile/photo') ||
+          pathOnly.startsWith('/api/notifications') ||
+          (method === 'GET' &&
+            (pathOnly.startsWith('/api/jobs/company/') || pathOnly === '/api/jobs'));
         if (!allowedWhilePending) {
           const pst = user.platformApprovalStatus;
           const pct = user.partnerCollegeApprovalStatus;

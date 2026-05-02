@@ -936,6 +936,9 @@ exports.setPlatformUserApproval = async (req, res) => {
       syncCompanyFullyApproved(user);
     } else {
       user.platformApprovalStatus = decision;
+      if (user.partnerCollege) {
+        user.partnerCollegeApprovalStatus = 'rejected';
+      }
     }
     await user.save();
 
@@ -956,6 +959,22 @@ exports.setPlatformUserApproval = async (req, res) => {
         });
       } catch (e) {
         console.error('[Learn2Hire] platform approval in-app notify:', e.message || e);
+      }
+
+      if (user.partnerCollege) {
+        try {
+          await createNotification({
+            recipient: user.partnerCollege,
+            title: 'Employer partnership active',
+            message: `${user.name} (${user.email}) is now fully approved on Learn2Hire. A platform administrator confirmed their account — no further campus approval is needed.`,
+            category: 'system',
+            type: 'company_partner_activated_by_platform',
+            actionUrl: '/dashboard',
+            metadata: { companyUserId: user._id },
+          });
+        } catch (e) {
+          console.error('[Learn2Hire] partner college notify on platform approve:', e.message || e);
+        }
       }
 
       const mailResult = await sendApprovalGrantedEmail(user.email, {
