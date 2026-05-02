@@ -14,10 +14,9 @@ import { useNotifications } from "../../context/NotificationContext";
 import { cn } from "../../lib/utils";
 import { NavDropdown } from "../ui/nav-dropdown";
 
-/** Sticky header treatment for full-width role dashboards (matches workspace shell). */
-export const workspaceDashboardHeaderClassName = cn(
-  "shrink-0 mb-4 rounded-2xl border border-white/10 bg-gradient-to-b from-slate-950/90 via-slate-950/80 to-slate-950/65 px-4 py-0 shadow-[0_20px_50px_-24px_rgba(0,0,0,0.55)] ring-1 ring-white/5 backdrop-blur-xl sm:px-6 xl:px-7"
-);
+/** Sticky header for full-width role dashboards — light SaaS chrome. */
+export const workspaceDashboardHeaderClassName =
+  "shrink-0 mb-5 rounded-[10px] border border-[var(--border)] bg-[var(--bg-card)] px-4 py-0 shadow-[var(--surface-elevated)] ring-1 ring-black/[0.03] backdrop-blur sm:px-5 xl:px-6";
 
 function initialsFromName(name) {
   if (!name || typeof name !== "string") return "?";
@@ -27,12 +26,23 @@ function initialsFromName(name) {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+/** Subtle workspace role chip for light headers. */
+function roleAccentClasses(roleRaw) {
+  const role = String(roleRaw || "").toLowerCase();
+  if (role === "student") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (role === "college") return "border-slate-300 bg-slate-100 text-slate-800";
+  if (role === "faculty") return "border-violet-200 bg-violet-50 text-violet-800";
+  if (role === "admin") return "border-[color:var(--admin)]/25 bg-blue-50 text-[color:var(--admin)]";
+  if (role === "company") return "border-teal-200 bg-teal-50 text-teal-800";
+  return "border-blue-200 bg-blue-50 text-blue-800";
+}
+
 /**
  * Production-style dashboard top bar: brand + title, optional description,
  * module actions, notification icon, account menu with logout.
  *
  * @param {Object} props
- * @param {"dark" | "light"} [props.theme="dark"]
+ * @param {"dark" | "light"} [props.theme="light"]
  * @param {string} props.workspaceLabel — small label above title (e.g. "Student Workspace")
  * @param {string} props.title — primary heading
  * @param {string} [props.description] — optional muted line under the title block
@@ -53,7 +63,7 @@ function initialsFromName(name) {
  * @param {() => void} [props.onNavMenuClick]
  */
 function DashboardTopNav({
-  theme = "dark",
+  theme = "light",
   workspaceLabel,
   title,
   description,
@@ -136,7 +146,7 @@ function DashboardTopNav({
           !showNavMenuAtLarge && !navMenuLeading && "lg:hidden",
           isDark
             ? "border-white/15 bg-white/[0.08] text-white hover:border-cyan-400/35 hover:bg-white/15"
-            : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900"
+            : "border-[var(--border)] bg-[var(--bg-card)] text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-slate-900"
         )}
         aria-label={navMenuAriaLabel}
       >
@@ -152,7 +162,7 @@ function DashboardTopNav({
         "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition",
         isDark
           ? "border-white/15 bg-white/[0.08] text-white hover:border-cyan-400/40 hover:bg-white/15"
-          : "border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-300 hover:bg-white hover:text-slate-900"
+          : "border-[var(--border)] bg-[var(--bg-card)] text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-slate-900"
       )}
       aria-label="Go back one page"
       title="Previous page"
@@ -171,7 +181,7 @@ function DashboardTopNav({
             ? "-mx-3 border-white/10 bg-gradient-to-b from-slate-950/90 via-slate-950/75 to-slate-950/60 px-3 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.65)] ring-1 ring-white/5 sm:-mx-4 sm:px-4"
             : "border-white/10 bg-gradient-to-b from-slate-950/90 via-slate-950/80 to-slate-950/65 px-3 shadow-[0_20px_50px_-24px_rgba(0,0,0,0.55)] ring-1 ring-white/5 sm:px-4"),
         !isDark &&
-          "border-slate-200/90 bg-white/95 px-3 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.12)] sm:px-4",
+          "border-[var(--border)] bg-[var(--bg-card)]/95 px-3 shadow-[var(--surface-elevated)] sm:px-4",
         className
       )}
     >
@@ -191,7 +201,7 @@ function DashboardTopNav({
                 compact ? "h-9 w-9 sm:h-10 sm:w-10" : "h-11 w-11 sm:h-12 sm:w-12",
                 isDark
                   ? "bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-indigo-900/40"
-                  : "bg-indigo-600 text-white shadow-indigo-600/20"
+                  : "bg-[var(--primary)] text-white shadow-md shadow-blue-600/25"
               )}
             >
               <Sparkles
@@ -204,7 +214,7 @@ function DashboardTopNav({
                 <p
                   className={cn(
                     "text-[11px] font-semibold uppercase tracking-[0.18em]",
-                    isDark ? "text-cyan-200" : "text-indigo-600"
+                    isDark ? "text-cyan-200" : "text-[var(--primary)]"
                   )}
                 >
                   Learn2Hire
@@ -227,7 +237,7 @@ function DashboardTopNav({
                       "inline-flex max-w-full truncate rounded-full border px-2.5 py-0.5 text-[10px] font-semibold capitalize leading-none tracking-wide",
                       isDark
                         ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-200"
-                        : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : roleAccentClasses(displayRole)
                     )}
                   >
                     {displayRole}
@@ -254,7 +264,7 @@ function DashboardTopNav({
                   "flex max-w-full flex-1 flex-wrap items-center gap-2 sm:flex-none lg:max-w-none",
                   isDark
                     ? "rounded-xl border border-white/10 bg-slate-900/40 p-1.5 sm:rounded-lg sm:p-1"
-                    : "rounded-lg border border-slate-200 bg-slate-50/90 p-1"
+                    : "rounded-[10px] border border-[var(--border)] bg-[#f8faff] p-1"
                 )}
               >
                 {renderedToolbar}
@@ -269,7 +279,7 @@ function DashboardTopNav({
                   "relative inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-visible rounded-lg border shadow-sm transition",
                   isDark
                     ? "border-white/18 bg-white/[0.1] text-white hover:border-cyan-400/40 hover:bg-white/[0.16]"
-                    : "border-slate-200 bg-slate-50 text-slate-800 hover:border-slate-300 hover:bg-white hover:text-slate-900"
+                    : "border-[var(--border)] bg-[var(--bg-card)] text-slate-800 hover:border-blue-200 hover:bg-blue-50/60 hover:text-slate-900"
                 )}
                 aria-label={
                   unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"
@@ -300,7 +310,7 @@ function DashboardTopNav({
                   "flex h-10 max-w-[min(100vw-2rem,280px)] items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition sm:h-10 sm:max-w-[260px] sm:px-2.5",
                   isDark
                     ? "border-white/15 bg-slate-900/70 text-white hover:border-white/25 hover:bg-slate-900/90"
-                    : "border-slate-200 bg-slate-50 text-slate-900 hover:border-slate-300 hover:bg-white"
+                    : "border-[var(--border)] bg-[var(--bg-card)] text-slate-900 hover:border-blue-100 hover:bg-blue-50/50"
                 )}
                 aria-expanded={menuOpen}
                 aria-haspopup="true"
@@ -310,7 +320,7 @@ function DashboardTopNav({
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold",
                     isDark
                       ? "bg-indigo-500/25 text-indigo-100 ring-1 ring-white/10"
-                      : "bg-indigo-100 text-indigo-800"
+                      : "bg-blue-100 text-blue-900 ring-1 ring-blue-900/10"
                   )}
                 >
                   {initialsFromName(displayName)}
@@ -379,7 +389,7 @@ function DashboardTopNav({
                     <LayoutDashboard
                       className={cn(
                         "h-4 w-4 shrink-0",
-                        isDark ? "text-cyan-200" : "text-indigo-600"
+                        isDark ? "text-cyan-200" : "text-[var(--primary)]"
                       )}
                       aria-hidden
                     />
@@ -399,7 +409,7 @@ function DashboardTopNav({
                         <Bell
                           className={cn(
                             "h-4 w-4 shrink-0 stroke-[2.25]",
-                            isDark ? "text-cyan-200" : "text-indigo-600"
+                            isDark ? "text-cyan-200" : "text-[var(--primary)]"
                           )}
                           strokeWidth={2.25}
                           aria-hidden
@@ -459,7 +469,7 @@ function DashboardTopNav({
 }
 
 /** Compact toolbar control; matches parent dashboard theme. */
-function ToolbarLink({ to, children, icon: Icon, onClick, theme: linkTheme = "dark" }) {
+function ToolbarLink({ to, children, icon: Icon, onClick, theme: linkTheme = "light" }) {
   const isLinkDark = linkTheme === "dark";
   const className = cn(
     "inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition",
@@ -475,7 +485,7 @@ function ToolbarLink({ to, children, icon: Icon, onClick, theme: linkTheme = "da
           <Icon
             className={cn(
               "h-4 w-4 shrink-0",
-              isLinkDark ? "text-cyan-200" : "text-indigo-600"
+              isLinkDark ? "text-cyan-200" : "text-[var(--primary)]"
             )}
             aria-hidden
           />
@@ -491,7 +501,7 @@ function ToolbarLink({ to, children, icon: Icon, onClick, theme: linkTheme = "da
         <Icon
           className={cn(
             "h-4 w-4 shrink-0",
-            isLinkDark ? "text-cyan-200" : "text-indigo-600"
+            isLinkDark ? "text-cyan-200" : "text-[var(--primary)]"
           )}
           aria-hidden
         />

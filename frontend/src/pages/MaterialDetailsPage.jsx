@@ -50,7 +50,6 @@ function MaterialDetailsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const sessionStartedAtRef = useRef(Date.now());
-  const token = localStorage.getItem('token');
   const storedUser = localStorage.getItem('user');
 
   let parsedUser = null;
@@ -78,7 +77,7 @@ function MaterialDetailsPage() {
 
   const saveProgress = useCallback(
     async ({ progressPercent, completed = false, silent = false }) => {
-      if (!token || !isLearner) return null;
+      if (!localStorage.getItem("user") || !isLearner) return null;
 
       try {
         if (!silent) {
@@ -96,7 +95,6 @@ function MaterialDetailsPage() {
           cache: 'no-store',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             progressPercent,
@@ -120,7 +118,7 @@ function MaterialDetailsPage() {
         }
       }
     },
-    [isLearner, material?.estimatedReadMinutes, progress?.timeSpentMinutes, sessionMinutes, slug, token]
+    [isLearner, material?.estimatedReadMinutes, progress?.timeSpentMinutes, sessionMinutes, slug]
   );
 
   useEffect(() => {
@@ -131,9 +129,7 @@ function MaterialDetailsPage() {
         setProgressLoaded(false);
         sessionStartedAtRef.current = Date.now();
 
-        const optionalAuthHeaders = token
-          ? { Authorization: `Bearer ${token}` }
-          : {};
+        const optionalAuthHeaders = {};
 
         const response = await fetch(`/api/learning/materials/${slug}`, {
           cache: 'no-store',
@@ -170,12 +166,10 @@ function MaterialDetailsPage() {
           setRelatedMaterials([]);
         }
 
-        if (token && isLearner) {
+        if (isLearner) {
           const progressResponse = await fetch(`/api/learning/progress/material/${slug}`, {
             cache: 'no-store',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            headers: {},
           });
 
           if (progressResponse.status === 401) {
@@ -197,20 +191,20 @@ function MaterialDetailsPage() {
     };
 
     fetchMaterial();
-  }, [isLearner, slug, token]);
+  }, [isLearner, slug]);
 
   useEffect(() => {
-    if (!material || !token || !isLearner || !progressLoaded || progress) return;
+    if (!material || !isLearner || !progressLoaded || progress) return;
 
     saveProgress({
       progressPercent: 10,
       completed: false,
       silent: true,
     });
-  }, [isLearner, material, progress, progressLoaded, saveProgress, token]);
+  }, [isLearner, material, progress, progressLoaded, saveProgress]);
 
   useEffect(() => {
-    if (!material || !token || !isLearner || !progressLoaded) return undefined;
+    if (!material || !isLearner || !progressLoaded) return undefined;
 
     const intervalId = window.setInterval(() => {
       const nextProgress = Math.min(90, Math.max(progress?.progressPercent || 0, 25));
@@ -222,7 +216,7 @@ function MaterialDetailsPage() {
     }, 15000);
 
     return () => window.clearInterval(intervalId);
-  }, [isLearner, material, progress?.progressPercent, progressLoaded, saveProgress, token]);
+  }, [isLearner, material, progress?.progressPercent, progressLoaded, saveProgress]);
 
   const contentParagraphs = useMemo(() => {
     const raw = String(material?.content || '').trim();
@@ -344,8 +338,8 @@ function MaterialDetailsPage() {
   }
 
   const mainClassName = isDashboardTopicRoute
-    ? 'w-full px-2 pb-8 pt-2 sm:px-1 sm:pt-3'
-    : 'w-full px-3 pb-6 pt-24 sm:px-4';
+    ? 'w-full pb-8 pt-2 sm:pt-3'
+    : 'l2h-container w-full pb-6 pt-24';
 
   const pageMain = (
     <main className={mainClassName}>
@@ -808,7 +802,6 @@ function MaterialDetailsPage() {
         onNavSectionSelect={handleNavSection}
         user={shellUser}
         onLogout={handleLogout}
-        headerIcon={Sparkles}
         showHistoryBack={false}
       >
         {pageMain}

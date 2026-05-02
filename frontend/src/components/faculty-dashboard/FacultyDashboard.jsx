@@ -31,15 +31,19 @@ import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { VisibleFileInput } from "../ui/visible-file-input";
 import { StudentRosterSheetFormatHelp } from "../bulk-import/StudentRosterSheetFormatHelp";
-import { STUDENT_ROSTER_IMPORT_SUMMARY } from "../../lib/studentRosterImportFormat";
+import {
+  STUDENT_ROSTER_DEFAULT_PASSWORD,
+  STUDENT_ROSTER_IMPORT_MATCH_RULES,
+  STUDENT_ROSTER_IMPORT_SUMMARY,
+} from "../../lib/studentRosterImportFormat";
 import { BULK_SPREADSHEET_ACCEPT } from "../../lib/bulkSpreadsheetAccept";
 
 function SectionTitle({ title, description, action }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 className="text-2xl font-bold text-white">{title}</h2>
-        <p className="mt-2 text-sm text-slate-300">{description}</p>
+        <h2 className="text-2xl font-bold text-[var(--text)]">{title}</h2>
+        <p className="mt-2 text-sm text-[var(--text-muted)]">{description}</p>
       </div>
       {action}
     </div>
@@ -48,14 +52,14 @@ function SectionTitle({ title, description, action }) {
 
 function EmptyState({ title, description, action }) {
   return (
-    <Card className="border border-white/10 bg-white/5 shadow-none">
+    <Card className="border border-slate-200 bg-white shadow-none">
       <CardContent className="flex flex-col items-start gap-4 p-6">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-cyan-300">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[var(--primary)]">
           <Sparkles className="h-6 w-6" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <p className="mt-2 text-sm text-slate-300">{description}</p>
+          <h3 className="text-lg font-semibold text-[var(--text)]">{title}</h3>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">{description}</p>
         </div>
         {action}
       </CardContent>
@@ -110,16 +114,14 @@ function FacultyDashboard({ user, onLogout }) {
   }, [location.state]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    if (!user?.email) return;
 
     const fetchData = async () => {
       setLoading(true);
       setError("");
 
       try {
-        const headers = {
-          Authorization: `Bearer ${token}`,
-        };
+        const headers = {};
 
         const meRes = await fetch("/api/auth/me", { headers });
         const meData = await meRes.json();
@@ -194,12 +196,11 @@ function FacultyDashboard({ user, onLogout }) {
   }, [user]);
 
   const handleAvatarUpload = async (file) => {
-    const token = localStorage.getItem("token");
-    if (!token || !file) return;
+    if (!user?.email || !file) return;
     setProfilePhotoError("");
     if (file.size > PROFILE_PHOTO_MAX_BYTES) {
       setProfilePhotoError(
-        "Profile photo must be 25 MB or smaller. Choose a smaller image and try again."
+        "Profile photo must be 5 MB or smaller. Choose a smaller image and try again."
       );
       return;
     }
@@ -209,7 +210,7 @@ function FacultyDashboard({ user, onLogout }) {
       fd.append("photo", file);
       const res = await fetch("/api/profile/photo", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
         body: fd,
       });
       const data = await res.json().catch(() => ({}));
@@ -226,14 +227,13 @@ function FacultyDashboard({ user, onLogout }) {
   };
 
   const handleAvatarRemove = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!user?.email) return;
     setProfilePhotoError("");
     setAvatarUploading(true);
     try {
       const res = await fetch("/api/profile/photo", {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || "Could not remove photo.");
@@ -277,8 +277,7 @@ function FacultyDashboard({ user, onLogout }) {
   const recentAssessments = assessments.slice(0, 4);
 
   const handleStudentCampusApproval = async (userId, decision) => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!user?.email) return;
     setBulkImportError("");
     setBulkImportMessage("");
     setStudentCampusBusyId(userId);
@@ -288,7 +287,6 @@ function FacultyDashboard({ user, onLogout }) {
         cache: "no-store",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ decision }),
       });
@@ -301,7 +299,7 @@ function FacultyDashboard({ user, onLogout }) {
       }
       if (!res.ok) throw new Error(data.message || "Update failed.");
       setBulkImportMessage(data.message || "Updated.");
-      const psRes = await fetch("/api/college/students/pending", { headers: { Authorization: `Bearer ${token}` } });
+      const psRes = await fetch("/api/college/students/pending", { headers: {} });
       const psData = await readApiResponse(psRes);
       if (psRes.ok) setPendingStudents(psData.data?.users || []);
     } catch (err) {
@@ -313,8 +311,7 @@ function FacultyDashboard({ user, onLogout }) {
 
   const handleAddOneRosterStudent = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!user?.email) return;
     const branchVal =
       manualBranch === COHORT_OTHER ? manualBranchCustom.trim() : manualBranch.trim();
     if (!manualName.trim() || !manualEmail.trim() || !manualPassword.trim()) {
@@ -336,7 +333,6 @@ function FacultyDashboard({ user, onLogout }) {
         cache: "no-store",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: manualName.trim(),
@@ -376,8 +372,7 @@ function FacultyDashboard({ user, onLogout }) {
   };
 
   const handleFacultyStudentImport = async () => {
-    const token = localStorage.getItem("token");
-    if (!token || !studentSheetFile) return;
+    if (!user?.email || !studentSheetFile) return;
     if (!importCourse.trim() || !importProgram.trim() || !importYear.trim()) {
       setBulkImportError(
         "Select course, program, and year. Each row in the file must match that class."
@@ -398,7 +393,7 @@ function FacultyDashboard({ user, onLogout }) {
       fd.append("targetSemester", importSemester.trim());
       const res = await fetch("/api/college/roster/import/students", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
         body: fd,
       });
       const data = await readApiResponse(res);
@@ -505,21 +500,21 @@ function FacultyDashboard({ user, onLogout }) {
       {pendingStudents.length > 0 ? (
         <Card className="border border-sky-400/25 bg-sky-500/5 shadow-none">
           <CardContent className="p-6">
-            <div className="flex items-center gap-2 text-sky-200">
-              <ShieldCheck className="h-5 w-5 shrink-0" />
-              <h3 className="text-lg font-semibold text-white">Students awaiting campus approval</h3>
+            <div className="flex flex-wrap items-center gap-2 text-sky-900">
+              <ShieldCheck className="h-5 w-5 shrink-0 text-sky-700" aria-hidden />
+              <h3 className="text-lg font-semibold text-[var(--text)]">Students awaiting campus approval</h3>
             </div>
-            <p className="mt-2 text-sm text-slate-300">
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
               Learners who signed up under your college. Approve or reject so they can use Learn2Hire.
             </p>
             <div className="mt-4 space-y-3">
               {pendingStudents.map((u) => (
                 <div
                   key={u._id}
-                  className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="font-medium text-white">{u.name}</p>
+                    <p className="font-medium text-[var(--text)]">{u.name}</p>
                     <p className="text-sm text-slate-400">{u.email}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -549,13 +544,13 @@ function FacultyDashboard({ user, onLogout }) {
         </Card>
       ) : null}
 
-      <Card className="border border-white/10 bg-white/5 shadow-none">
+      <Card className="border border-slate-200 bg-white shadow-none">
         <CardContent className="p-6">
-          <div className="flex items-center gap-2 text-cyan-200">
-            <UserPlus className="h-5 w-5 shrink-0" />
-            <h3 className="text-lg font-semibold text-white">Add one student</h3>
+          <div className="flex flex-wrap items-center gap-2 text-cyan-950">
+            <UserPlus className="h-5 w-5 shrink-0 text-cyan-700" aria-hidden />
+            <h3 className="text-lg font-semibold text-[var(--text)]">Add one student</h3>
           </div>
-          <p className="mt-2 text-sm text-slate-300">
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
             Creates an approved student account under your campus. Set their class (program, branch,
             year) so materials and cohort filters match.
           </p>
@@ -572,12 +567,12 @@ function FacultyDashboard({ user, onLogout }) {
           <form className="mt-4 space-y-4" onSubmit={handleAddOneRosterStudent}>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-course">
+                <label className="text-xs font-semibold text-[var(--text-muted)]" htmlFor="fac-cr-course">
                   Program (course)
                 </label>
                 <select
                   id="fac-cr-course"
-                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                   value={manualCourse}
                   onChange={(e) => setManualCourse(e.target.value)}
                   required
@@ -591,12 +586,12 @@ function FacultyDashboard({ user, onLogout }) {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-branch">
+                <label className="text-xs font-semibold text-[var(--text-muted)]" htmlFor="fac-cr-branch">
                   Branch
                 </label>
                 <select
                   id="fac-cr-branch"
-                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                   value={manualBranch}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -616,7 +611,7 @@ function FacultyDashboard({ user, onLogout }) {
                 {manualBranch === COHORT_OTHER ? (
                   <input
                     id="fac-cr-branch-custom"
-                    className="mt-2 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500"
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 placeholder:text-slate-500"
                     value={manualBranchCustom}
                     onChange={(e) => setManualBranchCustom(e.target.value)}
                     placeholder="Type branch"
@@ -625,12 +620,12 @@ function FacultyDashboard({ user, onLogout }) {
                 ) : null}
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-year">
+                <label className="text-xs font-semibold text-[var(--text-muted)]" htmlFor="fac-cr-year">
                   Year
                 </label>
                 <select
                   id="fac-cr-year"
-                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                   value={manualYear}
                   onChange={(e) => setManualYear(e.target.value)}
                   required
@@ -644,12 +639,12 @@ function FacultyDashboard({ user, onLogout }) {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-sem">
+                <label className="text-xs font-semibold text-[var(--text-muted)]" htmlFor="fac-cr-sem">
                   Semester (optional)
                 </label>
                 <select
                   id="fac-cr-sem"
-                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                   value={manualSemester}
                   onChange={(e) => setManualSemester(e.target.value)}
                 >
@@ -662,12 +657,12 @@ function FacultyDashboard({ user, onLogout }) {
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-dept">
+                <label className="text-xs font-semibold text-[var(--text-muted)]" htmlFor="fac-cr-dept">
                   Department (optional)
                 </label>
                 <input
                   id="fac-cr-dept"
-                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 placeholder:text-slate-500"
                   value={manualDepartment}
                   onChange={(e) => setManualDepartment(e.target.value)}
                   placeholder="e.g. School of Engineering"
@@ -675,12 +670,12 @@ function FacultyDashboard({ user, onLogout }) {
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-name">
+                <label className="text-xs font-semibold text-[var(--text-muted)]" htmlFor="fac-cr-name">
                   Full name
                 </label>
                 <input
                   id="fac-cr-name"
-                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
                   autoComplete="name"
@@ -688,13 +683,13 @@ function FacultyDashboard({ user, onLogout }) {
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-email">
+                <label className="text-xs font-semibold text-[var(--text-muted)]" htmlFor="fac-cr-email">
                   Email
                 </label>
                 <input
                   id="fac-cr-email"
                   type="email"
-                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                   value={manualEmail}
                   onChange={(e) => setManualEmail(e.target.value)}
                   autoComplete="email"
@@ -702,13 +697,13 @@ function FacultyDashboard({ user, onLogout }) {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="text-xs font-medium text-slate-400" htmlFor="fac-cr-pw">
+                <label className="text-xs font-semibold text-[var(--text-muted)]" htmlFor="fac-cr-pw">
                   Initial password
                 </label>
                 <input
                   id="fac-cr-pw"
                   type="password"
-                  className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                   value={manualPassword}
                   onChange={(e) => setManualPassword(e.target.value)}
                   autoComplete="new-password"
@@ -741,14 +736,18 @@ function FacultyDashboard({ user, onLogout }) {
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-cyan-200">
                 <div className="flex items-center gap-2">
                   <UserPlus className="h-5 w-5 shrink-0" />
-                  <h3 className="text-lg font-semibold text-white">Bulk student import</h3>
+                  <h3 className="text-lg font-semibold text-[var(--text)]">Bulk student import</h3>
                 </div>
                 <StudentRosterSheetFormatHelp className="!border-cyan-400/40 !text-cyan-100 hover:!bg-cyan-400/10" />
               </div>
               <p className="mt-2 text-sm text-slate-300">
-                {STUDENT_ROSTER_IMPORT_SUMMARY}{" "}
-                <span className="text-slate-400">
-                  New accounts use <code className="text-cyan-200">Firstname@123</code>.
+                {STUDENT_ROSTER_IMPORT_SUMMARY} {STUDENT_ROSTER_IMPORT_MATCH_RULES}{" "}
+                <span className="text-slate-300">
+                  Default password for new accounts:{" "}
+                  <code className="rounded bg-black/25 px-1.5 py-0.5 font-mono font-semibold text-cyan-200">
+                    {STUDENT_ROSTER_DEFAULT_PASSWORD}
+                  </code>
+                  .
                 </span>
               </p>
             </div>
@@ -767,7 +766,7 @@ function FacultyDashboard({ user, onLogout }) {
             <div>
               <label className="text-xs font-medium text-slate-300">Course</label>
               <select
-                className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                 value={importCourse}
                 onChange={(e) => setImportCourse(e.target.value)}
               >
@@ -782,7 +781,7 @@ function FacultyDashboard({ user, onLogout }) {
             <div>
               <label className="text-xs font-medium text-slate-300">Program</label>
               <select
-                className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                 value={importProgram}
                 onChange={(e) => setImportProgram(e.target.value)}
               >
@@ -797,7 +796,7 @@ function FacultyDashboard({ user, onLogout }) {
             <div>
               <label className="text-xs font-medium text-slate-300">Year</label>
               <select
-                className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                 value={importYear}
                 onChange={(e) => setImportYear(e.target.value)}
               >
@@ -812,7 +811,7 @@ function FacultyDashboard({ user, onLogout }) {
             <div>
               <label className="text-xs font-medium text-slate-300">Semester (optional)</label>
               <select
-                className="mt-1 w-full rounded-xl border border-slate-400/35 bg-slate-800/90 px-3 py-2 text-sm text-slate-50"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                 value={importSemester}
                 onChange={(e) => setImportSemester(e.target.value)}
               >
@@ -854,7 +853,7 @@ function FacultyDashboard({ user, onLogout }) {
         <Card
           id="faculty-dash-recent"
           tabIndex={-1}
-          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+          className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
         >
           <CardContent className="p-6">
             <SectionTitle
@@ -866,16 +865,16 @@ function FacultyDashboard({ user, onLogout }) {
                 recentAssessments.map((assessment) => (
                   <div
                     key={assessment._id}
-                    className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <h3 className="font-semibold text-white">{assessment.title}</h3>
+                        <h3 className="font-semibold text-[var(--text)]">{assessment.title}</h3>
                         <p className="mt-1 text-sm text-slate-400">
                           {assessment.skill || "General"} · {assessment.questions?.length || 0} questions
                         </p>
                       </div>
-                      <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium capitalize text-cyan-300">
+                      <span className="rounded-full border border-slate-200 bg-blue-50 px-3 py-1 text-xs font-medium capitalize text-[var(--primary)]">
                         {assessment.status}
                       </span>
                     </div>
@@ -894,7 +893,7 @@ function FacultyDashboard({ user, onLogout }) {
         <Card
           id="faculty-dash-mix"
           tabIndex={-1}
-          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+          className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
         >
           <CardContent className="p-6">
             <SectionTitle
@@ -902,13 +901,13 @@ function FacultyDashboard({ user, onLogout }) {
               description="See how much of your work is draft versus published."
             />
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-sm text-slate-400">Draft Assessments</p>
-                <p className="mt-3 text-3xl font-bold text-white">{draftAssessments.length}</p>
+                <p className="mt-3 text-3xl font-bold text-[var(--text)]">{draftAssessments.length}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-sm text-slate-400">Published Assessments</p>
-                <p className="mt-3 text-3xl font-bold text-white">{publishedAssessments.length}</p>
+                <p className="mt-3 text-3xl font-bold text-[var(--text)]">{publishedAssessments.length}</p>
               </div>
             </div>
           </CardContent>
@@ -918,7 +917,7 @@ function FacultyDashboard({ user, onLogout }) {
   );
 
   const renderProfile = () => (
-    <Card className="overflow-hidden border border-white/10 bg-white/5 shadow-none">
+    <Card className="overflow-hidden border border-slate-200 bg-white shadow-none">
       <CardContent className="p-0">
         {!profileEditMode ? (
           <>
@@ -942,7 +941,7 @@ function FacultyDashboard({ user, onLogout }) {
                 </div>
                 <Button
                   type="button"
-                  className="h-11 shrink-0 gap-2 self-start border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  className="h-11 shrink-0 gap-2 self-start border border-white/25 bg-white/10 text-white shadow-sm hover:bg-white/20"
                   onClick={() => {
                     setError("");
                     setProfilePhotoError("");
@@ -971,7 +970,7 @@ function FacultyDashboard({ user, onLogout }) {
               <Button
                 type="button"
                 variant="outline"
-                className="shrink-0 border-white/20 text-white hover:bg-white/10"
+                className="shrink-0 border-slate-200 hover:bg-slate-50"
                 onClick={() => {
                   setProfileEditMode(false);
                   setError("");
@@ -989,7 +988,7 @@ function FacultyDashboard({ user, onLogout }) {
                 {profilePhotoError}
               </div>
             ) : null}
-            <div className="mt-8 flex flex-col gap-6 border-t border-white/10 pt-8 sm:flex-row sm:items-start">
+            <div className="mt-8 flex flex-col gap-6 border-t border-slate-200 pt-8 sm:flex-row sm:items-start">
               <ProfileAvatarBlock
                 name={me.name}
                 profilePhoto={me.profilePhoto}
@@ -1000,17 +999,17 @@ function FacultyDashboard({ user, onLogout }) {
                 onRemovePhoto={handleAvatarRemove}
               />
               <div className="grid flex-1 gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-sm text-slate-400">Name</p>
-                  <p className="mt-2 text-base font-semibold text-white">{me.name}</p>
+                  <p className="mt-2 text-base font-semibold text-[var(--text)]">{me.name}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-sm text-slate-400">Email</p>
-                  <p className="mt-2 text-base font-semibold text-white">{me.email}</p>
+                  <p className="mt-2 text-base font-semibold text-[var(--text)]">{me.email}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 md:col-span-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
                   <p className="text-sm text-slate-400">Role</p>
-                  <p className="mt-2 text-base font-semibold capitalize text-white">{me.role}</p>
+                  <p className="mt-2 text-base font-semibold capitalize text-[var(--text)]">{me.role}</p>
                 </div>
               </div>
             </div>
@@ -1021,7 +1020,7 @@ function FacultyDashboard({ user, onLogout }) {
   );
 
   const renderAssessments = () => (
-    <Card className="border border-white/10 bg-white/5 shadow-none">
+    <Card className="border border-slate-200 bg-white shadow-none">
       <CardContent className="p-6">
         <SectionTitle
           title="Assessment Library"
@@ -1037,11 +1036,11 @@ function FacultyDashboard({ user, onLogout }) {
             assessments.map((assessment) => (
               <div
                 key={assessment._id}
-                className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-indigo-400/30"
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-indigo-400/30"
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h3 className="font-semibold text-white">{assessment.title}</h3>
+                    <h3 className="font-semibold text-[var(--text)]">{assessment.title}</h3>
                     <p className="mt-1 text-sm text-slate-400">
                       {assessment.description || "No description provided."}
                     </p>
@@ -1051,10 +1050,10 @@ function FacultyDashboard({ user, onLogout }) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium capitalize text-cyan-300">
+                    <span className="rounded-full border border-slate-200 bg-blue-50 px-3 py-1 text-xs font-medium capitalize text-[var(--primary)]">
                       {assessment.status}
                     </span>
-                    <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-[var(--text-muted)]">
                       {submissionsByAssessment[assessment._id]?.length || 0} submissions
                     </span>
                   </div>
@@ -1076,7 +1075,7 @@ function FacultyDashboard({ user, onLogout }) {
     <Card
       id="faculty-dash-progress"
       tabIndex={-1}
-      className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+      className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
     >
       <CardContent className="p-6">
         <SectionTitle
@@ -1088,11 +1087,11 @@ function FacultyDashboard({ user, onLogout }) {
             assessmentProgress.map((assessment) => (
               <div
                 key={assessment._id}
-                className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h3 className="font-semibold text-white">{assessment.title}</h3>
+                    <h3 className="font-semibold text-[var(--text)]">{assessment.title}</h3>
                     <p className="mt-1 text-sm text-slate-400">
                       {assessment.submissionCount} submissions · Average score {assessment.average}%
                     </p>
@@ -1102,7 +1101,7 @@ function FacultyDashboard({ user, onLogout }) {
                       <span>Average result</span>
                       <span>{assessment.average}%</span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-800">
+                    <div className="h-2 rounded-full bg-slate-200">
                       <div
                         className="h-2 rounded-full bg-[linear-gradient(90deg,#6366f1_0%,#22d3ee_100%)]"
                         style={{ width: `${assessment.average}%` }}
@@ -1133,14 +1132,13 @@ function FacultyDashboard({ user, onLogout }) {
       onNavSectionSelect={setActiveSection}
       user={{ name: me.name, email: me.email, role: me.role }}
       onLogout={onLogout}
-      headerIcon={Sparkles}
       actionItems={[
         { label: "Manage learning", to: "/dashboard/learning/manage", icon: BookOpenCheck },
       ]}
     >
       {loading ? (
-        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
-          <div className="flex items-center gap-3 text-slate-300">
+        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-slate-200 bg-white">
+          <div className="flex items-center gap-3 text-[var(--text-muted)]">
             <LoaderCircle className="h-5 w-5 animate-spin" />
             Loading your faculty dashboard...
           </div>

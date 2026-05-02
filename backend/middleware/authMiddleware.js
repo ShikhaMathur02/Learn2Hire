@@ -1,37 +1,44 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { getJwtSecret } = require('../config/secrets');
 const { isBuiltinAdminEmail } = require('../config/builtinAdmins');
 const { isPlatformApprovalBlockingApi } = require('../utils/platformApproval');
 const { isStudentCampusAccessBlocked } = require('../utils/campusApproval');
 
+const { AUTH_COOKIE_NAME } = require('../config/authCookieOptions');
+
+/**
+ * Read JWT from httpOnly cookie first, then Authorization: Bearer (legacy clients).
+ */
+function getTokenFromRequest(req) {
+  const fromCookie = req.cookies && req.cookies[AUTH_COOKIE_NAME];
+  if (fromCookie && String(fromCookie).trim()) {
+    return String(fromCookie).trim();
+  }
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    return req.headers.authorization.split(' ')[1];
+  }
+  return null;
+}
+
 /**
  * Protects routes by verifying the JWT token.
- * Expects: Authorization: Bearer <token>
+ * Uses httpOnly cookie (preferred) or Authorization: Bearer.
  * On success: sets req.user to the logged-in user and calls next().
  * On failure: sends 401 and does not call next().
  */
 const protect = async (req, res, next) => {
-  let token;
-
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    token = req.headers.authorization.split(' ')[1];
-  }
+  const token = getTokenFromRequest(req);
 
   if (!token) {
     return res.status(401).json({
       success: false,
-      message: 'Not authorized. No token provided.',
+      message: 'Not authorized. Sign in to continue.',
     });
   }
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'learn2hire-secret'
-    );
+    const decoded = jwt.verify(token, getJwtSecret());
 
     const user = await User.findById(decoded.id);
     if (!user) {
@@ -154,24 +161,14 @@ const protect = async (req, res, next) => {
  * Otherwise continues without error (for public routes that filter by role/cohort).
  */
 const optionalProtect = async (req, res, next) => {
-  let token;
-
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    token = req.headers.authorization.split(' ')[1];
-  }
+  const token = getTokenFromRequest(req);
 
   if (!token) {
     return next();
   }
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'learn2hire-secret'
-    );
+    const decoded = jwt.verify(token, getJwtSecret());
 
     const user = await User.findById(decoded.id);
     if (user) {

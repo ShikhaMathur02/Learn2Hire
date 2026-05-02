@@ -18,6 +18,7 @@ import {
 } from "../components/dashboard/DashboardTopNav";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 
 const roleOptions = ["student", "faculty", "company", "admin", "college"];
 
@@ -78,9 +79,9 @@ function formatPlatformStatus(s) {
 
 function InfoRow({ label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/40 px-4 py-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <div className="mt-1 text-sm text-white">{value ?? "—"}</div>
+      <div className="mt-1 text-sm text-slate-900">{value ?? "—"}</div>
     </div>
   );
 }
@@ -99,14 +100,14 @@ export default function AdminUserProfilePage() {
   const [studentProfile, setStudentProfile] = useState(null);
   const [editRole, setEditRole] = useState("");
   const [studentForm, setStudentForm] = useState(emptyStudentForm);
+  const [facultyDesignation, setFacultyDesignation] = useState("");
   const [facultyQualification, setFacultyQualification] = useState("");
   const [facultySubjects, setFacultySubjects] = useState("");
   const [platformApprovalBusy, setPlatformApprovalBusy] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
     const raw = localStorage.getItem("user");
-    if (!token || !raw) {
+    if (!localStorage.getItem("user") || !raw) {
       navigate("/login", { replace: true });
       return;
     }
@@ -123,14 +124,13 @@ export default function AdminUserProfilePage() {
   }, [navigate]);
 
   const load = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token || !userId) return;
+    if (!localStorage.getItem("user") || !userId) return;
     setLoading(true);
     setError("");
     try {
       const res = await fetch(`/api/admin/users/${userId}`, {
         cache: "no-store",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(res);
       if (res.status === 401) {
@@ -146,6 +146,7 @@ export default function AdminUserProfilePage() {
       setStudentProfile(sp || null);
       setEditRole(u?.role || "");
       setStudentForm(studentFormFromProfile(sp));
+      setFacultyDesignation(u?.facultyDesignation || "");
       setFacultyQualification(u?.facultyQualification || "");
       setFacultySubjects(u?.facultySubjects || "");
     } catch (e) {
@@ -172,8 +173,7 @@ export default function AdminUserProfilePage() {
     ["student", "faculty", "company"].includes(user.role);
 
   const handleSave = async () => {
-    const token = localStorage.getItem("token");
-    if (!token || !user) return;
+    if (!localStorage.getItem("user") || !user) return;
     setSaving(true);
     setError("");
     setSuccess("");
@@ -183,7 +183,6 @@ export default function AdminUserProfilePage() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ role: editRole }),
         });
@@ -202,7 +201,6 @@ export default function AdminUserProfilePage() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(studentPayload),
         });
@@ -215,9 +213,8 @@ export default function AdminUserProfilePage() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ facultyQualification, facultySubjects }),
+          body: JSON.stringify({ facultyDesignation, facultyQualification, facultySubjects }),
         });
         const data = await readApiResponse(res);
         if (!res.ok) throw new Error(data.message || "Faculty profile save failed.");
@@ -233,8 +230,7 @@ export default function AdminUserProfilePage() {
   };
 
   const handlePlatformApproval = async (decision) => {
-    const token = localStorage.getItem("token");
-    if (!token || !userId) return;
+    if (!localStorage.getItem("user") || !userId) return;
     setPlatformApprovalBusy(true);
     setError("");
     setSuccess("");
@@ -243,7 +239,6 @@ export default function AdminUserProfilePage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ decision }),
       });
@@ -267,14 +262,13 @@ export default function AdminUserProfilePage() {
           ? "Permanently delete this company account? All jobs they posted and applications for those jobs will be removed."
           : "Permanently delete this user and their learner data?";
     if (!window.confirm(msg)) return;
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!localStorage.getItem("user")) return;
     setDeleting(true);
     setError("");
     try {
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(res);
       if (!res.ok) throw new Error(data.message || "Delete failed.");
@@ -288,7 +282,7 @@ export default function AdminUserProfilePage() {
 
   if (!viewer) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400">
+      <div {...workspaceRootProps("admin", "flex min-h-screen items-center justify-center text-slate-600")}>
         <LoaderCircle className="h-8 w-8 animate-spin" />
       </div>
     );
@@ -306,7 +300,7 @@ export default function AdminUserProfilePage() {
             : UserRound;
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
+    <div {...workspaceRootProps("admin", "min-h-screen")}>
       <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
@@ -332,18 +326,18 @@ export default function AdminUserProfilePage() {
         />
 
         {error ? (
-          <div className="mb-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
             {error}
           </div>
         ) : null}
         {success ? (
-          <div className="mb-4 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+          <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
             {success}
           </div>
         ) : null}
 
         {loading ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-8 text-slate-400">
+          <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-8 text-[var(--text-muted)]">
             <LoaderCircle className="h-6 w-6 animate-spin" />
             Loading profile…
           </div>
@@ -351,18 +345,18 @@ export default function AdminUserProfilePage() {
           <p className="text-slate-400">User not found.</p>
         ) : (
           <div className="space-y-6">
-            <Card className="border border-white/10 bg-slate-950/50 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/25 to-indigo-600/20 text-cyan-100 ring-1 ring-white/10">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)] shadow-sm ring-1 ring-black/5">
                       {(() => {
                         const Icon = roleIcon;
                         return <Icon className="h-7 w-7" aria-hidden />;
                       })()}
                     </div>
                     <div>
-                      <h1 className="text-2xl font-bold">{user.name}</h1>
+                      <h1 className="text-2xl font-bold text-slate-900">{user.name}</h1>
                       <p className="mt-1 text-slate-400">{user.email}</p>
                       <p className="mt-2 text-xs uppercase tracking-wide text-slate-500">
                         Registered{" "}
@@ -388,9 +382,9 @@ export default function AdminUserProfilePage() {
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-slate-950/50 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="space-y-4 p-6">
-                <h2 className="text-lg font-semibold text-white">Account</h2>
+                <h2 className="text-lg font-semibold text-slate-900">Account</h2>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <InfoRow label="Role" value={<span className="capitalize">{user.role}</span>} />
                   <InfoRow
@@ -400,11 +394,11 @@ export default function AdminUserProfilePage() {
                 </div>
 
                 {user.role === "company" ? (
-                  <div className="rounded-xl border border-sky-400/25 bg-sky-500/10 px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-200/90">
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-900">
                       Company registration (admin)
                     </p>
-                    <p className="mt-1 text-sm text-slate-200">{formatPlatformStatus(user.platformApprovalStatus)}</p>
+                    <p className="mt-1 text-sm text-slate-800">{formatPlatformStatus(user.platformApprovalStatus)}</p>
                     {user.platformApprovalStatus === "pending" ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button
@@ -436,7 +430,7 @@ export default function AdminUserProfilePage() {
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value)}
                     disabled={user.role === "admin"}
-                    className="mt-2 h-11 w-full max-w-md rounded-xl border border-white/10 bg-slate-900/80 px-3 text-sm text-white disabled:opacity-50"
+                    className="mt-2 h-11 w-full max-w-md rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:opacity-50"
                   >
                     {roleOptions.map((r) => (
                       <option key={r} value={r}>
@@ -452,9 +446,9 @@ export default function AdminUserProfilePage() {
             </Card>
 
             {user.role === "college" ? (
-              <Card className="border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 to-slate-950/80 shadow-none">
+              <Card className="border border-[var(--border)] bg-[var(--bg-card)] shadow-none">
                 <CardContent className="p-6">
-                  <h2 className="text-lg font-semibold text-white">Campus (college account)</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Campus (college account)</h2>
                   <p className="mt-2 text-sm text-slate-400">
                     Platform status:{" "}
                     <span className="text-amber-200/90">{formatCollegeStatus(user)}</span>
@@ -472,9 +466,9 @@ export default function AdminUserProfilePage() {
             ) : null}
 
             {user.role === "company" ? (
-              <Card className="border border-white/10 bg-slate-950/50 shadow-none">
+              <Card className="border border-slate-200 bg-white shadow-none">
                 <CardContent className="p-6">
-                  <h2 className="text-lg font-semibold text-white">Company</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Company</h2>
                   <p className="mt-2 text-sm text-slate-400">
                     Recruiter account. Deleting removes their user login and all jobs they posted (including
                     applications and saved-job entries for those roles).
@@ -488,9 +482,9 @@ export default function AdminUserProfilePage() {
             ) : null}
 
             {user.role === "faculty" ? (
-              <Card className="border border-white/10 bg-slate-950/50 shadow-none">
+              <Card className="border border-slate-200 bg-white shadow-none">
                 <CardContent className="space-y-4 p-6">
-                  <h2 className="text-lg font-semibold text-white">Faculty</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Faculty</h2>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <InfoRow
                       label="Approval"
@@ -509,16 +503,26 @@ export default function AdminUserProfilePage() {
                     <p className="text-sm">
                       <Link
                         to={`/admin/colleges/${campusLinkId}`}
-                        className="text-cyan-300 underline hover:text-cyan-200"
+                        className="text-[var(--primary)] underline hover:text-[var(--primary-dark)]"
                       >
                         View campus profile
                       </Link>
                     </p>
                   ) : null}
                   <div>
+                    <h3 className="text-sm font-semibold text-slate-200">Designation / title</h3>
+                    <input
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                      value={facultyDesignation}
+                      onChange={(e) => setFacultyDesignation(e.target.value)}
+                      placeholder="e.g. Assistant Professor, HOD CS"
+                      maxLength={200}
+                    />
+                  </div>
+                  <div>
                     <h3 className="text-sm font-semibold text-slate-200">Qualification</h3>
                     <textarea
-                      className="mt-2 min-h-[72px] w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                      className="mt-2 min-h-[72px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                       value={facultyQualification}
                       onChange={(e) => setFacultyQualification(e.target.value)}
                       placeholder="Degrees, certifications…"
@@ -527,7 +531,7 @@ export default function AdminUserProfilePage() {
                   <div>
                     <h3 className="text-sm font-semibold text-slate-200">Subjects / courses taught</h3>
                     <textarea
-                      className="mt-2 min-h-[72px] w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                      className="mt-2 min-h-[72px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                       value={facultySubjects}
                       onChange={(e) => setFacultySubjects(e.target.value)}
                       placeholder="e.g. Data Structures, DBMS…"
@@ -538,9 +542,9 @@ export default function AdminUserProfilePage() {
             ) : null}
 
             {user.role === "student" ? (
-              <Card className="border border-white/10 bg-slate-950/50 shadow-none">
+              <Card className="border border-slate-200 bg-white shadow-none">
                 <CardContent className="space-y-5 p-6">
-                  <h2 className="text-lg font-semibold text-white">Student record</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Student record</h2>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {[
                       ["course", "Program / course"],
@@ -551,7 +555,7 @@ export default function AdminUserProfilePage() {
                       <div key={key}>
                         <label className="text-xs text-slate-400">{label}</label>
                         <input
-                          className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                           value={studentForm[key]}
                           onChange={(e) =>
                             setStudentForm((f) => ({ ...f, [key]: e.target.value }))
@@ -563,7 +567,7 @@ export default function AdminUserProfilePage() {
                   <div>
                     <label className="text-xs text-slate-400">Bio</label>
                     <textarea
-                      className="mt-2 min-h-[80px] w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                      className="mt-2 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                       value={studentForm.bio}
                       onChange={(e) => setStudentForm((f) => ({ ...f, bio: e.target.value }))}
                     />
@@ -581,7 +585,7 @@ export default function AdminUserProfilePage() {
                         <div key={key} className={key === "studentPhone" ? "sm:col-span-2" : ""}>
                           <label className="text-xs text-slate-400">{label}</label>
                           <input
-                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                             inputMode={key.endsWith("Phone") ? "numeric" : undefined}
                             placeholder={key.endsWith("Phone") ? "10–15 digits" : undefined}
                             value={studentForm[key]}
@@ -601,7 +605,7 @@ export default function AdminUserProfilePage() {
                       <div className="sm:col-span-2">
                         <label className="text-xs text-slate-400">Street / address</label>
                         <input
-                          className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                          className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                           value={studentForm.address}
                           onChange={(e) =>
                             setStudentForm((f) => ({ ...f, address: e.target.value }))
@@ -616,7 +620,7 @@ export default function AdminUserProfilePage() {
                         <div key={key}>
                           <label className="text-xs text-slate-400">{label}</label>
                           <input
-                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                             inputMode={key === "pincode" ? "numeric" : undefined}
                             maxLength={key === "pincode" ? 6 : undefined}
                             placeholder={key === "pincode" ? "6 digits" : undefined}
@@ -641,7 +645,7 @@ export default function AdminUserProfilePage() {
                         <div key={key}>
                           <label className="text-xs text-slate-400">{label}</label>
                           <input
-                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white"
+                            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
                             type={key === "dateOfBirth" ? "date" : "text"}
                             value={studentForm[key]}
                             onChange={(e) =>
@@ -653,7 +657,7 @@ export default function AdminUserProfilePage() {
                     </div>
                   </div>
                   {(user.managedByCollege?.name || user.affiliatedCollege?.name) && (
-                    <div className="rounded-xl border border-white/10 bg-slate-900/30">
+                    <div className="rounded-xl border border-slate-200 bg-slate-900/30">
                       <p className="px-4 py-3 text-sm text-slate-400">
                         Campus:{" "}
                         <span className="text-slate-200">

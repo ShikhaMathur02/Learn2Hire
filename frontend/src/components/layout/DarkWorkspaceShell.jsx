@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { LogOut, Menu, Sparkles } from "lucide-react";
 
 import { DashboardTopNav } from "../dashboard/DashboardTopNav";
@@ -8,10 +8,8 @@ import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
 
 /**
- * Workspace layout: left sidebar visible by default on large screens; the fold control
- * (three lines) sits on the sidebar — header when expanded, slim left rail when collapsed.
- * Below `lg`, the same control lives in the main top bar and opens the drawer.
- * `showHistoryBack` adds a themed browser-back control (disable when the page already exposes a dedicated back action).
+ * Workspace layout: responsive sidebar rail + branded top navigation.
+ * `showHistoryBack` adds a themed browser-back control when the route needs it.
  */
 function DarkWorkspaceShell({
   children,
@@ -30,6 +28,13 @@ function DarkWorkspaceShell({
   topNavClassName,
   showHistoryBack = true,
 }) {
+  const accentRole = user?.role ? String(user.role) : null;
+  const workspaceScope =
+    accentRole &&
+    ["student", "faculty", "company", "college", "admin"].includes(accentRole)
+      ? accentRole
+      : null;
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isLg, setIsLg] = useState(
@@ -56,14 +61,20 @@ function DarkWorkspaceShell({
   };
 
   const sidebarMenuButtonClass =
-    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.08] text-white transition hover:border-cyan-400/35 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[var(--border)] bg-[var(--bg-card)] text-slate-700 shadow-sm transition hover:border-[var(--primary)] hover:bg-blue-50/80 hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]";
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-50">
+    <div
+      className={cn(
+        "min-h-screen text-[var(--text)]",
+        workspaceScope ? "l2h-workspace-canvas" : "bg-[var(--bg-app)]"
+      )}
+      {...(workspaceScope ? { "data-l2h-workspace": workspaceScope } : {})}
+    >
       <div className="flex min-h-screen flex-col lg:flex-row">
         <aside
           className={cn(
-            "hidden w-64 shrink-0 flex-col border-slate-400/25 bg-slate-800/55 backdrop-blur",
+            "hidden w-60 shrink-0 flex-col border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--surface-elevated)]",
             "lg:sticky lg:top-0 lg:h-screen lg:max-h-screen lg:border-b-0 lg:border-r",
             sidebarCollapsed ? "lg:hidden" : "lg:flex"
           )}
@@ -79,29 +90,33 @@ function DarkWorkspaceShell({
                 <Menu className="h-5 w-5" aria-hidden />
               </button>
               <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-white shadow-md shadow-blue-600/25">
                   <HeaderIcon className="h-5 w-5" aria-hidden />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-lg font-semibold text-white">Learn2Hire</p>
-                  <p className="truncate text-sm font-semibold text-slate-200">{brandSubtitle}</p>
+                  <p className="truncate text-[15px] font-semibold text-slate-900">Learn2Hire</p>
+                  <p className="truncate text-xs font-semibold capitalize text-[var(--text-muted)]">
+                    {brandSubtitle}
+                  </p>
                 </div>
               </div>
             </div>
 
             <WorkspaceNavPanel
+              accentRole={accentRole}
               items={navItems}
               collapsed={false}
               activeSection={activeSection}
               onSelectSection={onNavSectionSelect}
+              variant="light"
             />
 
-            <div className="mt-auto shrink-0 border-t border-white/10 pt-4">
+            <div className="mt-auto shrink-0 border-t border-[var(--border)] pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={onLogout}
-                className="w-full justify-center border-white/25 bg-white/[0.1] !text-white shadow-none hover:bg-white/15 hover:!text-white"
+                className="w-full justify-center"
               >
                 <LogOut className="h-4 w-4" aria-hidden />
                 <span className="ml-2">Logout</span>
@@ -112,10 +127,10 @@ function DarkWorkspaceShell({
 
         <div
           className={cn(
-            "hidden min-h-0 shrink-0 flex-col border-slate-400/25 bg-slate-800/55 backdrop-blur",
+            "hidden min-h-0 shrink-0 flex-col border-[var(--border)] bg-[var(--bg-card)] shadow-sm",
             "lg:sticky lg:top-0 lg:h-screen lg:max-h-screen lg:border-b-0 lg:border-r",
             sidebarCollapsed
-              ? "lg:flex lg:w-16 lg:min-h-0 lg:gap-2 lg:px-2 lg:py-3"
+              ? "lg:flex lg:w-[4.25rem] lg:min-h-0 lg:gap-2 lg:px-2 lg:py-3"
               : "lg:hidden"
           )}
         >
@@ -129,15 +144,17 @@ function DarkWorkspaceShell({
               <Menu className="h-5 w-5" aria-hidden />
             </button>
           </div>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-1">
             <WorkspaceNavPanel
+              accentRole={accentRole}
               items={navItems}
               collapsed
               activeSection={activeSection}
               onSelectSection={onNavSectionSelect}
+              variant="light"
             />
           </div>
-          <div className="mt-auto flex shrink-0 justify-center border-t border-white/10 pt-3">
+          <div className="mt-auto flex shrink-0 justify-center border-t border-[var(--border)] pb-3 pt-3">
             <Button
               type="button"
               variant="outline"
@@ -145,36 +162,39 @@ function DarkWorkspaceShell({
               onClick={onLogout}
               title="Logout"
               aria-label="Logout"
-              className="border-white/25 bg-white/[0.1] !text-white shadow-none hover:bg-white/15 hover:!text-white focus-visible:ring-cyan-400/40 focus-visible:ring-offset-0"
             >
               <LogOut className="h-4 w-4" aria-hidden />
             </Button>
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
-          <DashboardTopNav
-            bleed
-            workspaceLabel={workspaceLabel}
-            title={title}
-            description={description}
-            user={user}
-            onLogout={onLogout}
-            showNavMenuButton={!isLg}
-            showNavMenuAtLarge={false}
-            navMenuLeading={!isLg}
-            navMenuAriaLabel={navMenuAriaLabel}
-            onNavMenuClick={onNavMenuClick}
-            showHistoryBack={showHistoryBack}
-            actionItems={actionItems}
-            actions={actions}
-            className={cn("shrink-0", topNavClassName)}
-          />
-          <div className="min-w-0 flex-1">{children}</div>
+        <div className="flex min-w-0 flex-1 flex-col py-3 sm:py-5">
+          <div className="l2h-container-app flex min-w-0 flex-1 flex-col">
+            <DashboardTopNav
+              bleed
+              theme="light"
+              workspaceLabel={workspaceLabel}
+              title={title}
+              description={description}
+              user={user}
+              onLogout={onLogout}
+              showNavMenuButton={!isLg}
+              showNavMenuAtLarge={false}
+              navMenuLeading={!isLg}
+              navMenuAriaLabel={navMenuAriaLabel}
+              onNavMenuClick={onNavMenuClick}
+              showHistoryBack={showHistoryBack}
+              actionItems={actionItems}
+              actions={actions}
+              className={cn("shrink-0", topNavClassName)}
+            />
+            <div className="min-w-0 flex-1 pt-1">{children}</div>
+          </div>
         </div>
       </div>
 
       <MobileNavDrawer
+        accentRole={accentRole}
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
         items={navItems}

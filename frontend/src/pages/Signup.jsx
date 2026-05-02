@@ -7,7 +7,6 @@ import PasswordInput from "../components/auth/PasswordInput";
 import AuthLayout from "../components/auth/AuthLayout";
 import { Button } from "../components/ui/button";
 import signupSideImage from "../assets/illustrations/hero-landing.png";
-import { notifyAuthChange } from "../lib/authSession";
 import { COHORT_OTHER } from "../lib/cohortPresets";
 import {
   STUDENT_COHORT_BRANCH_OPTIONS,
@@ -431,15 +430,14 @@ function Signup() {
         return;
       }
 
-      if (!data.data?.token) {
-        setAlertLines(["Signup did not return a session. Please try again or sign in."]);
-        return;
-      }
-
-      localStorage.setItem("token", data.data.token);
-      localStorage.setItem("user", JSON.stringify(data.data.user));
-      notifyAuthChange();
-      navigate("/dashboard");
+      setAlertLines([]);
+      navigate("/login", {
+        state: {
+          notice:
+            data.message ||
+            "Registration complete. Sign in once your account is approved, or use your credentials if sign-in is already enabled.",
+        },
+      });
     } catch (err) {
       setAlertLines(["Something went wrong. Please try again."]);
     } finally {

@@ -7,11 +7,11 @@ import {
   ClipboardCheck,
   Factory,
   GraduationCap,
-  ChevronDown,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  MessageSquareQuote,
   Trash2,
   UserCheck,
   UserPlus,
@@ -29,7 +29,11 @@ import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { VisibleFileInput } from "../ui/visible-file-input";
 import { StudentRosterSheetFormatHelp } from "../bulk-import/StudentRosterSheetFormatHelp";
-import { STUDENT_ROSTER_IMPORT_SUMMARY } from "../../lib/studentRosterImportFormat";
+import {
+  STUDENT_ROSTER_DEFAULT_PASSWORD,
+  STUDENT_ROSTER_IMPORT_MATCH_RULES,
+  STUDENT_ROSTER_IMPORT_SUMMARY,
+} from "../../lib/studentRosterImportFormat";
 import { BULK_SPREADSHEET_ACCEPT } from "../../lib/bulkSpreadsheetAccept";
 import {
   STUDENT_COHORT_BRANCH_OPTIONS,
@@ -37,211 +41,18 @@ import {
   STUDENT_COHORT_SEMESTER_OPTIONS,
   STUDENT_COHORT_YEAR_OPTIONS,
 } from "../../lib/studentCohortFieldOptions";
-import { cn } from "../../lib/utils";
-
-/** Persist scroll when opening admin profile/campus routes so browser "back" returns to the same place. */
-const ADMIN_DASHBOARD_SCROLL_KEY = "learn2hire_admin_dashboard_scroll";
-const ADMIN_DASHBOARD_SCROLL_MAX_AGE_MS = 5 * 60 * 1000;
-
-function saveAdminDashboardScrollBeforeNavigate() {
-  try {
-    sessionStorage.setItem(
-      ADMIN_DASHBOARD_SCROLL_KEY,
-      JSON.stringify({ y: window.scrollY, t: Date.now() })
-    );
-  } catch {
-    /* ignore quota / private mode */
-  }
-}
-
-function readAndClearAdminDashboardScroll() {
-  try {
-    const raw = sessionStorage.getItem(ADMIN_DASHBOARD_SCROLL_KEY);
-    sessionStorage.removeItem(ADMIN_DASHBOARD_SCROLL_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw);
-    if (typeof p?.y !== "number" || typeof p?.t !== "number") return null;
-    if (Date.now() - p.t > ADMIN_DASHBOARD_SCROLL_MAX_AGE_MS) return null;
-    return Math.max(0, p.y);
-  } catch {
-    return null;
-  }
-}
-
-function MetricCard({ title, value, subtitle, icon: Icon, className, onClick }) {
-  const interactive = typeof onClick === "function";
-  return (
-    <Card
-      className={cn(
-        "group relative overflow-hidden border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] shadow-[0_20px_50px_-18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition duration-300 hover:border-cyan-400/20 hover:shadow-[0_28px_60px_-20px_rgba(34,211,238,0.12)]",
-        interactive &&
-          "cursor-pointer hover:border-cyan-400/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
-        className
-      )}
-      role={interactive ? "button" : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      onClick={interactive ? onClick : undefined}
-      onKeyDown={
-        interactive
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onClick();
-              }
-            }
-          : undefined
-      }
-      aria-label={interactive ? `View ${title}: ${subtitle}` : undefined}
-    >
-      <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-cyan-400/10 blur-2xl transition duration-500 group-hover:bg-cyan-400/[0.18]" />
-      <CardContent className="relative p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-            <h3 className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">{value}</h3>
-            <p className="mt-2 text-sm leading-snug text-slate-400">{subtitle}</p>
-          </div>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 text-cyan-200 ring-1 ring-white/10">
-            <Icon className="h-6 w-6" aria-hidden />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** Consistent shell for directory tables (colleges, companies, faculty). */
-function DirectorySection({ icon: Icon, eyebrow, title, description, children }) {
-  return (
-    <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/55 p-5 shadow-[0_24px_64px_-16px_rgba(15,23,42,0.7)] backdrop-blur-md sm:p-6">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/35 to-transparent" />
-      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex gap-3.5">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/25 to-indigo-600/20 text-cyan-100 ring-1 ring-white/10">
-            <Icon className="h-6 w-6" aria-hidden />
-          </div>
-          <div>
-            {eyebrow ? (
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">{eyebrow}</p>
-            ) : null}
-            <h2 className="mt-0.5 text-xl font-bold tracking-tight text-white sm:text-2xl">{title}</h2>
-            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-400">{description}</p>
-          </div>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-/** Large sections (people, jobs, imports) — disclosure to reduce scroll clutter. */
-function CollapsibleSection({ title, subtitle, badge, defaultOpen = false, sectionId, children }) {
-  const location = useLocation();
-  const hash = (location.hash || "").replace(/^#/, "");
-  const matchHash = Boolean(sectionId && hash === sectionId);
-  const [open, setOpen] = useState(defaultOpen);
-
-  useEffect(() => {
-    if (matchHash) setOpen(true);
-  }, [matchHash]);
-
-  useEffect(() => {
-    if (!matchHash || !sectionId) return undefined;
-    const t = window.setTimeout(() => {
-      const el = document.getElementById(sectionId);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 320);
-    return () => window.clearTimeout(t);
-  }, [matchHash, sectionId]);
-
-  return (
-    <div
-      id={sectionId}
-      className="scroll-mt-28 rounded-3xl border border-white/10 bg-slate-950/50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] backdrop-blur-sm"
-    >
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left sm:px-6 sm:py-5"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <div className="min-w-0 pr-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-bold tracking-tight text-white sm:text-xl">{title}</h2>
-            {badge != null && badge !== "" ? (
-              <span className="rounded-full bg-cyan-500/15 px-2.5 py-0.5 text-xs font-medium text-cyan-100 ring-1 ring-cyan-400/25">
-                {badge}
-              </span>
-            ) : null}
-          </div>
-          {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
-        </div>
-        <ChevronDown
-          className={`h-5 w-5 shrink-0 text-slate-400 transition duration-300 ${open ? "rotate-180" : ""}`}
-          aria-hidden
-        />
-      </button>
-      {open ? (
-        <div className="border-t border-white/10 px-5 pb-5 pt-1 sm:px-6">{children}</div>
-      ) : null}
-    </div>
-  );
-}
-
-/** Roles shown in admin charts and filters. */
-const ADMIN_DASHBOARD_ROLES = ["student", "faculty", "company", "admin", "college"];
-
-const DIRECTORY_PREVIEW_ROWS = 5;
-
-const emptyAnalytics = {
-  totals: {
-    totalUsers: 0,
-    totalProfiles: 0,
-    totalAssessments: 0,
-    totalSubmissions: 0,
-    totalJobs: 0,
-    totalApplications: 0,
-  },
-  roles: {
-    student: 0,
-    faculty: 0,
-    company: 0,
-    admin: 0,
-    college: 0,
-  },
-  recentUsers: [],
-};
-
-const emptyInsights = {
-  totals: {
-    totalUsers: 0,
-    totalJobs: 0,
-    totalApplications: 0,
-    pendingFacultyCount: 0,
-    pendingStudentCampusCount: 0,
-    pendingCollegesCount: 0,
-    pendingPlatformCount: 0,
-    managedStudentsCount: 0,
-    collegeAccountsTotal: 0,
-  },
-  roleCounts: {
-    student: 0,
-    faculty: 0,
-    company: 0,
-    admin: 0,
-    college: 0,
-  },
-  jobStatusCounts: { draft: 0, open: 0, closed: 0 },
-  appStatusCounts: { applied: 0, reviewing: 0, shortlisted: 0, rejected: 0, hired: 0 },
-  people: [],
-  jobs: [],
-  applications: [],
-  pendingColleges: [],
-  pendingPlatformUsers: [],
-  registeredColleges: [],
-  registeredCompanies: [],
-  facultyDirectory: [],
-};
+import { clearAuthSession } from "../../lib/authSession";
+import {
+  saveAdminDashboardScrollBeforeNavigate,
+  readAndClearAdminDashboardScroll,
+} from "./adminDashboardScroll";
+import {
+  ADMIN_DASHBOARD_ROLES,
+  DIRECTORY_PREVIEW_ROWS,
+  emptyAnalytics,
+  emptyInsights,
+} from "./adminDashboardConstants";
+import { MetricCard, DirectorySection, CollapsibleSection } from "./adminDashboardPieces";
 
 function AdminDashboard({ user, onLogout }) {
   const navigate = useNavigate();
@@ -322,8 +133,7 @@ function AdminDashboard({ user, onLogout }) {
 
   const fetchDashboard = useCallback(
     async ({ silent } = {}) => {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!user?.email) {
         navigate("/login");
         return;
       }
@@ -332,7 +142,7 @@ function AdminDashboard({ user, onLogout }) {
 
       try {
         setError("");
-        const headers = { Authorization: `Bearer ${token}` };
+        const headers = {};
 
         const [analyticsRes, insightsRes, pendingStudentsRes] = await Promise.all([
           fetch("/api/admin/analytics", { cache: "no-store", headers }),
@@ -351,8 +161,7 @@ function AdminDashboard({ user, onLogout }) {
           insightsRes.status === 401 ||
           pendingStudentsRes.status === 401
         ) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
+          clearAuthSession();
           navigate("/login");
           return;
         }
@@ -377,7 +186,7 @@ function AdminDashboard({ user, onLogout }) {
         if (!silent) setRefreshing(false);
       }
     },
-    [navigate]
+    [navigate, user?.email]
   );
 
   useEffect(() => {
@@ -483,8 +292,7 @@ function AdminDashboard({ user, onLogout }) {
   );
 
   const handleCollegeApproval = async (collegeUserId, decision) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -496,7 +304,6 @@ function AdminDashboard({ user, onLogout }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ decision }),
       });
@@ -514,8 +321,7 @@ function AdminDashboard({ user, onLogout }) {
   };
 
   const handlePlatformUserApproval = async (targetUserId, decision) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -527,7 +333,6 @@ function AdminDashboard({ user, onLogout }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ decision }),
       });
@@ -545,8 +350,7 @@ function AdminDashboard({ user, onLogout }) {
   };
 
   const handleAdminStudentCampusApproval = async (studentUserId, decision) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -558,7 +362,6 @@ function AdminDashboard({ user, onLogout }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ decision }),
       });
@@ -594,8 +397,7 @@ function AdminDashboard({ user, onLogout }) {
     ) {
       return;
     }
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -605,7 +407,7 @@ function AdminDashboard({ user, onLogout }) {
     try {
       const response = await fetch(`/api/admin/colleges/${collegeUserId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(response);
       if (!response.ok) {
@@ -630,8 +432,7 @@ function AdminDashboard({ user, onLogout }) {
     if (!window.confirm(msg)) {
       return;
     }
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -641,7 +442,7 @@ function AdminDashboard({ user, onLogout }) {
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(response);
       if (!response.ok) {
@@ -658,8 +459,7 @@ function AdminDashboard({ user, onLogout }) {
 
   const handleDeleteJob = async (jobId) => {
     if (!window.confirm("Delete this job and its applications/saves?")) return;
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -669,7 +469,7 @@ function AdminDashboard({ user, onLogout }) {
     try {
       const response = await fetch(`/api/jobs/${jobId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(response);
       if (!response.ok) {
@@ -685,8 +485,7 @@ function AdminDashboard({ user, onLogout }) {
   };
 
   const handleAdminStudentImport = async () => {
-    const token = localStorage.getItem("token");
-    if (!token || !studentSheetFile) return;
+    if (!user?.email || !studentSheetFile) return;
     setError("");
     setSuccess("");
     setImportBusy(true);
@@ -695,7 +494,7 @@ function AdminDashboard({ user, onLogout }) {
       fd.append("file", studentSheetFile);
       const response = await fetch("/api/admin/students/import", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
         body: fd,
       });
       const data = await readApiResponse(response);
@@ -711,8 +510,7 @@ function AdminDashboard({ user, onLogout }) {
   };
 
   const handleAdminCampusStudentImport = async () => {
-    const token = localStorage.getItem("token");
-    if (!token || !campusStudentSheetFile) return;
+    if (!user?.email || !campusStudentSheetFile) return;
     if (
       !campusImportCollegeId.trim() ||
       !campusImportCourse.trim() ||
@@ -736,7 +534,7 @@ function AdminDashboard({ user, onLogout }) {
       fd.append("targetSemester", campusImportSemester.trim());
       const response = await fetch("/api/college/roster/import/students", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
         body: fd,
       });
       const data = await readApiResponse(response);
@@ -752,8 +550,7 @@ function AdminDashboard({ user, onLogout }) {
   };
 
   const handleMaterialSheetImport = async () => {
-    const token = localStorage.getItem("token");
-    if (!token || !materialSheetFile) return;
+    if (!user?.email || !materialSheetFile) return;
     setError("");
     setSuccess("");
     setImportBusy(true);
@@ -762,7 +559,7 @@ function AdminDashboard({ user, onLogout }) {
       fd.append("file", materialSheetFile);
       const response = await fetch("/api/learning/manage/materials/import", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
         body: fd,
       });
       const data = await readApiResponse(response);
@@ -777,8 +574,7 @@ function AdminDashboard({ user, onLogout }) {
   };
 
   const handleMaterialImageCreate = async () => {
-    const token = localStorage.getItem("token");
-    if (!token || !materialImageFile || !materialTitle.trim() || !materialCategoryId.trim()) return;
+    if (!user?.email || !materialImageFile || !materialTitle.trim() || !materialCategoryId.trim()) return;
     setError("");
     setSuccess("");
     setImportBusy(true);
@@ -789,7 +585,7 @@ function AdminDashboard({ user, onLogout }) {
       fd.append("categoryId", materialCategoryId.trim());
       const response = await fetch("/api/learning/manage/materials/from-image", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
         body: fd,
       });
       const data = await readApiResponse(response);
@@ -806,7 +602,7 @@ function AdminDashboard({ user, onLogout }) {
 
   if (loading) {
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-app)] text-slate-600">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading admin dashboard...
@@ -816,16 +612,11 @@ function AdminDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="l2h-dark-ui relative min-h-screen text-white">
-      <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_100%_70%_at_50%_-15%,rgba(56,189,248,0.14),transparent_55%)]"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_100%_40%,rgba(129,140,248,0.12),transparent_45%)]"
-        aria-hidden
-      />
-      <div className="relative w-full px-3 py-5 sm:px-4 sm:py-7">
+    <div
+      className="l2h-workspace-canvas relative min-h-screen text-[var(--text)]"
+      data-l2h-workspace="admin"
+    >
+      <div className="l2h-container-app relative w-full py-5 sm:py-7">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
           workspaceLabel="Admin Workspace"
@@ -836,42 +627,45 @@ function AdminDashboard({ user, onLogout }) {
           actionItems={[
             { label: "Manage learning", to: "/dashboard/learning/manage", icon: ClipboardCheck },
             { label: "Create assessment", to: "/assessments/create", icon: BarChart3 },
+            { label: "Landing stories", to: "/admin/testimonials", icon: MessageSquareQuote },
             { label: "Manage jobs", to: "/admin/jobs", icon: BriefcaseBusiness },
             { label: "Go to home", onClick: () => navigate("/") },
           ]}
         />
 
-        <div className="mt-4 rounded-[28px] border border-white/10 bg-slate-950/45 shadow-[0_40px_100px_-24px_rgba(0,0,0,0.65)] ring-1 ring-white/5 backdrop-blur-xl">
+        <div className="mt-4 rounded-[28px] border border-[var(--border)] bg-[var(--bg-card)]/92 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04] backdrop-blur-md">
           <div className="space-y-6 p-5 sm:p-6 xl:p-7">
           {error ? (
-            <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
               {error}
             </div>
           ) : null}
           {success ? (
-            <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+            <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
               {success}
             </div>
           ) : null}
 
-          <div className="relative mt-2 overflow-hidden rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-slate-950/80 via-slate-950/50 to-indigo-950/30 p-5 shadow-[0_20px_60px_-24px_rgba(34,211,238,0.15)] sm:p-6">
-            <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" aria-hidden />
+          <div className="relative mt-2 overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--bg-card)]/95 p-5 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04] sm:p-6">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[var(--primary)]/15 blur-3xl" aria-hidden />
             <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-200 ring-1 ring-cyan-400/20">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-[var(--primary)] ring-1 ring-slate-950/[0.04]">
                   <Sparkles className="h-5 w-5" aria-hidden />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-cyan-200/90">Live overview</p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-                    <Activity className="h-3.5 w-3.5 text-cyan-400" aria-hidden />
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--primary)]">
+                    Live overview
+                  </p>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
+                    <Activity className="h-3.5 w-3.5 text-[var(--primary)]" aria-hidden />
                     <span>Updated {formatLiveStamp(insights.generatedAt)}</span>
                   </p>
                 </div>
               </div>
               <Button
                 variant="default"
-                className="shrink-0 gap-2 shadow-lg shadow-cyan-500/10"
+                className="shrink-0 gap-2 shadow-md shadow-[var(--primary)]/15"
                 onClick={() => fetchDashboard({ silent: false })}
                 disabled={refreshing}
               >
@@ -919,7 +713,7 @@ function AdminDashboard({ user, onLogout }) {
           </div>
 
             <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <MetricCard
                 title="Students"
                 value={insights.roleCounts.student || 0}
@@ -992,16 +786,18 @@ function AdminDashboard({ user, onLogout }) {
             {(insights.pendingColleges || []).length > 0 ? (
               <Card
                 id="admin-pending-colleges"
-                className="scroll-mt-28 overflow-hidden border border-amber-400/35 bg-gradient-to-br from-amber-500/[0.12] via-slate-950/40 to-transparent shadow-[0_20px_50px_-20px_rgba(245,158,11,0.15)]"
+                className="scroll-mt-28 overflow-hidden border border-amber-200 bg-amber-50/70 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04]"
               >
                 <CardContent className="p-6">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/25">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300 bg-amber-100 text-amber-900 shadow-sm">
                       <Building2 className="h-4 w-4" aria-hidden />
                     </span>
                     <div>
-                      <h2 className="text-lg font-bold text-white sm:text-xl">College registrations pending approval</h2>
-                      <p className="mt-0.5 text-sm text-slate-400">
+                      <h2 className="text-lg font-bold text-[var(--text)] sm:text-xl">
+                        College registrations pending approval
+                      </h2>
+                      <p className="mt-0.5 text-sm text-[var(--text-muted)]">
                         Self-service college sign-ups. Approve so students and faculty can join under that campus.
                       </p>
                     </div>
@@ -1012,7 +808,7 @@ function AdminDashboard({ user, onLogout }) {
                         key={c._id}
                         role="button"
                         tabIndex={0}
-                        className="flex cursor-pointer flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/55 p-4 transition hover:border-amber-400/30 hover:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between"
+                        className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-amber-300/60 hover:bg-amber-50/50 sm:flex-row sm:items-center sm:justify-between"
                         onClick={() => goAdminSubpage(`/admin/colleges/${c._id}`)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
@@ -1022,8 +818,8 @@ function AdminDashboard({ user, onLogout }) {
                         }}
                       >
                         <div className="min-w-0">
-                          <p className="font-semibold text-white">{c.name}</p>
-                          <p className="truncate text-sm text-slate-400">{c.email}</p>
+                          <p className="font-semibold text-[var(--text)]">{c.name}</p>
+                          <p className="truncate text-sm text-[var(--text-muted)]">{c.email}</p>
                           <p className="mt-1 text-xs text-slate-500">
                             Requested {c.createdAt ? new Date(c.createdAt).toLocaleString() : "—"}
                           </p>
@@ -1075,16 +871,18 @@ function AdminDashboard({ user, onLogout }) {
             {pendingCampusStudents.length > 0 ? (
               <Card
                 id="admin-pending-students"
-                className="scroll-mt-28 overflow-hidden border border-indigo-400/35 bg-gradient-to-br from-indigo-500/[0.12] via-slate-950/40 to-transparent shadow-[0_20px_50px_-20px_rgba(99,102,241,0.15)]"
+                className="scroll-mt-28 overflow-hidden border border-indigo-200 bg-indigo-50/70 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04]"
               >
                 <CardContent className="p-6">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-200 ring-1 ring-indigo-400/25">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-300 bg-indigo-100 text-indigo-900 shadow-sm">
                       <UserPlus className="h-4 w-4" aria-hidden />
                     </span>
                     <div>
-                      <h2 className="text-lg font-bold text-white sm:text-xl">Student signups pending campus approval</h2>
-                      <p className="mt-0.5 text-sm text-slate-400">
+                      <h2 className="text-lg font-bold text-[var(--text)] sm:text-xl">
+                        Student signups pending campus approval
+                      </h2>
+                      <p className="mt-0.5 text-sm text-[var(--text-muted)]">
                         Learners who registered under a college. Approve or reject here—the same action college and
                         faculty approvers can take from their campus dashboards.
                       </p>
@@ -1094,11 +892,11 @@ function AdminDashboard({ user, onLogout }) {
                     {pendingCampusStudents.map((u) => (
                       <li
                         key={u._id}
-                        className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/55 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="min-w-0">
-                          <p className="font-semibold text-white">{u.name}</p>
-                          <p className="truncate text-sm text-slate-400">{u.email}</p>
+                          <p className="font-semibold text-[var(--text)]">{u.name}</p>
+                          <p className="truncate text-sm text-[var(--text-muted)]">{u.email}</p>
                           <p className="mt-1 text-xs text-slate-500">
                             Requested {u.createdAt ? new Date(u.createdAt).toLocaleString() : "—"}
                           </p>
@@ -1144,16 +942,18 @@ function AdminDashboard({ user, onLogout }) {
             {(insights.pendingPlatformUsers || []).length > 0 ? (
               <Card
                 id="admin-pending-platform"
-                className="scroll-mt-28 overflow-hidden border border-sky-400/35 bg-gradient-to-br from-sky-500/[0.12] via-slate-950/40 to-transparent shadow-[0_20px_50px_-20px_rgba(14,165,233,0.15)]"
+                className="scroll-mt-28 overflow-hidden border border-sky-200 bg-sky-50/70 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04]"
               >
                 <CardContent className="p-6">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/20 text-sky-200 ring-1 ring-sky-400/25">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-300 bg-sky-100 text-sky-950 shadow-sm">
                       <UserCheck className="h-4 w-4" aria-hidden />
                     </span>
                     <div>
-                      <h2 className="text-lg font-bold text-white sm:text-xl">Company registrations pending approval</h2>
-                      <p className="mt-0.5 text-sm text-slate-400">
+                      <h2 className="text-lg font-bold text-[var(--text)] sm:text-xl">
+                        Company registrations pending approval
+                      </h2>
+                      <p className="mt-0.5 text-sm text-[var(--text-muted)]">
                         Self-service company sign-ups. Approve so they can sign in and post jobs. Use Faculty Pending
                         or campus profiles for faculty requests.
                       </p>
@@ -1165,7 +965,7 @@ function AdminDashboard({ user, onLogout }) {
                         key={u._id}
                         role="button"
                         tabIndex={0}
-                        className="flex cursor-pointer flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/55 p-4 transition hover:border-sky-400/30 hover:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between"
+                        className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-sky-300/60 hover:bg-sky-50/40 sm:flex-row sm:items-center sm:justify-between"
                         onClick={() => {
                           saveAdminDashboardScrollBeforeNavigate();
                           navigate(`/dashboard/learners/${u._id}`);
@@ -1179,11 +979,13 @@ function AdminDashboard({ user, onLogout }) {
                         }}
                       >
                         <div className="min-w-0">
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold text-[var(--text)]">
                             {u.name}{" "}
-                            <span className="font-normal capitalize text-slate-400">· {u.role}</span>
+                            <span className="font-normal capitalize text-[var(--text-muted)]">
+                              · {u.role}
+                            </span>
                           </p>
-                          <p className="truncate text-sm text-slate-400">{u.email}</p>
+                          <p className="truncate text-sm text-[var(--text-muted)]">{u.email}</p>
                           <p className="mt-1 text-xs text-slate-500">
                             Requested {u.createdAt ? new Date(u.createdAt).toLocaleString() : "—"}
                           </p>
@@ -1235,10 +1037,10 @@ function AdminDashboard({ user, onLogout }) {
           </div>
 
           <div id="admin-insights-grid" className="scroll-mt-28 mt-5 grid gap-6 xl:grid-cols-3">
-            <Card className="overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent shadow-none backdrop-blur-sm">
+            <Card className="overflow-hidden border border-[var(--border)] bg-white/95 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04]">
               <CardContent className="p-6">
-                <h3 className="text-lg font-bold tracking-tight text-white">Role distribution</h3>
-                <p className="mt-1 text-xs text-slate-500">
+                <h3 className="text-lg font-bold tracking-tight text-[var(--text)]">Role distribution</h3>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
                   Share of users by role. Click a row to open matching accounts below.
                 </p>
                 <div className="mt-5 space-y-3">
@@ -1249,16 +1051,18 @@ function AdminDashboard({ user, onLogout }) {
                       <button
                         key={role}
                         type="button"
-                        className="w-full rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-left transition hover:border-cyan-400/35 hover:bg-slate-900/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                        className="group w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-[color:var(--primary)]/35 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
                         onClick={() => goToAdminHash("admin-section-all-people", { adminPeopleRole: role })}
                       >
                         <div className="flex items-center justify-between text-sm">
-                          <span className="capitalize text-slate-300">{role}</span>
-                          <span className="font-semibold tabular-nums text-white">{count}</span>
+                          <span className="capitalize text-slate-700 group-hover:text-slate-900">{role}</span>
+                          <span className="font-semibold tabular-nums text-slate-900 group-hover:text-slate-950">
+                            {count}
+                          </span>
                         </div>
-                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800/80">
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-500 to-indigo-500 transition-[width] duration-700 ease-out"
+                            className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] via-sky-500 to-indigo-500 transition-[width] duration-700 ease-out"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -1268,29 +1072,31 @@ function AdminDashboard({ user, onLogout }) {
                 </div>
               </CardContent>
             </Card>
-            <Card className="overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent shadow-none backdrop-blur-sm">
+            <Card className="overflow-hidden border border-[var(--border)] bg-white/95 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04]">
               <CardContent className="p-6">
-                <h3 className="text-lg font-bold tracking-tight text-white">Job status</h3>
-                <p className="mt-1 text-xs text-slate-500">Posting lifecycle across the platform. Click to manage jobs.</p>
+                <h3 className="text-lg font-bold tracking-tight text-[var(--text)]">Job status</h3>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  Posting lifecycle across the platform. Click to manage jobs.
+                </p>
                 <div className="mt-5 space-y-3">
                   {Object.entries(insights.jobStatusCounts || {}).map(([k, v]) => (
                     <button
                       key={k}
                       type="button"
-                      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-left transition hover:border-emerald-400/40 hover:bg-slate-900/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/35"
+                      className="group flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/35"
                       onClick={() => goAdminSubpage("/admin/jobs")}
                     >
-                      <span className="capitalize text-slate-300">{k}</span>
-                      <span className="font-semibold tabular-nums text-white">{v}</span>
+                      <span className="capitalize text-slate-700 group-hover:text-slate-900">{k}</span>
+                      <span className="font-semibold tabular-nums text-slate-900 group-hover:text-emerald-900">{v}</span>
                     </button>
                   ))}
                 </div>
               </CardContent>
             </Card>
-            <Card className="overflow-hidden border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent shadow-none backdrop-blur-sm">
+            <Card className="overflow-hidden border border-[var(--border)] bg-white/95 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04]">
               <CardContent className="p-6">
-                <h3 className="text-lg font-bold tracking-tight text-white">Application pipeline</h3>
-                <p className="mt-1 text-xs text-slate-500">
+                <h3 className="text-lg font-bold tracking-tight text-[var(--text)]">Application pipeline</h3>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
                   Student applications by stage. Click to review recent activity.
                 </p>
                 <div className="mt-5 space-y-3">
@@ -1298,18 +1104,20 @@ function AdminDashboard({ user, onLogout }) {
                     <button
                       key={k}
                       type="button"
-                      className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-left transition hover:border-violet-400/40 hover:bg-slate-900/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/35"
+                      className="group flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-violet-300 hover:bg-violet-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/35"
                       onClick={() => goToAdminHash("admin-section-recent-jobs")}
                     >
-                      <span className="capitalize text-slate-300">{k}</span>
-                      <span className="font-semibold tabular-nums text-white">{v}</span>
+                      <span className="capitalize text-slate-700 group-hover:text-slate-900">{k}</span>
+                      <span className="font-semibold tabular-nums text-slate-900 group-hover:text-violet-900">{v}</span>
                     </button>
                   ))}
                 </div>
-                <div className="mt-6 rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 to-indigo-500/5 p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-200/80">Signed in</p>
-                  <p className="mt-2 font-semibold text-white">{user?.name}</p>
-                  <p className="text-sm text-slate-400">{user?.email}</p>
+                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--primary)]">
+                    Signed in
+                  </p>
+                  <p className="mt-2 font-semibold text-[var(--text)]">{user?.name}</p>
+                  <p className="text-sm text-[var(--text-muted)]">{user?.email}</p>
                 </div>
               </CardContent>
             </Card>
@@ -1323,15 +1131,15 @@ function AdminDashboard({ user, onLogout }) {
           >
           <div className="space-y-6">
             <div className="grid gap-6 xl:grid-cols-3">
-            <Card className="border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm transition hover:border-white/15">
+            <Card className="border border-[var(--border)] bg-white/95 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04] transition hover:border-[color:var(--primary)]/25">
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-white">Bulk students (platform)</h3>
-                <p className="mt-1 text-sm text-slate-400">
+                <h3 className="text-lg font-semibold text-[var(--text)]">Bulk students (platform)</h3>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">
                   Creates student logins not tied to a campus. Upload{" "}
-                  <code className="text-slate-300">.xlsx</code>, <code className="text-slate-300">.xls</code>, or{" "}
-                  <code className="text-slate-300">.csv</code> with columns:{" "}
-                  <strong className="text-slate-300">name</strong>,{" "}
-                  <strong className="text-slate-300">email</strong>, <strong className="text-slate-300">password</strong>{" "}
+                  <code className="rounded bg-slate-100 px-1 font-mono text-slate-800">.xlsx</code>, <code className="rounded bg-slate-100 px-1 font-mono text-slate-800">.xls</code>, or{" "}
+                  <code className="rounded bg-slate-100 px-1 font-mono text-slate-800">.csv</code> with columns:{" "}
+                  <strong className="text-[var(--text)]">name</strong>,{" "}
+                  <strong className="text-[var(--text)]">email</strong>, <strong className="text-[var(--text)]">password</strong>{" "}
                   (one row per student).
                 </p>
                 <p className="mt-3 text-xs text-slate-500">
@@ -1341,7 +1149,7 @@ function AdminDashboard({ user, onLogout }) {
                 <input
                   type="file"
                   accept={BULK_SPREADSHEET_ACCEPT}
-                  className="mt-4 w-full text-sm text-slate-300"
+                  className="mt-4 w-full text-sm text-[var(--text)] file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
                   onChange={(e) => setStudentSheetFile(e.target.files?.[0] || null)}
                 />
                 <Button className="mt-4 w-full" disabled={!studentSheetFile || importBusy} onClick={handleAdminStudentImport}>
@@ -1349,16 +1157,16 @@ function AdminDashboard({ user, onLogout }) {
                 </Button>
               </CardContent>
             </Card>
-            <Card className="border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm transition hover:border-white/15">
+            <Card className="border border-[var(--border)] bg-white/95 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04] transition hover:border-[color:var(--primary)]/25">
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-white">Bulk materials (Excel or CSV)</h3>
-                <p className="mt-1 text-sm text-slate-400">
+                <h3 className="text-lg font-semibold text-[var(--text)]">Bulk materials (Excel or CSV)</h3>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">
                   Use title, summary, content, categorySlug/categoryId columns.
                 </p>
                 <input
                   type="file"
                   accept={BULK_SPREADSHEET_ACCEPT}
-                  className="mt-4 w-full text-sm text-slate-300"
+                  className="mt-4 w-full text-sm text-[var(--text)] file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
                   onChange={(e) => setMaterialSheetFile(e.target.files?.[0] || null)}
                 />
                 <Button className="mt-4 w-full" disabled={!materialSheetFile || importBusy} onClick={handleMaterialSheetImport}>
@@ -1366,25 +1174,25 @@ function AdminDashboard({ user, onLogout }) {
                 </Button>
               </CardContent>
             </Card>
-            <Card className="border border-white/10 bg-gradient-to-b from-white/[0.05] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm transition hover:border-white/15">
+            <Card className="border border-[var(--border)] bg-white/95 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04] transition hover:border-[color:var(--primary)]/25">
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-white">Material from image</h3>
+                <h3 className="text-lg font-semibold text-[var(--text)]">Material from image</h3>
                 <input
                   placeholder="Material title"
-                  className="mt-3 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
+                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                   value={materialTitle}
                   onChange={(e) => setMaterialTitle(e.target.value)}
                 />
                 <input
                   placeholder="Category ID"
-                  className="mt-3 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm"
+                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                   value={materialCategoryId}
                   onChange={(e) => setMaterialCategoryId(e.target.value)}
                 />
                 <input
                   type="file"
                   accept="image/*"
-                  className="mt-3 w-full text-sm text-slate-300"
+                  className="mt-3 w-full text-sm text-[var(--text)] file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
                   onChange={(e) => setMaterialImageFile(e.target.files?.[0] || null)}
                 />
                 <Button
@@ -1397,25 +1205,28 @@ function AdminDashboard({ user, onLogout }) {
               </CardContent>
             </Card>
           </div>
-            <Card className="border border-cyan-400/20 bg-gradient-to-b from-cyan-500/[0.07] to-transparent shadow-[0_16px_40px_-24px_rgba(0,0,0,0.5)] backdrop-blur-sm">
+            <Card className="border border-sky-200 bg-sky-50/80 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04] backdrop-blur-sm">
               <CardContent className="p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Campus roster import (Excel or CSV)</h3>
-                    <p className="mt-1 text-sm text-slate-400">
-                      Adds students to an <strong className="text-slate-300">approved</strong> college with managed campus
-                      accounts. {STUDENT_ROSTER_IMPORT_SUMMARY}{" "}
-                      <span className="text-slate-500">Default password: </span>
-                      <code className="text-cyan-200">Firstname@123</code>.
+                    <h3 className="text-lg font-semibold text-[var(--text)]">Campus roster import (Excel or CSV)</h3>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
+                      Adds students to an <strong className="text-[var(--text)]">approved</strong> college with managed campus
+                      accounts. {STUDENT_ROSTER_IMPORT_SUMMARY} {STUDENT_ROSTER_IMPORT_MATCH_RULES}{" "}
+                      <span className="text-slate-600">Default password: </span>
+                      <code className="rounded bg-white px-1 font-mono text-sm font-semibold text-[var(--primary)]">
+                        {STUDENT_ROSTER_DEFAULT_PASSWORD}
+                      </code>
+                      .
                     </p>
                   </div>
-                  <StudentRosterSheetFormatHelp className="shrink-0 !border-cyan-400/40 !text-cyan-100 hover:!bg-cyan-400/10" />
+                  <StudentRosterSheetFormatHelp className="shrink-0 !border-[var(--border)] !bg-white !text-[var(--primary)] hover:!bg-slate-50" />
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="sm:col-span-2 lg:col-span-1">
                     <label className="text-xs font-medium text-slate-400">College</label>
                     <select
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
                       value={campusImportCollegeId}
                       onChange={(e) => setCampusImportCollegeId(e.target.value)}
                       disabled={campusImportBusy}
@@ -1431,7 +1242,7 @@ function AdminDashboard({ user, onLogout }) {
                   <div>
                     <label className="text-xs font-medium text-slate-400">Course (match file)</label>
                     <select
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
                       value={campusImportCourse}
                       onChange={(e) => setCampusImportCourse(e.target.value)}
                       disabled={campusImportBusy}
@@ -1447,7 +1258,7 @@ function AdminDashboard({ user, onLogout }) {
                   <div>
                     <label className="text-xs font-medium text-slate-400">Program / branch</label>
                     <select
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
                       value={campusImportProgram}
                       onChange={(e) => setCampusImportProgram(e.target.value)}
                       disabled={campusImportBusy}
@@ -1463,7 +1274,7 @@ function AdminDashboard({ user, onLogout }) {
                   <div>
                     <label className="text-xs font-medium text-slate-400">Year</label>
                     <select
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
                       value={campusImportYear}
                       onChange={(e) => setCampusImportYear(e.target.value)}
                       disabled={campusImportBusy}
@@ -1479,7 +1290,7 @@ function AdminDashboard({ user, onLogout }) {
                   <div>
                     <label className="text-xs font-medium text-slate-400">Semester (optional)</label>
                     <select
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
                       value={campusImportSemester}
                       onChange={(e) => setCampusImportSemester(e.target.value)}
                       disabled={campusImportBusy}
@@ -1498,6 +1309,7 @@ function AdminDashboard({ user, onLogout }) {
                   id="admin-campus-roster-file"
                   label="Spreadsheet file"
                   accept={BULK_SPREADSHEET_ACCEPT}
+                  onChange={(e) => setCampusStudentSheetFile(e.target.files?.[0] || null)}
                   disabled={campusImportBusy}
                 />
                 <Button
@@ -1536,9 +1348,9 @@ function AdminDashboard({ user, onLogout }) {
               title="Campus accounts (colleges)"
               description="Full roster, approval state, and safe removal—same as before, with a clearer layout."
             >
-              <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/40">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 shadow-sm">
                 <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                  <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+                  <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
                     <tr>
                       <th className="px-4 py-3.5 font-semibold">Campus name</th>
                       <th className="px-4 py-3.5 font-semibold">Login email</th>
@@ -1555,7 +1367,7 @@ function AdminDashboard({ user, onLogout }) {
                           className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
                           onClick={() => goAdminSubpage(`/admin/colleges/${c._id}`)}
                         >
-                          <td className="px-4 py-3.5 font-medium text-white">{c.name}</td>
+                          <td className="px-4 py-3.5 font-medium text-[var(--text)]">{c.name}</td>
                           <td className="px-4 py-3.5 text-slate-300">{c.email}</td>
                           <td className="px-4 py-3.5 capitalize text-slate-400">
                             {c.collegeApprovalStatus === "pending"
@@ -1652,9 +1464,9 @@ function AdminDashboard({ user, onLogout }) {
               title="Company accounts"
               description="Recruiters and hiring teams on the platform. Open a profile to adjust roles or review details in one place."
             >
-              <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/40">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 shadow-sm">
                 <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-                  <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+                  <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
                     <tr>
                       <th className="px-4 py-3.5 font-semibold">Company name</th>
                       <th className="px-4 py-3.5 font-semibold">Login email</th>
@@ -1670,7 +1482,7 @@ function AdminDashboard({ user, onLogout }) {
                           className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
                           onClick={() => goLearnerSummary(co._id)}
                         >
-                          <td className="px-4 py-3.5 font-medium text-white">{co.name}</td>
+                          <td className="px-4 py-3.5 font-medium text-[var(--text)]">{co.name}</td>
                           <td className="px-4 py-3.5 text-slate-300">{co.email}</td>
                           <td className="px-4 py-3.5 text-xs text-slate-500">
                             {co.createdAt ? new Date(co.createdAt).toLocaleString() : "—"}
@@ -1760,9 +1572,9 @@ function AdminDashboard({ user, onLogout }) {
               title="Faculty directory"
               description="Each row shows the campus they belong to (approved assignment or signup selection) and their approval state."
             >
-              <div className="overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/40">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 shadow-sm">
                 <table className="w-full min-w-[800px] border-collapse text-left text-sm">
-                  <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+                  <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
                     <tr>
                       <th className="px-4 py-3.5 font-semibold">Faculty name</th>
                       <th className="px-4 py-3.5 font-semibold">Email</th>
@@ -1780,7 +1592,7 @@ function AdminDashboard({ user, onLogout }) {
                           className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
                           onClick={() => goLearnerSummary(f._id)}
                         >
-                          <td className="px-4 py-3.5 font-medium text-white">{f.name}</td>
+                          <td className="px-4 py-3.5 font-medium text-[var(--text)]">{f.name}</td>
                           <td className="px-4 py-3.5 text-slate-300">{f.email}</td>
                           <td className="max-w-[14rem] px-4 py-3.5 text-slate-300">
                             <span className="line-clamp-2" title={f.campusName || ""}>
@@ -1877,7 +1689,7 @@ function AdminDashboard({ user, onLogout }) {
                 <select
                   value={peopleRoleFilter}
                   onChange={(e) => setPeopleRoleFilter(e.target.value)}
-                  className="h-11 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-sm"
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                 >
                   <option value="all">All roles</option>
                   {ADMIN_DASHBOARD_ROLES.map((role) => (
@@ -1890,13 +1702,13 @@ function AdminDashboard({ user, onLogout }) {
                   value={peopleSearch}
                   onChange={(e) => setPeopleSearch(e.target.value)}
                   placeholder="Search name or email"
-                  className="h-11 rounded-xl border border-white/10 bg-slate-900/80 px-3 text-sm text-white placeholder:text-slate-500"
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                 />
               </div>
             </div>
-            <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10 bg-slate-900/30">
+            <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 shadow-sm">
               <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-                <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+                <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
                   <tr>
                     <th className="px-3 py-3 font-semibold">Name</th>
                     <th className="px-3 py-3 font-semibold">Email</th>
@@ -1924,7 +1736,7 @@ function AdminDashboard({ user, onLogout }) {
                           className="cursor-pointer border-b border-white/5 transition last:border-0 hover:bg-white/[0.08]"
                           onClick={() => openAdminPeopleRow(person)}
                         >
-                          <td className="px-3 py-3 align-top text-white">
+                          <td className="px-3 py-3 align-top text-[var(--text)]">
                             <span className="block max-w-[10rem] truncate" title={person.name || ""}>
                               {person.name}
                             </span>
@@ -2093,28 +1905,28 @@ function AdminDashboard({ user, onLogout }) {
             sectionId="admin-section-recent-jobs"
           >
           <div className="grid gap-6 xl:grid-cols-2">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-xl font-bold">Recent Jobs</h2>
-                <p className="mt-1 text-sm text-slate-400">Latest roles posted by companies.</p>
+                <h2 className="text-xl font-bold text-[var(--text)]">Recent Jobs</h2>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">Latest roles posted by companies.</p>
                 <div className="mt-4 space-y-3">
                   {recentJobs.length ? (
                     recentJobs.map((job) => (
                       <div
                         key={job._id}
-                        className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4 sm:flex-row sm:items-stretch sm:justify-between"
+                        className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-stretch sm:justify-between"
                       >
                         <Link
                           to={`/jobs/${job._id}`}
-                          className="min-w-0 flex-1 rounded-xl p-1 text-left transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                          className="min-w-0 flex-1 rounded-xl p-1 text-left transition hover:bg-slate-100/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/35"
                           onClick={() => saveAdminDashboardScrollBeforeNavigate()}
                         >
-                          <p className="font-semibold text-white">{job.title}</p>
-                          <p className="mt-1 text-sm text-slate-400">
+                          <p className="font-semibold text-[var(--text)]">{job.title}</p>
+                          <p className="mt-1 text-sm text-[var(--text-muted)]">
                             {job.createdBy?.name || "Company"} · {job.location || "Remote"} ·{" "}
                             <span className="capitalize">{job.status}</span>
                           </p>
-                          <p className="mt-2 text-xs font-medium text-cyan-300">View job posting â†’</p>
+                          <p className="mt-2 text-xs font-semibold text-[var(--primary)]">View job posting →</p>
                         </Link>
                         <div className="flex shrink-0 flex-col gap-2 sm:items-end sm:justify-center">
                           {job.createdBy?._id ? (
@@ -2143,7 +1955,7 @@ function AdminDashboard({ user, onLogout }) {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-500">
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-[var(--text-muted)]">
                       No job records yet.
                     </div>
                   )}
@@ -2151,10 +1963,10 @@ function AdminDashboard({ user, onLogout }) {
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-xl font-bold">Recent Applications</h2>
-                <p className="mt-1 text-sm text-slate-400">
+                <h2 className="text-xl font-bold text-[var(--text)]">Recent Applications</h2>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">
                   Latest student applications.
                 </p>
                 <div className="mt-4 space-y-3">
@@ -2164,7 +1976,7 @@ function AdminDashboard({ user, onLogout }) {
                         key={item._id}
                         role="button"
                         tabIndex={0}
-                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-left transition hover:border-cyan-400/25 hover:bg-slate-900/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[color:var(--primary)]/30 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
                         onClick={() => {
                           if (item.job?._id) {
                             saveAdminDashboardScrollBeforeNavigate();
@@ -2183,14 +1995,14 @@ function AdminDashboard({ user, onLogout }) {
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
-                            <p className="font-semibold text-white">
-                              {item.student?.name || "Applicant"} â†’ {item.job?.title || "Job"}
+                            <p className="font-semibold text-[var(--text)]">
+                              {item.student?.name || "Applicant"} → {item.job?.title || "Job"}
                             </p>
-                            <p className="mt-1 text-sm text-slate-400">
+                            <p className="mt-1 text-sm text-[var(--text-muted)]">
                               {item.job?.createdBy?.name || "Company"} ·{" "}
                               <span className="capitalize">{item.status}</span>
                             </p>
-                            <p className="mt-2 text-xs text-cyan-300/90">Click for job details â†’</p>
+                            <p className="mt-2 text-xs font-semibold text-[var(--primary)]">Click for job details →</p>
                           </div>
                           <div className="flex shrink-0 flex-wrap gap-2">
                             {item.student?._id ? (
@@ -2226,7 +2038,7 @@ function AdminDashboard({ user, onLogout }) {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-500">
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-[var(--text-muted)]">
                       No application records yet.
                     </div>
                   )}

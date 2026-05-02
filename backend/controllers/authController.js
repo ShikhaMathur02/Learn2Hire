@@ -16,11 +16,13 @@ const {
 } = require('../utils/otpDelivery');
 const { createNotification, notifyPlatformAdmins } = require('../utils/notificationService');
 const { isCollegeNameTaken } = require('../utils/collegeNameNormalize');
+const { getJwtSecret } = require('../config/secrets');
+const { attachAuthCookie, clearAuthCookie } = require('../config/authCookies');const logger = require('../utils/logger');
 const { isCompanySelfRegistrationBlocked } = require('../utils/campusApproval');
 
 // Generate JWT token (expires in 7 days)
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'learn2hire-secret', {
+  return jwt.sign({ id }, getJwtSecret(), {
     expiresIn: '7d',
   });
 };
@@ -675,7 +677,7 @@ exports.signup = async (req, res) => {
           metadata: { collegeUserId: user._id },
         });
       } catch (notifyErr) {
-        console.error('[Learn2Hire] college signup notify:', notifyErr.message || notifyErr);
+        logger.warn('college signup notify failed', { err: String(notifyErr.message || notifyErr) });
       }
       return res.status(201).json({
         success: true,
@@ -966,13 +968,13 @@ exports.login = async (req, res) => {
     }
 
     const token = generateToken(user._id);
+    attachAuthCookie(res, token);
 
     res.status(200).json({
       success: true,
       message: 'Login successful',
       data: {
         user: serializeAuthUser(user),
-        token,
       },
     });
   } catch (err) {
@@ -1064,6 +1066,21 @@ exports.patchCompanyProfile = async (req, res) => {
         message: messages.join(' '),
       });
     }
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Clear httpOnly session cookie
+// @route   POST /api/auth/logout
+// @access  Public
+exports.logout = async (req, res) => {
+  try {
+    clearAuthCookie(res);
+    res.status(200).json({ success: true, message: 'Logged out' });
+  } catch (err) {
     res.status(500).json({
       success: false,
       message: err.message || 'Server error',

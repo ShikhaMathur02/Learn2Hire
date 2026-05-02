@@ -39,6 +39,12 @@ const studentProfileSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    /** S.No. / roll from roster spreadsheet imports; optional. */
+    serialNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     // Student contact & placement-style records (optional; filled in profile UI)
     studentPhone: {
       type: String,

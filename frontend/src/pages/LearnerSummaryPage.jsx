@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -10,6 +10,7 @@ import {
 import { ProfileAvatarBlock } from "../components/profile/ProfileAvatarBlock";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 
 function workspaceCopy(role) {
   const r = String(role || "").toLowerCase();
@@ -29,9 +30,8 @@ export default function LearnerSummaryPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
     const raw = localStorage.getItem("user");
-    if (!token || !raw) {
+    if (!localStorage.getItem("user") || !raw) {
       navigate("/login", { replace: true });
       return;
     }
@@ -58,10 +58,9 @@ export default function LearnerSummaryPage() {
     (async () => {
       setLoading(true);
       setError("");
-      const token = localStorage.getItem("token");
       try {
         const res = await fetch(`/api/profile/summary/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {},
         });
         const data = await readApiResponse(res);
         if (!res.ok) {
@@ -97,15 +96,15 @@ export default function LearnerSummaryPage() {
 
   if (!viewer) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
+      <div {...workspaceRootProps("", "flex min-h-screen items-center justify-center text-slate-600")}>
         <LoaderCircle className="h-6 w-6 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
-      <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
+    <div {...workspaceRootProps(viewer?.role)}>
+      <div className="l2h-container-app w-full py-5 sm:py-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
           workspaceLabel={ws.label}
@@ -119,26 +118,26 @@ export default function LearnerSummaryPage() {
           }}
         />
 
-        <div className="mt-4 rounded-[32px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur sm:p-7">
+        <div className="mt-4 rounded-[32px] border border-[var(--border)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-card)] backdrop-blur sm:p-7">
           <Button type="button" variant="outline" size="sm" className="gap-2" onClick={handleBack}>
             <ArrowLeft className="h-4 w-4" />
             {ws.backHint}
           </Button>
 
           {error ? (
-            <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
               {error}
             </div>
           ) : null}
 
           {loading ? (
-            <div className="mt-10 flex items-center justify-center gap-2 text-slate-400">
+            <div className="mt-10 flex items-center justify-center gap-2 text-[var(--text-muted)]">
               <LoaderCircle className="h-6 w-6 animate-spin" />
               Loading profile…
             </div>
           ) : summary ? (
             <div className="mt-8 space-y-6">
-              <Card className="overflow-hidden border border-white/10 bg-white/5 shadow-none">
+              <Card className="overflow-hidden border border-slate-200 bg-white shadow-none">
                 <CardContent className="p-0">
                   <div className="relative bg-gradient-to-br from-violet-600/35 via-slate-900 to-slate-950 px-6 py-8 sm:px-8">
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -156,6 +155,12 @@ export default function LearnerSummaryPage() {
                         <p className="mt-3 text-sm text-slate-400">
                           <span className="text-slate-500">Campus:</span> {summary.collegeName || "—"}
                         </p>
+                        {summary.role === "student" && summary.serialNumber?.trim() ? (
+                          <p className="mt-1 text-sm text-slate-300">
+                            <span className="text-slate-500">S.no.:</span>{" "}
+                            <span className="tabular-nums">{summary.serialNumber.trim()}</span>
+                          </p>
+                        ) : null}
                         {cohortLine ? (
                           <p className="mt-1 text-sm text-slate-300">{cohortLine}</p>
                         ) : null}
@@ -171,26 +176,34 @@ export default function LearnerSummaryPage() {
               </Card>
 
               {summary.bio ? (
-                <Card className="border border-white/10 bg-white/5 shadow-none">
+                <Card className="border border-slate-200 bg-white shadow-none">
                   <CardContent className="p-6">
-                    <h2 className="text-sm font-semibold text-white">Bio</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-300">{summary.bio}</p>
+                    <h2 className="text-sm font-semibold text-[var(--text)]">Bio</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">{summary.bio}</p>
                   </CardContent>
                 </Card>
               ) : null}
 
-              {summary.facultyQualification || summary.facultySubjects ? (
-                <Card className="border border-white/10 bg-white/5 shadow-none">
+              {summary.facultyDesignation || summary.facultyQualification || summary.facultySubjects ? (
+                <Card className="border border-slate-200 bg-white shadow-none">
                   <CardContent className="p-6 space-y-3">
-                    <h2 className="text-sm font-semibold text-white">Faculty</h2>
+                    <h2 className="text-sm font-semibold text-[var(--text)]">Faculty</h2>
+                    {summary.facultyDesignation ? (
+                      <p className="text-sm text-[var(--text-muted)]">
+                        <span className="font-medium text-[var(--text)]">Designation:</span>{" "}
+                        {summary.facultyDesignation}
+                      </p>
+                    ) : null}
                     {summary.facultyQualification ? (
-                      <p className="text-sm text-slate-300">
-                        <span className="text-slate-500">Qualification:</span> {summary.facultyQualification}
+                      <p className="text-sm text-[var(--text-muted)]">
+                        <span className="font-medium text-[var(--text)]">Qualification:</span>{" "}
+                        {summary.facultyQualification}
                       </p>
                     ) : null}
                     {summary.facultySubjects ? (
-                      <p className="text-sm text-slate-300">
-                        <span className="text-slate-500">Subjects:</span> {summary.facultySubjects}
+                      <p className="text-sm text-[var(--text-muted)]">
+                        <span className="font-medium text-[var(--text)]">Subjects:</span>{" "}
+                        {summary.facultySubjects}
                       </p>
                     ) : null}
                   </CardContent>
@@ -198,25 +211,25 @@ export default function LearnerSummaryPage() {
               ) : null}
 
               {summary.toolsAndTechnologies?.length ? (
-                <Card className="border border-white/10 bg-white/5 shadow-none">
+                <Card className="border border-slate-200 bg-white shadow-none">
                   <CardContent className="p-6">
-                    <h2 className="text-sm font-semibold text-white">Tools & technologies</h2>
-                    <p className="mt-2 text-sm text-slate-300">
+                    <h2 className="text-sm font-semibold text-[var(--text)]">Tools & technologies</h2>
+                    <p className="mt-2 text-sm text-[var(--text-muted)]">
                       {summary.toolsAndTechnologies.join(", ")}
                     </p>
                   </CardContent>
                 </Card>
               ) : null}
 
-              <Card className="border border-white/10 bg-white/5 shadow-none">
+              <Card className="border border-slate-200 bg-white shadow-none">
                 <CardContent className="p-6">
-                  <h2 className="text-sm font-semibold text-white">Skills</h2>
+                  <h2 className="text-sm font-semibold text-[var(--text)]">Skills</h2>
                   {summary.skills?.length ? (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {summary.skills.map((s) => (
                         <span
                           key={`${s.name}-${s.level}`}
-                          className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200"
+                          className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-[var(--text)]"
                         >
                           {s.name}
                           {typeof s.progress === "number" ? ` · ${Math.round(s.progress)}%` : ""}
@@ -231,17 +244,19 @@ export default function LearnerSummaryPage() {
               </Card>
 
               {summary.stats && Object.keys(summary.stats).length > 0 ? (
-                <Card className="border border-white/10 bg-white/5 shadow-none">
+                <Card className="border border-slate-200 bg-white shadow-none">
                   <CardContent className="p-6">
-                    <h2 className="text-sm font-semibold text-white">Activity snapshot</h2>
+                    <h2 className="text-sm font-semibold text-[var(--text)]">Activity snapshot</h2>
                     <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                       {Object.entries(summary.stats).map(([k, v]) => (
                         <div
                           key={k}
-                          className="flex justify-between gap-4 rounded-xl border border-white/5 bg-slate-900/40 px-3 py-2"
+                          className="flex justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 shadow-sm"
                         >
-                          <dt className="text-slate-500 capitalize">{k.replace(/([A-Z])/g, " $1")}</dt>
-                          <dd className="font-medium text-slate-200">{String(v)}</dd>
+                          <dt className="font-medium text-[var(--text-muted)] capitalize">
+                            {k.replace(/([A-Z])/g, " $1")}
+                          </dt>
+                          <dd className="font-semibold tabular-nums text-[var(--text)]">{String(v)}</dd>
                         </div>
                       ))}
                     </dl>
@@ -250,7 +265,7 @@ export default function LearnerSummaryPage() {
               ) : null}
             </div>
           ) : !error ? (
-            <p className="mt-8 text-sm text-slate-500">No data.</p>
+            <p className="mt-8 text-sm text-[var(--text-muted)]">No data.</p>
           ) : null}
         </div>
       </div>

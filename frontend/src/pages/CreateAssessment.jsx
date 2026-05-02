@@ -1,10 +1,11 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ChevronRight, Plus, ShieldCheck, Trash2 } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { VisibleFileInput } from "../components/ui/visible-file-input";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 
 const emptyQuestion = () => ({
   question: "",
@@ -37,10 +38,9 @@ function CreateAssessment() {
   );
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
 
-    if (!token || !storedUser) {
+    if (!storedUser) {
       navigate("/login");
       return;
     }
@@ -133,9 +133,7 @@ function CreateAssessment() {
     e.preventDefault();
     setError("");
     setSuccess("");
-
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
@@ -162,9 +160,7 @@ function CreateAssessment() {
 
         const response = await fetch("/api/assessments", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: {},
           body: fd,
         });
 
@@ -208,7 +204,6 @@ function CreateAssessment() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -237,10 +232,10 @@ function CreateAssessment() {
   };
 
   const inputClassName =
-    "h-12 w-full rounded-2xl border border-slate-400/35 bg-slate-800/85 px-4 text-slate-50 outline-none transition placeholder:text-slate-500 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20";
+    "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20";
 
   const textAreaClassName =
-    "w-full rounded-2xl border border-slate-400/35 bg-slate-800/85 px-4 py-3 text-slate-50 outline-none transition placeholder:text-slate-500 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/20";
+    "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20";
 
   const workspaceLabel =
     viewerRole === "college"
@@ -251,32 +246,32 @@ function CreateAssessment() {
 
   if (!authChecked) {
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-200">
+      <div {...workspaceRootProps(viewerRole, "flex min-h-screen items-center justify-center text-slate-600")}>
         Checking access...
       </div>
     );
   }
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-3 py-5 text-slate-50 sm:px-4 sm:py-6">
+    <div {...workspaceRootProps(viewerRole, "l2h-container-app min-h-screen py-5 sm:py-6")}>
       <div className="w-full">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-300">
-              <Link to="/dashboard" className="transition hover:text-white">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
+              <Link to="/dashboard" className="font-medium text-[var(--primary)] transition hover:underline">
                 Dashboard
               </Link>
               <ChevronRight className="h-4 w-4" />
-              <span className="text-slate-200">Create Assessment</span>
+              <span className="font-medium text-[var(--text)]">Create Assessment</span>
             </div>
 
-            <p className="text-sm font-medium text-cyan-200">{workspaceLabel}</p>
-            <h1 className="mt-1 text-3xl font-bold text-white">Create Assessment</h1>
-            <p className="mt-2 text-sm text-slate-300">
+            <p className="text-sm font-semibold text-[var(--primary)]">{workspaceLabel}</p>
+            <h1 className="mt-1 text-3xl font-bold text-[var(--text)]">Create Assessment</h1>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
               Build an online MCQ assessment, or publish a PDF / Word question paper students can open
               and download.
             </p>
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900">
               <ShieldCheck className="h-4 w-4" />
               Faculty, college, or admin
             </div>
@@ -289,11 +284,11 @@ function CreateAssessment() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <Card className="border border-slate-400/30 bg-slate-800/40 shadow-[0_24px_60px_rgba(2,6,23,0.2)]">
+          <Card className="border border-slate-200 bg-[var(--bg-card)] shadow-sm">
             <CardContent className="p-6">
               <div className="grid gap-5 md:grid-cols-2">
                 <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-slate-200">
+                  <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                     Assessment Title
                   </label>
                   <input
@@ -305,7 +300,7 @@ function CreateAssessment() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-slate-200">
+                  <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                     Description
                   </label>
                   <textarea
@@ -318,7 +313,7 @@ function CreateAssessment() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-200">
+                  <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                     Skill
                   </label>
                   <input
@@ -330,7 +325,7 @@ function CreateAssessment() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-200">
+                  <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                     Time Limit (minutes)
                   </label>
                   <input
@@ -344,7 +339,7 @@ function CreateAssessment() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-200">
+                  <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                     Status
                   </label>
                   <select
@@ -358,7 +353,7 @@ function CreateAssessment() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-200">
+                  <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                     Delivery
                   </label>
                   <select
@@ -383,15 +378,15 @@ function CreateAssessment() {
                   </div>
                 ) : null}
 
-                <div className="rounded-2xl border border-slate-400/30 bg-slate-800/60 p-4">
-                  <p className="text-sm text-slate-300">Summary</p>
-                  <p className="mt-2 text-lg font-semibold text-white">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-[var(--text-muted)]">Summary</p>
+                  <p className="mt-2 text-lg font-semibold text-[var(--text)]">
                     {deliveryMode === "document"
                       ? "Document assessment"
                       : `${questions.length} question${questions.length > 1 ? "s" : ""}`}
                   </p>
                   {deliveryMode === "mcq" ? (
-                    <p className="mt-1 text-sm text-slate-300">Total marks: {totalMarks}</p>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">Total marks: {totalMarks}</p>
                   ) : null}
                 </div>
               </div>
@@ -403,13 +398,13 @@ function CreateAssessment() {
               {questions.map((question, index) => (
                 <Card
                   key={`question-${index + 1}`}
-                  className="border border-slate-400/30 bg-slate-800/40 shadow-[0_24px_60px_rgba(2,6,23,0.2)]"
+                  className="border border-slate-200 bg-[var(--bg-card)] shadow-sm"
                 >
                   <CardContent className="p-6">
                     <div className="mb-5 flex items-center justify-between gap-4">
                       <div>
-                        <p className="text-sm font-medium text-cyan-300">Question {index + 1}</p>
-                        <p className="mt-1 text-sm text-slate-300">
+                        <p className="text-sm font-semibold text-[var(--primary)]">Question {index + 1}</p>
+                        <p className="mt-1 text-sm text-[var(--text-muted)]">
                           Add the prompt, options, correct answer, and marks.
                         </p>
                       </div>
@@ -427,7 +422,7 @@ function CreateAssessment() {
 
                     <div className="grid gap-5 md:grid-cols-2">
                       <div className="md:col-span-2">
-                        <label className="mb-2 block text-sm font-medium text-slate-200">
+                        <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                           Question Text
                         </label>
                         <textarea
@@ -443,7 +438,7 @@ function CreateAssessment() {
 
                       {question.options.map((option, optionIndex) => (
                         <div key={`question-${index + 1}-option-${optionIndex + 1}`}>
-                        <label className="mb-2 block text-sm font-medium text-slate-200">
+                        <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                           Option {optionIndex + 1}
                         </label>
                           <input
@@ -458,7 +453,7 @@ function CreateAssessment() {
                       ))}
 
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-200">
+                        <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                           Correct Answer
                         </label>
                         <select
@@ -482,7 +477,7 @@ function CreateAssessment() {
                       </div>
 
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-200">
+                        <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                           Marks
                         </label>
                         <input
@@ -503,13 +498,13 @@ function CreateAssessment() {
           ) : null}
 
           {error ? (
-            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
               {error}
             </div>
           ) : null}
 
           {success ? (
-            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
               {success}
             </div>
           ) : null}

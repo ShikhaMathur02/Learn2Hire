@@ -24,12 +24,12 @@ export function VisibleFileInput({
       {label ? (
         <label
           htmlFor={inputId}
-          className={cn("mb-2 block text-sm font-medium text-slate-200", labelClassName)}
+          className={cn("mb-2 block text-sm font-medium text-[var(--text-muted)]", labelClassName)}
         >
           {label}
         </label>
       ) : null}
-      <div className="rounded-2xl border border-slate-400/40 bg-slate-700/50 p-4 shadow-inner shadow-slate-950/20 ring-1 ring-white/15">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-950/5">
         <input
           id={inputId}
           type="file"
@@ -37,15 +37,15 @@ export function VisibleFileInput({
           accept={accept}
           onChange={onChange}
           className={cn(
-            "block w-full cursor-pointer text-sm leading-7 text-slate-100",
-            "file:mr-4 file:inline-flex file:cursor-pointer file:rounded-xl file:border-0 file:bg-indigo-600 file:px-5 file:py-2.5 file:text-sm file:font-semibold file:text-white file:shadow-md file:outline-none file:transition-colors hover:file:bg-indigo-500",
-            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400/70",
+            "block w-full cursor-pointer text-sm leading-7 text-slate-700",
+            "file:mr-4 file:inline-flex file:cursor-pointer file:rounded-xl file:border-0 file:bg-blue-600 file:px-5 file:py-2.5 file:text-sm file:font-semibold file:text-white file:shadow-md file:outline-none file:transition-colors hover:file:bg-blue-700",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
             "disabled:cursor-not-allowed disabled:opacity-50",
             inputClassName
           )}
         />
       </div>
-      {hint ? <p className="mt-2 text-xs leading-relaxed text-slate-400">{hint}</p> : null}
+      {hint ? <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">{hint}</p> : null}
     </div>
   );
 }

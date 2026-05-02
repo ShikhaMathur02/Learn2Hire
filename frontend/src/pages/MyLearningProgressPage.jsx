@@ -13,11 +13,11 @@ import { Button } from '../components/ui/button';
 import { NavDropdown } from '../components/ui/nav-dropdown';
 import { Card, CardContent } from '../components/ui/card';
 import { readApiResponse } from '../lib/api';
+import { workspaceRootProps } from '../lib/workspaceTheme';
 import progressBannerImg from '../assets/illustrations/progress-banner.png';
 import emptyStateImg from '../assets/illustrations/empty-state.png';
 
 function MyLearningProgressPage() {
-  const token = localStorage.getItem('token');
   const storedUser = localStorage.getItem('user');
 
   let user = null;
@@ -46,9 +46,7 @@ function MyLearningProgressPage() {
         setError('');
 
         const response = await fetch('/api/learning/progress/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: {},
         });
 
         const data = await readApiResponse(response);
@@ -69,10 +67,10 @@ function MyLearningProgressPage() {
       }
     };
 
-    if (token && user?.role === 'student') {
+    if (user?.role === 'student') {
       fetchProgress();
     }
-  }, [token, user?.role]);
+  }, [user?.role]);
 
   const filteredProgress = useMemo(() => {
     if (filter === 'completed') {
@@ -86,7 +84,7 @@ function MyLearningProgressPage() {
     return progress;
   }, [filter, progress]);
 
-  if (!token) {
+  if (!localStorage.getItem("user")) {
     return <Navigate to="/login" replace />;
   }
 
@@ -95,8 +93,8 @@ function MyLearningProgressPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_18%,#ffffff_38%,#f8fafc_100%)] text-slate-900">
-      <main className="w-full px-3 pb-6 pt-6 sm:px-4">
+    <div {...workspaceRootProps('student')}>
+      <main className="l2h-container-app w-full pb-6 pt-6">
         <section className="relative overflow-hidden rounded-[36px] border border-indigo-200/40 shadow-[0_35px_100px_rgba(49,46,129,0.24)]">
           <img
             src={progressBannerImg}
@@ -121,7 +119,7 @@ function MyLearningProgressPage() {
             </div>
 
             <NavDropdown
-              theme="dark"
+              theme="light"
               align="right"
               icon={BookOpen}
               label="Navigate"
@@ -295,8 +293,12 @@ function MyLearningProgressPage() {
             </div>
           ) : (
             <div className="mt-6 overflow-hidden rounded-3xl border border-dashed border-slate-300">
-              <img src={emptyStateImg} alt="" className="h-52 w-full object-cover opacity-70" />
-              <div className="bg-slate-50 p-6 text-center text-sm text-slate-500">
+              <img
+                src={emptyStateImg}
+                alt=""
+                className="mx-auto mt-10 block max-h-48 w-auto max-w-md object-contain px-10 opacity-[0.72]"
+              />
+              <div className="bg-slate-50 p-8 text-center text-sm text-slate-500">
                 No saved learning progress yet. Open a material from the learning hub and your
                 activity will start appearing here.
               </div>

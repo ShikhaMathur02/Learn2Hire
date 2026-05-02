@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   BriefcaseBusiness,
   Building2,
@@ -78,8 +78,7 @@ function CompanyDashboard({ user, onLogout }) {
   }, []);
 
   const fetchDashboard = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -88,10 +87,10 @@ function CompanyDashboard({ user, onLogout }) {
       setError("");
       const [dashRes, meRes] = await Promise.all([
         fetch("/api/jobs/company/dashboard", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {},
         }),
         fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {},
         }),
       ]);
 
@@ -160,7 +159,7 @@ function CompanyDashboard({ user, onLogout }) {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, user?.email]);
 
   useEffect(() => {
     fetchDashboard();
@@ -171,8 +170,7 @@ function CompanyDashboard({ user, onLogout }) {
     setError("");
     setSuccess("");
 
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -183,7 +181,6 @@ function CompanyDashboard({ user, onLogout }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(profileForm),
       });
@@ -223,8 +220,7 @@ function CompanyDashboard({ user, onLogout }) {
     setError("");
     setSuccess("");
 
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -246,7 +242,6 @@ function CompanyDashboard({ user, onLogout }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...form,
@@ -279,8 +274,7 @@ function CompanyDashboard({ user, onLogout }) {
   };
 
   const handleStatusUpdate = async (applicationId, status) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -294,7 +288,6 @@ function CompanyDashboard({ user, onLogout }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status }),
       });
@@ -318,11 +311,11 @@ function CompanyDashboard({ user, onLogout }) {
   };
 
   const inputClassName =
-    "h-12 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20";
+    "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20";
 
   if (loading) {
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-app)] text-slate-600">
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading company dashboard...
@@ -332,8 +325,11 @@ function CompanyDashboard({ user, onLogout }) {
   }
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
-      <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
+    <div
+      className="l2h-workspace-canvas min-h-screen text-[var(--text)]"
+      data-l2h-workspace="company"
+    >
+      <div className="l2h-container-app w-full py-5 sm:py-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
           workspaceLabel="Company Workspace"
@@ -348,16 +344,16 @@ function CompanyDashboard({ user, onLogout }) {
           ]}
         />
 
-        <div className="mt-4 rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
+        <div className="mt-4 rounded-[32px] border border-[var(--border)] bg-[var(--bg-card)]/92 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04] backdrop-blur-md">
           <div className="space-y-6 p-5 sm:p-6 xl:p-7">
           {error ? (
-            <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
               {error}
             </div>
           ) : null}
 
           {success ? (
-            <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+            <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
               {success}
             </div>
           ) : null}
@@ -394,13 +390,13 @@ function CompanyDashboard({ user, onLogout }) {
           </div>
 
           <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
                 <div className="flex items-center gap-3">
-                  <PlusCircle className="h-6 w-6 text-cyan-300" />
+                  <PlusCircle className="h-6 w-6 text-[var(--primary)]" />
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Create Job Post</h2>
-                    <p className="mt-1 text-sm text-slate-400">
+                    <h2 className="text-2xl font-bold text-[var(--text)]">Create Job Post</h2>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
                       Choose whether this role is open to every partner college or restricted to one
                       campus. Only students tied to that campus will see a campus-only listing.
                     </p>
@@ -457,7 +453,7 @@ function CompanyDashboard({ user, onLogout }) {
                     <option value="closed">Closed</option>
                   </select>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                    <label className="mb-2 block text-sm font-semibold text-[var(--text-muted)]">
                       Visibility
                     </label>
                     <select
@@ -478,7 +474,7 @@ function CompanyDashboard({ user, onLogout }) {
                   </div>
                   {form.postingAudience === "single_college" ? (
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-300">
+                      <label className="mb-2 block text-sm font-semibold text-[var(--text-muted)]">
                         College
                       </label>
                       <select
@@ -497,7 +493,7 @@ function CompanyDashboard({ user, onLogout }) {
                         ))}
                       </select>
                       {colleges.length === 0 ? (
-                        <p className="mt-2 text-xs text-amber-200/90">
+                        <p className="mt-2 text-xs font-medium text-amber-900">
                           No approved colleges loaded. You can still save as draft and try again, or
                           post to all colleges.
                         </p>
@@ -511,7 +507,7 @@ function CompanyDashboard({ user, onLogout }) {
                     }
                     placeholder="Describe the role, expectations, and required experience"
                     rows={5}
-                    className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                   />
                   <Button type="submit" disabled={submitting}>
                     {submitting ? "Creating..." : "Create Job"}
@@ -520,28 +516,28 @@ function CompanyDashboard({ user, onLogout }) {
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-white">Company Profile</h2>
+                <h2 className="text-2xl font-bold text-[var(--text)]">Company Profile</h2>
                 <p className="mt-2 text-sm text-slate-400">
                   Account details plus your story—bio, what you do, goals, and focus areas—shown to
                   candidates on job pages.
                 </p>
 
                 <div className="mt-6 space-y-4">
-                  <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-sm text-slate-400">Company Name</p>
-                    <p className="mt-2 text-lg font-semibold text-white">{user.name}</p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--text)]">{user.name}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-sm text-slate-400">Email</p>
-                    <p className="mt-2 text-lg font-semibold text-white">{user.email}</p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--text)]">{user.email}</p>
                   </div>
                 </div>
 
                 <form onSubmit={handleSaveCompanyProfile} className="mt-6 space-y-4">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                    <label className="mb-2 block text-sm font-semibold text-[var(--text-muted)]">
                       Short bio
                     </label>
                     <textarea
@@ -551,11 +547,11 @@ function CompanyDashboard({ user, onLogout }) {
                       }
                       placeholder="One or two sentences about who you are as an employer."
                       rows={3}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                     />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                    <label className="mb-2 block text-sm font-semibold text-[var(--text-muted)]">
                       Company details
                     </label>
                     <textarea
@@ -565,11 +561,11 @@ function CompanyDashboard({ user, onLogout }) {
                       }
                       placeholder="What you build, your culture, team size, locations, or products."
                       rows={4}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                     />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                    <label className="mb-2 block text-sm font-semibold text-[var(--text-muted)]">
                       Goals
                     </label>
                     <textarea
@@ -579,11 +575,11 @@ function CompanyDashboard({ user, onLogout }) {
                       }
                       placeholder="Hiring objectives, growth plans, or what you want from campus talent."
                       rows={3}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                     />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                    <label className="mb-2 block text-sm font-semibold text-[var(--text-muted)]">
                       Focus areas
                     </label>
                     <textarea
@@ -593,7 +589,7 @@ function CompanyDashboard({ user, onLogout }) {
                       }
                       placeholder="Industries, technologies, or domains you work in (comma-separated or short paragraphs)."
                       rows={3}
-                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                     />
                   </div>
                   <Button type="submit" disabled={profileSaving} variant="outline">
@@ -608,10 +604,10 @@ function CompanyDashboard({ user, onLogout }) {
             <Card
               id="company-dash-recent-jobs"
               tabIndex={-1}
-              className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+              className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
             >
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-white">Recent Job Posts</h2>
+                <h2 className="text-2xl font-bold text-[var(--text)]">Recent Job Posts</h2>
                 <p className="mt-2 text-sm text-slate-400">
                   The latest job openings created by your company account.
                 </p>
@@ -626,11 +622,11 @@ function CompanyDashboard({ user, onLogout }) {
                     dashboard.recentJobs.map((job) => (
                       <div
                         key={job._id}
-                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <h3 className="font-semibold text-white">{job.title}</h3>
+                            <h3 className="font-semibold text-[var(--text)]">{job.title}</h3>
                             <p className="mt-1 text-sm text-slate-400">
                               {job.location || "Remote"} · {job.employmentType}
                             </p>
@@ -640,14 +636,14 @@ function CompanyDashboard({ user, onLogout }) {
                                 : "No skills added yet"}
                             </p>
                           </div>
-                          <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium capitalize text-cyan-300">
+                          <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold capitalize text-sky-950">
                             {job.status}
                           </span>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-900/40 p-6 text-sm text-slate-400">
                       No job posts yet. Create your first role from the form above.
                     </div>
                   )}
@@ -658,11 +654,11 @@ function CompanyDashboard({ user, onLogout }) {
             <Card
               id="company-dash-applications"
               tabIndex={-1}
-              className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+              className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
             >
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-white">Recent Applicants</h2>
-                <p className="mt-2 text-sm text-slate-400">
+                <h2 className="text-2xl font-bold text-[var(--text)]">Recent Applicants</h2>
+                <p className="mt-2 text-sm text-[var(--text-muted)]">
                   Review candidate applications and move them through your hiring pipeline.
                 </p>
 
@@ -671,12 +667,12 @@ function CompanyDashboard({ user, onLogout }) {
                     dashboard.recentApplications.map((application) => (
                       <div
                         key={application._id}
-                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                       >
                         <div className="flex flex-col gap-4">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                              <h3 className="font-semibold text-white">
+                              <h3 className="font-semibold text-[var(--text)]">
                                 {application.student?.name || "Applicant"}
                               </h3>
                               <p className="mt-1 text-sm text-slate-400">
@@ -689,7 +685,7 @@ function CompanyDashboard({ user, onLogout }) {
                                 ).toLocaleDateString()}
                               </p>
                             </div>
-                            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium capitalize text-slate-200">
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium capitalize text-[var(--text)] shadow-sm">
                               {application.status}
                             </span>
                           </div>
@@ -701,7 +697,7 @@ function CompanyDashboard({ user, onLogout }) {
                                 handleStatusUpdate(application._id, e.target.value)
                               }
                               disabled={updatingApplicationId === application._id}
-                              className="h-11 rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none focus:border-cyan-400"
+                              className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                             >
                               <option value="applied">Applied</option>
                               <option value="reviewing">Reviewing</option>
@@ -717,7 +713,7 @@ function CompanyDashboard({ user, onLogout }) {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-900/40 p-6 text-sm text-slate-400">
                       No applicants yet. Once students apply, they will appear here.
                     </div>
                   )}

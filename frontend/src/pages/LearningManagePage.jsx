@@ -37,7 +37,6 @@ function materialCategoryIdFromMaterial(m) {
 
 function LearningManagePage() {
   const navigate = useNavigate();
-  const token = localStorage.getItem("token");
 
   const [editorUser, setEditorUser] = useState(null);
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -80,11 +79,11 @@ function LearningManagePage() {
     const [catRes, matRes] = await Promise.all([
       fetch("/api/learning/manage/categories", {
         cache: "no-store",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       }),
       fetch("/api/learning/manage/materials", {
         cache: "no-store",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       }),
     ]);
     const catData = await readApiResponse(catRes);
@@ -106,10 +105,10 @@ function LearningManagePage() {
       return list[0]?._id ?? "";
     });
     setManageMaterials(matData.data?.materials || []);
-  }, [navigate, token]);
+  }, [navigate]);
 
   useEffect(() => {
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
@@ -118,7 +117,7 @@ function LearningManagePage() {
       try {
         const meRes = await fetch("/api/auth/me", {
           cache: "no-store",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {},
         });
         const meData = await readApiResponse(meRes);
         if (cancelled) return;
@@ -159,13 +158,13 @@ function LearningManagePage() {
     return () => {
       cancelled = true;
     };
-  }, [token, navigate]);
+  }, [navigate]);
 
   const role = editorUser?.role ? String(editorUser.role).toLowerCase() : "";
   const canEdit = Boolean(editorUser && EDITOR_ROLES.has(role));
 
   useEffect(() => {
-    if (!bootstrapped || !token) return;
+    if (!bootstrapped || !editorUser) return;
     if (!canEdit) {
       setLoadingMeta(false);
       return;
@@ -185,7 +184,7 @@ function LearningManagePage() {
     return () => {
       cancelled = true;
     };
-  }, [bootstrapped, canEdit, loadEditorCatalog, navigate, token]);
+  }, [bootstrapped, canEdit, loadEditorCatalog, navigate, editorUser]);
 
   const filteredManageMaterials = useMemo(() => {
     if (!materialSubjectFilter) return manageMaterials;
@@ -235,7 +234,6 @@ function LearningManagePage() {
         cache: "no-store",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name,
@@ -327,7 +325,6 @@ function LearningManagePage() {
         cache: "no-store",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...body,
@@ -359,7 +356,7 @@ function LearningManagePage() {
       try {
         const listRes = await fetch("/api/learning/manage/materials", {
           cache: "no-store",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {},
         });
         const listData = await readApiResponse(listRes);
         if (listRes.ok) {
@@ -381,7 +378,7 @@ function LearningManagePage() {
   const showCohortBranchField = audience === "cohort";
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-slate-950 px-3 py-6 text-slate-100 sm:px-4 sm:py-8">
+    <div className="l2h-dark-ui l2h-container-app min-h-screen bg-slate-950 py-6 text-slate-100 sm:py-8">
       <div className="w-full">
         <div className="sticky top-0 z-40 -mx-3 mb-8 border-b border-white/10 bg-slate-950/90 px-3 py-4 backdrop-blur-xl sm:-mx-4 sm:px-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -396,7 +393,7 @@ function LearningManagePage() {
               </p>
             </div>
             <NavDropdown
-              theme="dark"
+              theme="light"
               align="right"
               icon={BookOpenCheck}
               label="Navigate"

@@ -1,0 +1,1 @@
+import{d as s}from"./index-BP_zi9_r.js";const c=new Set(["student","faculty","company","college","admin"]);function p(a,o){const e=a?String(a).toLowerCase():"",t=c.has(e)?e:null,n=s("min-h-screen text-[var(--text)]",t?"l2h-workspace-canvas":"bg-[var(--bg-app)]",o);return t?{"data-l2h-workspace":t,className:n}:{className:n}}export{p as w};

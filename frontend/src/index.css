@@ -1,18 +1,147 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap");
 @import "tailwindcss";
 
 :root {
-  --primary: #4f46e5;
-  --primary-dark: #4338ca;
+  /* Learn2Hire — tinted canvas + sharper type (less flat white) */
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
   --secondary: #10b981;
   --accent: #f59e0b;
-  --light: #f8fafc;
-  --dark: #1f2937;
-  --text: #0f172a;
-  --student: #ff7e5f;
-  --college: #8a4fff;
-  --company: #2dd4bf;
-  --surface-elevated: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.04);
+  --light: #e8eef6;
+  --dark: #0f172a;
+  /** Primary copy — ink-navy, reads stronger than slate-700 */
+  --text: #0c1222;
+  /** Supporting copy — stronger than Tailwind slate-500 on tinted canvas */
+  --text-muted: #334056;
+  --text-subtle: #4d5c73;
+  /** Cards: light surfaces with visible tint vs pure white—still contrasts with `--text` */
+  --bg-app: #dfe6f2;
+  --bg-card: #e8eff9;
+  --border: #c0cae0;
+  --workspace-gradients: radial-gradient(
+      ellipse 130% 90% at 92% -5%,
+      rgba(37, 99, 235, 0.22),
+      transparent 52%
+    ),
+    radial-gradient(ellipse 95% 70% at -5% 98%, rgba(16, 185, 129, 0.12), transparent 48%),
+    linear-gradient(168deg, #e2eaf6 0%, #d5e0ef 52%, #e4ebf8 100%);
+  /** Layered depth: tight contact + soft ambient + deep lift; role themes add a tinted wash */
+  --shadow-card:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 4px 14px rgba(15, 23, 42, 0.07),
+    0 20px 42px rgba(15, 23, 42, 0.1),
+    0 40px 72px rgba(15, 23, 42, 0.06);
+  --radius-lg: 10px;
+
+  /** Role accents (navigation / chips only — subtle) */
+  --student: #10b981;
+  --college: #4338ca;
+  --faculty: #7c3aed;
+  --admin: #1e3a8a;
+  --company: #ea580c;
+
+  --surface-elevated: var(--shadow-card);
+}
+
+/** Per-role workspaces: gradients read as the main surface; cards stay light & legible */
+[data-l2h-workspace="student"] {
+  --bg-app: #8fd4bf;
+  --bg-card: #d8f2e9;
+  --border: #7dc4ae;
+  --primary: #047857;
+  --primary-dark: #065f46;
+  --workspace-gradients: radial-gradient(
+      ellipse 125% 85% at 88% 0%,
+      rgba(16, 185, 129, 0.45),
+      transparent 54%
+    ),
+    radial-gradient(ellipse 85% 60% at 0% 100%, rgba(5, 150, 105, 0.32), transparent 50%),
+    linear-gradient(165deg, #b8efd9 0%, #7fdcc0 42%, #9ee9d4 100%);
+  --shadow-card:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 6px 18px rgba(4, 120, 87, 0.12),
+    0 22px 44px rgba(15, 23, 42, 0.09),
+    0 44px 80px rgba(5, 150, 105, 0.08);
+}
+
+[data-l2h-workspace="faculty"] {
+  --bg-app: #b89ae8;
+  --bg-card: #ede4fc;
+  --border: #a78bda;
+  --primary: #6d28d9;
+  --primary-dark: #5b21b6;
+  --workspace-gradients: radial-gradient(
+      ellipse 118% 86% at 96% 2%,
+      rgba(192, 38, 211, 0.42),
+      transparent 52%
+    ),
+    radial-gradient(ellipse 88% 62% at 0% 98%, rgba(109, 40, 217, 0.32), transparent 50%),
+    linear-gradient(168deg, #e4d4fc 0%, #c4a6f3 46%, #d8b9f6 100%);
+  --shadow-card:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 6px 18px rgba(109, 40, 217, 0.16),
+    0 22px 44px rgba(15, 23, 42, 0.09),
+    0 44px 80px rgba(192, 38, 211, 0.12);
+}
+
+[data-l2h-workspace="company"] {
+  --bg-app: #e8934a;
+  --bg-card: #ffedd5;
+  --border: #fdba74;
+  --primary: #c2410c;
+  --primary-dark: #9a3412;
+  --workspace-gradients: radial-gradient(
+      ellipse 125% 88% at 90% -4%,
+      rgba(251, 146, 60, 0.55),
+      transparent 54%
+    ),
+    radial-gradient(ellipse 90% 58% at 4% 100%, rgba(234, 88, 12, 0.28), transparent 50%),
+    linear-gradient(168deg, #fde0c4 0%, #fbbf77 42%, #fcd9a8 100%);
+  --shadow-card:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 6px 18px rgba(194, 65, 12, 0.14),
+    0 22px 44px rgba(15, 23, 42, 0.09),
+    0 44px 80px rgba(251, 146, 60, 0.14);
+}
+
+[data-l2h-workspace="college"] {
+  --bg-app: #8b9fd4;
+  --bg-card: #d8e0f4;
+  --border: #7c8fc8;
+  --primary: #3730a3;
+  --primary-dark: #312e81;
+  --workspace-gradients: radial-gradient(
+      ellipse 122% 86% at 94% 0%,
+      rgba(79, 70, 229, 0.38),
+      transparent 54%
+    ),
+    radial-gradient(ellipse 92% 60% at 0% 100%, rgba(55, 48, 163, 0.22), transparent 50%),
+    linear-gradient(168deg, #c5d0ef 0%, #9fb0e5 46%, #b5c5ed 100%);
+  --shadow-card:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 6px 18px rgba(55, 48, 163, 0.14),
+    0 22px 44px rgba(15, 23, 42, 0.1),
+    0 44px 80px rgba(79, 70, 229, 0.12);
+}
+
+[data-l2h-workspace="admin"] {
+  --bg-app: #7c9ae6;
+  --bg-card: #d3e1fc;
+  --border: #6b8bd8;
+  --primary: #1d4ed8;
+  --primary-dark: #1e40af;
+  --workspace-gradients: radial-gradient(
+      ellipse 128% 90% at 94% -2%,
+      rgba(59, 130, 246, 0.52),
+      transparent 54%
+    ),
+    radial-gradient(ellipse 92% 62% at 0% 100%, rgba(29, 78, 216, 0.3), transparent 50%),
+    linear-gradient(168deg, #a8c4f5 0%, #7ba3eb 46%, #96b7f2 100%);
+  --shadow-card:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 6px 18px rgba(29, 78, 216, 0.16),
+    0 22px 44px rgba(15, 23, 42, 0.09),
+    0 44px 80px rgba(37, 99, 235, 0.14);
 }
 
 * {
@@ -26,20 +155,29 @@ html {
 
 body {
   margin: 0;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
-  line-height: 1.6;
+  font-family:
+    "Inter",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  /** Readable on low-DPI displays; Inter variable picks up intermediate weights */
+  font-weight: 500;
+  line-height: 1.625;
   color: var(--text);
+  letter-spacing: -0.013em;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-feature-settings:
+    "kern" 1,
+    "liga" 1,
+    "calt" 1;
   font-synthesis: none;
-  /* Soft ambient background for light pages; full-bleed dark routes still read cleanly at edges. */
-  background-color: #f1f5f9;
-  background-image:
-    radial-gradient(ellipse 100% 60% at 100% -10%, rgba(99, 102, 241, 0.08), transparent 55%),
-    radial-gradient(ellipse 90% 50% at -10% 80%, rgba(14, 165, 233, 0.06), transparent 50%),
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  background-color: var(--bg-app);
+  background-image: var(--workspace-gradients);
 }
 
 a {
@@ -57,14 +195,91 @@ a[class=""] {
   width: 100%;
 }
 
+/**
+ * l2h-container — marketing / auth / header: centered column, max ~1280px.
+ * l2h-container-app — workspace main pane: same gutters, fills width (no empty side bands).
+ */
+@layer components {
+  .l2h-container,
+  .l2h-container-app {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+
+  .l2h-container {
+    max-width: min(100%, 80rem);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .l2h-container-app {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  @media (min-width: 640px) {
+    .l2h-container,
+    .l2h-container-app {
+      padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+      padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+    }
+  }
+
+  @media (min-width: 768px) {
+    .l2h-container,
+    .l2h-container-app {
+      padding-left: max(1.75rem, env(safe-area-inset-left, 0px));
+      padding-right: max(1.75rem, env(safe-area-inset-right, 0px));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .l2h-container,
+    .l2h-container-app {
+      padding-left: max(2rem, env(safe-area-inset-left, 0px));
+      padding-right: max(2rem, env(safe-area-inset-right, 0px));
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .l2h-container,
+    .l2h-container-app {
+      padding-left: max(2.5rem, env(safe-area-inset-left, 0px));
+      padding-right: max(2.5rem, env(safe-area-inset-right, 0px));
+    }
+  }
+}
+
 ::selection {
-  background: rgba(79, 70, 229, 0.2);
+  background: rgba(37, 99, 235, 0.2);
   color: inherit;
 }
 
 :focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+@layer components {
+  .l2h-surface-card {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  /** Dashboard / workspace shells: saturated gradient fills the viewport */
+  .l2h-workspace-canvas {
+    background-color: var(--bg-app);
+    background-image: var(--workspace-gradients);
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-attachment: fixed;
+  }
 }
 
 :focus:not(:focus-visible) {

@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -11,6 +11,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../lib/api";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 
@@ -54,10 +55,9 @@ function AdminJobsPage() {
   );
 
   const fetchJobs = useCallback(async () => {
-    const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
 
-    if (!token || !storedUser) {
+    if (!storedUser) {
       navigate("/login");
       return [];
     }
@@ -81,9 +81,7 @@ function AdminJobsPage() {
     }
 
     const response = await fetch("/api/jobs", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: {},
     });
 
     const data = await readApiResponse(
@@ -111,17 +109,13 @@ function AdminJobsPage() {
         setApplications([]);
         return;
       }
-
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!localStorage.getItem("user")) {
         navigate("/login");
         return;
       }
 
       const response = await fetch(`/api/jobs/${jobId}/applications`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: {},
       });
 
       const data = await readApiResponse(
@@ -144,13 +138,12 @@ function AdminJobsPage() {
         setInterests([]);
         return;
       }
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!localStorage.getItem("user")) {
         navigate("/login");
         return;
       }
       const response = await fetch(`/api/jobs/${jobId}/interests`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(
         response,
@@ -211,8 +204,7 @@ function AdminJobsPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!localStorage.getItem("user")) {
         navigate("/login");
         return;
       }
@@ -221,7 +213,6 @@ function AdminJobsPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: statusDraft }),
       });
@@ -252,17 +243,14 @@ function AdminJobsPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!localStorage.getItem("user")) {
         navigate("/login");
         return;
       }
 
       const response = await fetch(`/api/jobs/${selectedJob._id}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: {},
       });
 
       const data = await readApiResponse(
@@ -289,8 +277,7 @@ function AdminJobsPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!localStorage.getItem("user")) {
         navigate("/login");
         return;
       }
@@ -299,7 +286,6 @@ function AdminJobsPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status }),
       });
@@ -324,12 +310,11 @@ function AdminJobsPage() {
   };
 
   const handleDownloadApplicantResume = async (studentId, downloadName) => {
-    const token = localStorage.getItem("token");
-    if (!token || !selectedJobId || !studentId) return;
+    if (!localStorage.getItem("user") || !selectedJobId || !studentId) return;
     setError("");
     try {
       const res = await fetch(`/api/jobs/${selectedJobId}/students/${studentId}/resume`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       if (!res.ok) {
         const data = await readApiResponse(res);
@@ -347,9 +332,12 @@ function AdminJobsPage() {
     }
   };
 
+  const inputClassName =
+    "h-12 rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20";
+
   if (loading) {
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
+      <div {...workspaceRootProps("admin", "flex min-h-screen items-center justify-center text-slate-600")}>
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading admin job management...
@@ -359,20 +347,23 @@ function AdminJobsPage() {
   }
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
+    <div {...workspaceRootProps("admin", "l2h-container-app min-h-screen py-5 sm:py-6")}>
       <div className="w-full">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-              <Link to="/dashboard" className="transition hover:text-white">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
+              <Link
+                to="/dashboard"
+                className="font-medium text-[var(--primary)] transition hover:underline"
+              >
                 Dashboard
               </Link>
               <span>/</span>
-              <span className="text-slate-300">Admin Jobs</span>
+              <span className="font-medium text-[var(--text)]">Admin Jobs</span>
             </div>
-            <p className="text-sm font-medium text-cyan-300">Admin Workspace</p>
-            <h1 className="mt-1 text-3xl font-bold">Jobs Management</h1>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="text-sm font-semibold text-[var(--primary)]">Admin Workspace</p>
+            <h1 className="mt-1 text-3xl font-bold text-[var(--text)]">Jobs Management</h1>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
               Review all company jobs, manage status, and inspect applications across the platform.
             </p>
           </div>
@@ -387,22 +378,22 @@ function AdminJobsPage() {
         </div>
 
         {error ? (
-          <div className="mb-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
             {error}
           </div>
         ) : null}
 
         {success ? (
-          <div className="mb-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
             {success}
           </div>
         ) : null}
 
-        <Card className="mb-6 border border-white/10 bg-white/5 shadow-none">
+        <Card className="mb-6 border border-slate-200 bg-white shadow-none">
           <CardContent className="p-6">
             <div className="mb-4 flex items-center gap-3">
-              <Search className="h-5 w-5 text-cyan-300" />
-              <h2 className="text-xl font-semibold text-white">Filters</h2>
+              <Search className="h-5 w-5 text-[var(--primary)]" />
+              <h2 className="text-xl font-semibold text-slate-900">Filters</h2>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               <input
@@ -410,19 +401,19 @@ function AdminJobsPage() {
                 value={filters.search}
                 onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
                 placeholder="Search by title"
-                className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                className={`${inputClassName} w-full`}
               />
               <input
                 type="text"
                 value={filters.company}
                 onChange={(e) => setFilters((prev) => ({ ...prev, company: e.target.value }))}
                 placeholder="Filter by company"
-                className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                className={`${inputClassName} w-full`}
               />
               <select
                 value={filters.status}
                 onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-                className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                className={`${inputClassName} w-full`}
               >
                 <option value="">All status</option>
                 <option value="draft">Draft</option>
@@ -434,9 +425,9 @@ function AdminJobsPage() {
         </Card>
 
         <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-          <Card className="border border-white/10 bg-white/5 shadow-none">
+          <Card className="border border-slate-200 bg-white shadow-none">
             <CardContent className="p-6">
-              <h2 className="text-2xl font-bold text-white">All Jobs</h2>
+              <h2 className="text-2xl font-bold text-slate-900">All Jobs</h2>
               <p className="mt-2 text-sm text-slate-400">
                 Choose a job to manage its status and review applicants.
               </p>
@@ -455,30 +446,30 @@ function AdminJobsPage() {
                       }}
                       className={`w-full rounded-2xl border p-4 text-left transition ${
                         selectedJobId === job._id
-                          ? "border-cyan-400 bg-cyan-400/10"
-                          : "border-white/10 bg-slate-900/60 hover:border-indigo-400/30"
+                          ? "border-[var(--primary)] bg-[var(--primary)]/10"
+                          : "border-slate-200 bg-slate-50 hover:border-[var(--primary)]/30"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)]">
                             <BriefcaseBusiness className="h-5 w-5" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-white">{job.title}</h3>
+                            <h3 className="font-semibold text-slate-900">{job.title}</h3>
                             <p className="mt-1 text-sm text-slate-400">
                               {job.createdBy?.name || "Company"} · {job.location || "Remote"}
                             </p>
                           </div>
                         </div>
-                        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium capitalize text-slate-200">
+                        <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium capitalize text-slate-600">
                           {job.status}
                         </span>
                       </div>
                     </button>
                   ))
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
                     No jobs match the current filters.
                   </div>
                 )}
@@ -487,11 +478,11 @@ function AdminJobsPage() {
           </Card>
 
           <div className="space-y-6">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Job Controls</h2>
+                    <h2 className="text-2xl font-bold text-slate-900">Job Controls</h2>
                     <p className="mt-2 text-sm text-slate-400">
                       {selectedJob
                         ? `Managing ${selectedJob.title}`
@@ -505,18 +496,18 @@ function AdminJobsPage() {
 
                 {selectedJob ? (
                   <div className="mt-6 space-y-5">
-                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <h3 className="text-xl font-semibold text-white">{selectedJob.title}</h3>
+                          <h3 className="text-xl font-semibold text-slate-900">{selectedJob.title}</h3>
                           <p className="mt-1 text-sm text-slate-400">
                             {selectedJob.createdBy?.name || "Company"} · {selectedJob.createdBy?.email}
                           </p>
-                          <p className="mt-3 text-sm leading-6 text-slate-300">
+                          <p className="mt-3 text-sm leading-6 text-slate-700">
                             {selectedJob.description || "No description available."}
                           </p>
                         </div>
-                        <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium capitalize text-cyan-300">
+                        <span className="rounded-full bg-[var(--primary)]/12 px-3 py-1 text-xs font-medium capitalize text-[var(--primary-dark)]">
                           {selectedJob.status}
                         </span>
                       </div>
@@ -526,7 +517,7 @@ function AdminJobsPage() {
                       <select
                         value={statusDraft}
                         onChange={(e) => setStatusDraft(e.target.value)}
-                        className="h-12 rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                        className={`${inputClassName} min-w-[11rem]`}
                       >
                         <option value="draft">Draft</option>
                         <option value="open">Open</option>
@@ -542,16 +533,16 @@ function AdminJobsPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                  <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
                     Select a job from the left to start managing it.
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-white">Applications</h2>
+                <h2 className="text-2xl font-bold text-slate-900">Applications</h2>
                 <p className="mt-2 text-sm text-slate-400">
                   Review the selected job’s applicant pipeline.
                 </p>
@@ -561,12 +552,12 @@ function AdminJobsPage() {
                     applications.map((application) => (
                       <div
                         key={application._id}
-                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                       >
                         <div className="flex flex-col gap-4">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                              <h3 className="font-semibold text-white">
+                              <h3 className="font-semibold text-slate-900">
                                 {application.student?.name || "Applicant"}
                               </h3>
                               <p className="mt-1 text-sm text-slate-400">
@@ -576,13 +567,13 @@ function AdminJobsPage() {
                                 Overall Score: {application.studentProfile?.overallScore ?? 0}%
                               </p>
                             </div>
-                            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium capitalize text-slate-200">
+                            <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium capitalize text-slate-600">
                               {application.status}
                             </span>
                           </div>
 
                           {application.coverLetter ? (
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm leading-6 text-slate-300">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
                               {application.coverLetter}
                             </div>
                           ) : null}
@@ -592,7 +583,7 @@ function AdminJobsPage() {
                               {application.studentProfile.skills.slice(0, 6).map((skill) => (
                                 <span
                                   key={skill._id || `${application._id}-${skill.name}`}
-                                  className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300"
+                                  className="rounded-full bg-[var(--primary)]/12 px-3 py-1 text-xs text-[var(--primary-dark)]"
                                 >
                                   {skill.name}
                                 </span>
@@ -606,7 +597,7 @@ function AdminJobsPage() {
                                 href={application.portfolioLink}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
+                                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 transition hover:bg-slate-50"
                               >
                                 Portfolio Link
                                 <ExternalLink className="h-4 w-4" />
@@ -616,7 +607,7 @@ function AdminJobsPage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                className="border-cyan-400/40 text-cyan-100"
+                                className="border-[var(--primary)]/40 text-[var(--primary-dark)]"
                                 onClick={() =>
                                   handleDownloadApplicantResume(
                                     application.student._id,
@@ -637,7 +628,7 @@ function AdminJobsPage() {
                                 handleApplicationStatus(application._id, e.target.value)
                               }
                               disabled={updatingApplicationId === application._id}
-                              className="h-11 rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none focus:border-cyan-400"
+                              className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                             >
                               <option value="applied">Applied</option>
                               <option value="reviewing">Reviewing</option>
@@ -653,7 +644,7 @@ function AdminJobsPage() {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
                       No applications for the selected job yet.
                     </div>
                   )}
@@ -661,9 +652,9 @@ function AdminJobsPage() {
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-white">Interested candidates</h2>
+                <h2 className="text-2xl font-bold text-slate-900">Interested candidates</h2>
                 <p className="mt-2 text-sm text-slate-400">
                   Interest-only notifications for the selected job (snapshot résumé if uploaded).
                 </p>
@@ -672,23 +663,23 @@ function AdminJobsPage() {
                     interests.map((row) => (
                       <div
                         key={row._id}
-                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <h3 className="font-semibold text-white">
+                            <h3 className="font-semibold text-slate-900">
                               {row.student?.name || "Learner"}
                             </h3>
                             <p className="mt-1 text-sm text-slate-400">{row.student?.email}</p>
                             {row.message ? (
-                              <p className="mt-2 text-sm text-slate-300">{row.message}</p>
+                              <p className="mt-2 text-sm text-slate-600">{row.message}</p>
                             ) : null}
                           </div>
                           {row.hasResumeFile && row.student?._id ? (
                             <Button
                               type="button"
                               variant="outline"
-                              className="shrink-0 border-cyan-400/40 text-cyan-100"
+                              className="shrink-0 border-[var(--primary)]/40 text-[var(--primary-dark)]"
                               onClick={() =>
                                 handleDownloadApplicantResume(
                                   row.student._id,
@@ -706,7 +697,7 @@ function AdminJobsPage() {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
                       No interest entries for this job.
                     </div>
                   )}

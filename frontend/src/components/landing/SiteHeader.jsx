@@ -11,6 +11,8 @@ const navItems = [
   { key: "roles", label: "For You", href: "#roles" },
   { key: "how-it-works", label: "How It Works", href: "#how-it-works" },
   { key: "testimonials", label: "Testimonials", href: "#testimonials" },
+  { key: "about", label: "About", href: "#about" },
+  { key: "help", label: "Help", href: "#help" },
   { key: "contact", label: "Contact", href: "#contact" },
 ];
 
@@ -28,13 +30,13 @@ function SiteHeader() {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-white/70 bg-white/95 backdrop-blur">
-      <div className="flex w-full items-center justify-between px-3 py-4 sm:px-4">
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-[var(--border)] bg-[var(--bg-card)]/95 pt-[env(safe-area-inset-top,0px)] shadow-[0_8px_30px_-18px_rgba(15,23,42,0.08)] backdrop-blur">
+      <div className="l2h-container flex w-full items-center justify-between py-3 sm:py-4">
         <Link
           to="/"
-          className="flex items-center gap-3 text-2xl font-bold text-[var(--primary)]"
+          className="flex items-center gap-3 text-2xl font-bold text-[var(--primary)] transition-opacity hover:opacity-90"
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[color:rgba(79,70,229,0.1)]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-blue-500/10 shadow-sm shadow-blue-900/5">
             <Users className="h-5 w-5" />
           </div>
           <span>Learn2Hire</span>

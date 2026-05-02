@@ -42,14 +42,14 @@ import dashboardProgressImg from "../../assets/illustrations/progress-banner.png
 import learningEmptyImg from "../../assets/illustrations/empty-state.png";
 
 const COHORT_FIELD_CLASS =
-  "mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none";
+  "mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none";
 
 function SectionTitle({ title, description, action }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 className="text-2xl font-bold text-white">{title}</h2>
-        <p className="mt-2 text-sm text-slate-400">{description}</p>
+        <h2 className="text-2xl font-bold text-[var(--text)]">{title}</h2>
+        <p className="mt-2 text-sm text-[var(--text-muted)]">{description}</p>
       </div>
       {action}
     </div>
@@ -58,7 +58,7 @@ function SectionTitle({ title, description, action }) {
 
 function EmptyState({ title, description, action }) {
   return (
-    <Card className="border border-white/10 bg-white/5 shadow-none">
+    <Card className="border border-slate-200 bg-white shadow-none">
       <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
         <img
           src={learningEmptyImg}
@@ -66,8 +66,8 @@ function EmptyState({ title, description, action }) {
           className="mx-auto w-full max-w-[180px] opacity-80"
         />
         <div>
-          <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <p className="mt-2 text-sm text-slate-400">{description}</p>
+          <h3 className="text-lg font-semibold text-[var(--text)]">{title}</h3>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">{description}</p>
         </div>
         {action}
       </CardContent>
@@ -160,9 +160,7 @@ function StudentDashboard({ user, onLogout }) {
   }, [location.state]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
+    if (!user?.email) {
       navigate("/login");
       return;
     }
@@ -173,9 +171,7 @@ function StudentDashboard({ user, onLogout }) {
       setError("");
 
       try {
-        const headers = {
-          Authorization: `Bearer ${token}`,
-        };
+        const headers = {};
 
         const [
           profileRes,
@@ -319,7 +315,7 @@ function StudentDashboard({ user, onLogout }) {
     };
 
     fetchData();
-  }, [navigate, applyCohortFromProfileFields]);
+  }, [navigate, applyCohortFromProfileFields, user?.email]);
 
   const displayUser = useMemo(() => {
     const base = profile?.user || user;
@@ -350,11 +346,10 @@ function StudentDashboard({ user, onLogout }) {
   const topSuggestedJobs = suggestedJobs.slice(0, 3);
 
   const handleAvatarUpload = async (file) => {
-    const token = localStorage.getItem("token");
-    if (!token || !file) return;
+    if (!user?.email || !file) return;
     setProfilePhotoError("");
     if (file.size > PROFILE_PHOTO_MAX_BYTES) {
-      setProfilePhotoError("Profile photo must be 25 MB or smaller. Choose a smaller image and try again.");
+      setProfilePhotoError("Profile photo must be 5 MB or smaller. Choose a smaller image and try again.");
       return;
     }
     setAvatarUploading(true);
@@ -363,7 +358,7 @@ function StudentDashboard({ user, onLogout }) {
       fd.append("photo", file);
       const res = await fetch("/api/profile/photo", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
         body: fd,
       });
       const data = await readApiResponse(res);
@@ -381,14 +376,13 @@ function StudentDashboard({ user, onLogout }) {
   };
 
   const handleAvatarRemove = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!user?.email) return;
     setProfilePhotoError("");
     setAvatarUploading(true);
     try {
       const res = await fetch("/api/profile/photo", {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(res);
       if (!res.ok) throw new Error(data.message || "Could not remove photo.");
@@ -404,8 +398,7 @@ function StudentDashboard({ user, onLogout }) {
   };
 
   const saveCohort = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!user?.email) return;
     setCohortSaving(true);
     setCohortMessage("");
     setProfilePhotoError("");
@@ -446,9 +439,8 @@ function StudentDashboard({ user, onLogout }) {
         const res = await fetch("/api/profile", {
           method: "PUT",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-          },
+        },
           body: JSON.stringify(payload),
         });
         const data = await readApiResponse(res);
@@ -485,9 +477,8 @@ function StudentDashboard({ user, onLogout }) {
         const res = await fetch("/api/profile", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-          },
+        },
           body: JSON.stringify({
             skills: profile?.skills || [],
             ...payload,
@@ -590,7 +581,7 @@ function StudentDashboard({ user, onLogout }) {
         <Card
           id="student-dash-skills"
           tabIndex={-1}
-          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+          className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
         >
           <CardContent className="p-6">
             <SectionTitle
@@ -603,12 +594,12 @@ function StudentDashboard({ user, onLogout }) {
                   <div key={skill._id || skill.name}>
                     <div className="mb-2 flex items-center justify-between text-sm">
                       <div>
-                        <span className="font-medium text-white">{skill.name}</span>
+                        <span className="font-medium text-[var(--text)]">{skill.name}</span>
                         <span className="ml-2 capitalize text-slate-500">{skill.level}</span>
                       </div>
-                      <span className="text-cyan-300">{skill.progress || 0}%</span>
+                      <span className="text-[var(--primary)]">{skill.progress || 0}%</span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-800">
+                    <div className="h-2 rounded-full bg-slate-200">
                       <div
                         className="h-2 rounded-full bg-[linear-gradient(90deg,#6366f1_0%,#22d3ee_100%)]"
                         style={{ width: `${skill.progress || 0}%` }}
@@ -634,7 +625,7 @@ function StudentDashboard({ user, onLogout }) {
         <Card
           id="student-dash-assessments"
           tabIndex={-1}
-          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+          className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
         >
           <CardContent className="p-6">
             <SectionTitle
@@ -651,17 +642,17 @@ function StudentDashboard({ user, onLogout }) {
                 availableAssessments.map((assessment) => (
                   <div
                     key={assessment._id}
-                    className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-indigo-400/30"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-indigo-400/30"
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h3 className="font-semibold text-white">{assessment.title}</h3>
+                        <h3 className="font-semibold text-[var(--text)]">{assessment.title}</h3>
                         <p className="mt-1 text-sm text-slate-400">
                           {assessment.skill || "General"} · {assessment.questions?.length || 0} questions
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-300">
+                        <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium text-[var(--primary)]">
                           {assessment.status}
                         </span>
                         <Button asChild variant="default">
@@ -681,7 +672,7 @@ function StudentDashboard({ user, onLogout }) {
           </CardContent>
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 shadow-none">
+        <Card className="border border-slate-200 bg-white shadow-none">
           <CardContent className="p-6">
             <SectionTitle
               title="Job Suggestions"
@@ -692,11 +683,11 @@ function StudentDashboard({ user, onLogout }) {
                 topSuggestedJobs.map((job) => (
                   <div
                     key={job._id}
-                    className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h3 className="font-semibold text-white">{job.title}</h3>
+                        <h3 className="font-semibold text-[var(--text)]">{job.title}</h3>
                         <p className="mt-1 text-sm text-slate-400">
                           {job.createdBy?.name || "Company"} · {job.location || "Remote"}
                         </p>
@@ -709,13 +700,13 @@ function StudentDashboard({ user, onLogout }) {
                   </div>
                 ))
               ) : (
-                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                   <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-[var(--primary)]">
                       <BriefcaseBusiness className="h-6 w-6" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">No suggestions yet</h3>
+                      <h3 className="font-semibold text-[var(--text)]">No suggestions yet</h3>
                       <p className="mt-2 text-sm leading-6 text-slate-400">
                         Add more skills in your profile and browse jobs to get more relevant live
                         suggestions here.
@@ -731,7 +722,7 @@ function StudentDashboard({ user, onLogout }) {
         <Card
           id="student-dash-materials"
           tabIndex={-1}
-          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+          className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
         >
           <CardContent className="p-6">
             <SectionTitle
@@ -749,11 +740,11 @@ function StudentDashboard({ user, onLogout }) {
                   <Link
                     key={m._id}
                     to={`/dashboard/learning/topic/${m.slug}`}
-                    className="block rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-indigo-400/40"
+                    className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-indigo-400/40"
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <p className="font-semibold text-white">{m.title}</p>
+                        <p className="font-semibold text-[var(--text)]">{m.title}</p>
                         <p className="mt-1 text-sm text-slate-400">
                           {m.category?.name || "General"} · {m.estimatedReadMinutes || "—"} min read
                         </p>
@@ -761,7 +752,7 @@ function StudentDashboard({ user, onLogout }) {
                           <p className="mt-2 text-xs text-slate-500">{m.recommendationReason}</p>
                         ) : null}
                       </div>
-                      <span className="shrink-0 text-sm font-medium text-cyan-300">Open →</span>
+                      <span className="shrink-0 text-sm font-medium text-[var(--primary)]">Open →</span>
                     </div>
                   </Link>
                 ))
@@ -785,7 +776,7 @@ function StudentDashboard({ user, onLogout }) {
         <Card
           id="student-dash-results"
           tabIndex={-1}
-          className="scroll-mt-28 border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+          className="scroll-mt-28 border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
         >
           <CardContent className="p-6">
             <SectionTitle
@@ -797,11 +788,11 @@ function StudentDashboard({ user, onLogout }) {
                 recentResults.map((submission) => (
                   <div
                     key={submission._id}
-                    className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <h3 className="font-semibold text-white">
+                        <h3 className="font-semibold text-[var(--text)]">
                           {submission.assessment?.title || "Assessment"}
                         </h3>
                         <p className="mt-1 text-sm text-slate-400">
@@ -810,7 +801,7 @@ function StudentDashboard({ user, onLogout }) {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold text-cyan-300">
+                        <p className="text-lg font-bold text-[var(--primary)]">
                           {submission.score}/{submission.maxScore}
                         </p>
                         <p className="text-xs text-slate-500">Score</p>
@@ -831,7 +822,7 @@ function StudentDashboard({ user, onLogout }) {
         <Card
           id="student-dash-readiness"
           tabIndex={-1}
-          className="scroll-mt-28 overflow-hidden border border-white/10 bg-white/5 shadow-none outline-none focus:outline-none"
+          className="scroll-mt-28 overflow-hidden border border-slate-200 bg-white shadow-none outline-none focus:outline-none"
         >
           <CardContent className="p-0">
             <div className="relative overflow-hidden">
@@ -849,17 +840,17 @@ function StudentDashboard({ user, onLogout }) {
                 description="A quick snapshot of your current readiness."
               />
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-sm text-slate-400">Overall Score</p>
-                  <p className="mt-2 text-3xl font-bold text-white">{overallScore || 0}%</p>
+                  <p className="mt-2 text-3xl font-bold text-[var(--text)]">{overallScore || 0}%</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-sm text-slate-400">Courses Enrolled</p>
-                  <p className="mt-2 text-3xl font-bold text-white">{stats.coursesEnrolled || 0}</p>
+                  <p className="mt-2 text-3xl font-bold text-[var(--text)]">{stats.coursesEnrolled || 0}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-sm text-slate-400">Assessments Taken</p>
-                  <p className="mt-2 text-3xl font-bold text-white">{stats.assessmentsTaken || 0}</p>
+                  <p className="mt-2 text-3xl font-bold text-[var(--text)]">{stats.assessmentsTaken || 0}</p>
                 </div>
               </div>
             </div>
@@ -875,7 +866,7 @@ function StudentDashboard({ user, onLogout }) {
       [cohortCourse, cohortBranch, cohortYear, cohortSemester].filter(Boolean).join(" · ") || null;
 
     const profileSummaryCard = !profileEditMode ? (
-      <Card className="overflow-hidden border border-white/10 bg-white/5 shadow-none">
+      <Card className="overflow-hidden border border-slate-200 bg-white shadow-none">
         <CardContent className="p-0">
           <div className="relative bg-gradient-to-br from-indigo-600/35 via-slate-900 to-slate-950 px-6 py-8 sm:px-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -918,7 +909,7 @@ function StudentDashboard({ user, onLogout }) {
               </div>
               <Button
                 type="button"
-                className="h-11 shrink-0 gap-2 self-start border-white/20 bg-white/10 text-white hover:bg-white/20"
+                className="h-11 shrink-0 gap-2 self-start border border-white/25 bg-white/10 text-white shadow-sm hover:bg-white/20"
                 onClick={() => {
                   setCohortMessage("");
                   setProfilePhotoError("");
@@ -931,12 +922,12 @@ function StudentDashboard({ user, onLogout }) {
               </Button>
             </div>
           </div>
-          <div className="border-t border-white/10 px-6 py-4 sm:px-8">
+          <div className="border-t border-slate-200 px-6 py-4 sm:px-8">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="border-white/20 text-white hover:bg-white/10"
+              className="border-slate-200 hover:bg-slate-50"
               onClick={() => setShowFullProfileReadonly((v) => !v)}
             >
               {showFullProfileReadonly ? "Hide full saved record" : "Show full saved record"}
@@ -946,112 +937,112 @@ function StudentDashboard({ user, onLogout }) {
             </p>
           </div>
           {showFullProfileReadonly ? (
-          <div className="space-y-8 border-t border-white/10 p-6 sm:p-8">
+          <div className="space-y-8 border-t border-slate-200 p-6 sm:p-8">
             <div>
-              <h3 className="text-sm font-semibold text-slate-200">About &amp; visibility</h3>
+              <h3 className="text-sm font-semibold text-[var(--text)]">About &amp; visibility</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 sm:col-span-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Bio</p>
-                  <p className="mt-1 text-sm leading-relaxed text-white">{pv(extraProfile.bio) || "—"}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-[var(--text)]">{pv(extraProfile.bio) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 sm:col-span-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Tools &amp; technologies
                   </p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.toolsAndTechnologies) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.toolsAndTechnologies) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 sm:col-span-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Visible to companies (talent pool)
                   </p>
-                  <p className="mt-1 text-sm text-white">
+                  <p className="mt-1 text-sm text-[var(--text)]">
                     {extraProfile.visibleToCompanies ? "Yes" : "No"}
                   </p>
                 </div>
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-slate-200">Program &amp; course</h3>
+              <h3 className="text-sm font-semibold text-[var(--text)]">Program &amp; course</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Program</p>
-                  <p className="mt-1 text-sm text-white">{pv(cohortCourse) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(cohortCourse) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Branch</p>
-                  <p className="mt-1 text-sm text-white">{pv(cohortBranch) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(cohortBranch) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Year</p>
-                  <p className="mt-1 text-sm text-white">{pv(cohortYear) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(cohortYear) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Semester</p>
-                  <p className="mt-1 text-sm text-white">{pv(cohortSemester) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(cohortSemester) || "—"}</p>
                 </div>
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-slate-200">Contact &amp; family</h3>
+              <h3 className="text-sm font-semibold text-[var(--text)]">Contact &amp; family</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Your mobile</p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.studentPhone) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.studentPhone) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Father&apos;s name
                   </p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.fatherName) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.fatherName) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Father&apos;s phone
                   </p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.fatherPhone) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.fatherPhone) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Mother&apos;s name
                   </p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.motherName) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.motherName) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Mother&apos;s phone
                   </p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.motherPhone) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.motherPhone) || "—"}</p>
                 </div>
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-slate-200">Address &amp; other details</h3>
+              <h3 className="text-sm font-semibold text-[var(--text)]">Address &amp; other details</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3 sm:col-span-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Address</p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.address) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.address) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">City</p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.city) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.city) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">State</p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.state) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.state) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">PIN code</p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.pincode) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.pincode) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Date of birth
                   </p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.dateOfBirth) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.dateOfBirth) || "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-slate-900/50 px-4 py-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Blood group</p>
-                  <p className="mt-1 text-sm text-white">{pv(extraProfile.bloodGroup) || "—"}</p>
+                  <p className="mt-1 text-sm text-[var(--text)]">{pv(extraProfile.bloodGroup) || "—"}</p>
                 </div>
               </div>
             </div>
@@ -1068,7 +1059,7 @@ function StudentDashboard({ user, onLogout }) {
     ) : null;
 
     const profileEditBioCard = profileEditMode ? (
-      <Card className="border border-white/10 bg-white/5 shadow-none">
+      <Card className="border border-slate-200 bg-white shadow-none">
         <CardContent className="p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <SectionTitle
@@ -1078,7 +1069,7 @@ function StudentDashboard({ user, onLogout }) {
             <Button
               type="button"
               variant="outline"
-              className="shrink-0 border-white/20 text-white hover:bg-white/10"
+              className="shrink-0 border-slate-200 hover:bg-slate-50"
               onClick={() => {
                 setProfileEditMode(false);
                 setCohortMessage("");
@@ -1096,7 +1087,7 @@ function StudentDashboard({ user, onLogout }) {
               {profilePhotoError}
             </div>
           ) : null}
-          <div className="mt-6 flex flex-col gap-6 border-b border-white/10 pb-6 lg:flex-row lg:items-start">
+          <div className="mt-6 flex flex-col gap-6 border-b border-slate-200 pb-6 lg:flex-row lg:items-start">
             <ProfileAvatarBlock
               name={displayUser.name}
               profilePhoto={displayUser.profilePhoto}
@@ -1114,43 +1105,43 @@ function StudentDashboard({ user, onLogout }) {
 
           {profile ? (
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm text-slate-400">Name</p>
-                <p className="mt-2 text-base font-semibold text-white">{displayUser.name}</p>
+                <p className="mt-2 text-base font-semibold text-[var(--text)]">{displayUser.name}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm text-slate-400">Email</p>
-                <p className="mt-2 text-base font-semibold text-white">{displayUser.email}</p>
+                <p className="mt-2 text-base font-semibold text-[var(--text)]">{displayUser.email}</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 md:col-span-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
                 <label className="text-sm text-slate-400" htmlFor="st-bio">
                   Bio
                 </label>
                 <textarea
                   id="st-bio"
-                  className="mt-2 min-h-[88px] w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm leading-6 text-slate-200 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 min-h-[88px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-900 placeholder:text-slate-500 shadow-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/25"
                   placeholder="Short introduction for recruiters and faculty"
                   value={extraProfile.bio}
                   onChange={(e) => setExtraProfile((p) => ({ ...p, bio: e.target.value }))}
                 />
               </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 md:col-span-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
                 <label className="text-sm text-slate-400" htmlFor="st-tools">
                   Tools &amp; technologies
                 </label>
                 <input
                   id="st-tools"
-                  className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 shadow-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/25"
                   placeholder="e.g. React, Git, Docker, AWS (comma-separated)"
                   value={extraProfile.toolsAndTechnologies}
                   onChange={(e) =>
                     setExtraProfile((p) => ({ ...p, toolsAndTechnologies: e.target.value }))
                   }
                 />
-                <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm text-slate-300">
+                <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm text-[var(--text-muted)]">
                   <input
                     type="checkbox"
-                    className="mt-1 rounded border-white/20 bg-slate-950/50"
+                    className="mt-1 rounded border border-slate-200 bg-white text-[var(--primary)]"
                     checked={extraProfile.visibleToCompanies}
                     onChange={(e) =>
                       setExtraProfile((p) => ({
@@ -1184,7 +1175,7 @@ function StudentDashboard({ user, onLogout }) {
       {profileEditBioCard}
 
       {profileEditMode ? (
-      <Card className="border border-white/10 bg-white/5 shadow-none">
+      <Card className="border border-slate-200 bg-white shadow-none">
         <CardContent className="p-6">
           <SectionTitle
             title="Program, course & contact details"
@@ -1389,8 +1380,8 @@ function StudentDashboard({ user, onLogout }) {
             </div>
           </div>
 
-          <div className="mt-8 border-t border-white/10 pt-6">
-            <h3 className="text-sm font-semibold text-slate-200">Your phone &amp; parents</h3>
+          <div className="mt-8 border-t border-slate-200 pt-6">
+            <h3 className="text-sm font-semibold text-[var(--text)]">Your phone &amp; parents</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="text-xs font-medium text-slate-400" htmlFor="st-phone">
@@ -1400,7 +1391,7 @@ function StudentDashboard({ user, onLogout }) {
                   id="st-phone"
                   inputMode="numeric"
                   autoComplete="tel"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.studentPhone}
                   onChange={(e) =>
                     setExtraProfile((p) => ({
@@ -1417,7 +1408,7 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-father"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.fatherName}
                   onChange={(e) =>
                     setExtraProfile((p) => ({ ...p, fatherName: e.target.value }))
@@ -1431,7 +1422,7 @@ function StudentDashboard({ user, onLogout }) {
                 <input
                   id="st-father-phone"
                   inputMode="numeric"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.fatherPhone}
                   onChange={(e) =>
                     setExtraProfile((p) => ({
@@ -1448,7 +1439,7 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-mother"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.motherName}
                   onChange={(e) =>
                     setExtraProfile((p) => ({ ...p, motherName: e.target.value }))
@@ -1462,7 +1453,7 @@ function StudentDashboard({ user, onLogout }) {
                 <input
                   id="st-mother-phone"
                   inputMode="numeric"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.motherPhone}
                   onChange={(e) =>
                     setExtraProfile((p) => ({
@@ -1476,8 +1467,8 @@ function StudentDashboard({ user, onLogout }) {
             </div>
           </div>
 
-          <div className="mt-8 border-t border-white/10 pt-6">
-            <h3 className="text-sm font-semibold text-slate-200">Address &amp; other details</h3>
+          <div className="mt-8 border-t border-slate-200 pt-6">
+            <h3 className="text-sm font-semibold text-[var(--text)]">Address &amp; other details</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="text-xs font-medium text-slate-400" htmlFor="st-address">
@@ -1485,7 +1476,7 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-address"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.address}
                   onChange={(e) =>
                     setExtraProfile((p) => ({ ...p, address: e.target.value }))
@@ -1498,7 +1489,7 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-city"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.city}
                   onChange={(e) => setExtraProfile((p) => ({ ...p, city: e.target.value }))}
                 />
@@ -1509,7 +1500,7 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-state"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.state}
                   onChange={(e) => setExtraProfile((p) => ({ ...p, state: e.target.value }))}
                 />
@@ -1522,7 +1513,7 @@ function StudentDashboard({ user, onLogout }) {
                   id="st-pin"
                   inputMode="numeric"
                   maxLength={6}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.pincode}
                   onChange={(e) =>
                     setExtraProfile((p) => ({
@@ -1540,7 +1531,7 @@ function StudentDashboard({ user, onLogout }) {
                 <input
                   id="st-dob"
                   type="date"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.dateOfBirth}
                   onChange={(e) =>
                     setExtraProfile((p) => ({ ...p, dateOfBirth: e.target.value }))
@@ -1553,7 +1544,7 @@ function StudentDashboard({ user, onLogout }) {
                 </label>
                 <input
                   id="st-blood"
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none"
                   value={extraProfile.bloodGroup}
                   onChange={(e) =>
                     setExtraProfile((p) => ({ ...p, bloodGroup: e.target.value }))
@@ -1576,7 +1567,7 @@ function StudentDashboard({ user, onLogout }) {
       </Card>
       ) : null}
 
-      <Card className="border border-white/10 bg-white/5 shadow-none">
+      <Card className="border border-slate-200 bg-white shadow-none">
         <CardContent className="p-6">
           <SectionTitle
             title="Skills & subjects"
@@ -1588,12 +1579,12 @@ function StudentDashboard({ user, onLogout }) {
                 <div key={skill._id || skill.name}>
                   <div className="mb-2 flex items-center justify-between text-sm">
                     <div>
-                      <span className="font-medium text-white">{skill.name}</span>
+                      <span className="font-medium text-[var(--text)]">{skill.name}</span>
                       <span className="ml-2 capitalize text-slate-500">{skill.level}</span>
                     </div>
-                    <span className="text-cyan-300">{skill.progress || 0}%</span>
+                    <span className="text-[var(--primary)]">{skill.progress || 0}%</span>
                   </div>
-                  <div className="h-2 rounded-full bg-slate-800">
+                  <div className="h-2 rounded-full bg-slate-200">
                     <div
                       className="h-2 rounded-full bg-[linear-gradient(90deg,#6366f1_0%,#22d3ee_100%)]"
                       style={{ width: `${skill.progress || 0}%` }}
@@ -1604,7 +1595,7 @@ function StudentDashboard({ user, onLogout }) {
             ) : (
               <p className="text-sm text-slate-400">
                 No subject progress yet. Open topics from{" "}
-                <Link className="text-cyan-300 underline" to="/dashboard/learning#learning-explore-catalog">
+                <Link className="text-[var(--primary)] underline" to="/dashboard/learning#learning-explore-catalog">
                   Learning
                 </Link>{" "}
                 to build your skill bars.
@@ -1614,7 +1605,7 @@ function StudentDashboard({ user, onLogout }) {
         </CardContent>
       </Card>
 
-      <Card className="border border-white/10 bg-white/5 shadow-none">
+      <Card className="border border-slate-200 bg-white shadow-none">
         <CardContent className="p-6">
           <SectionTitle
             title="Study materials"
@@ -1631,9 +1622,9 @@ function StudentDashboard({ user, onLogout }) {
                 <Link
                   key={m._id}
                   to={`/dashboard/learning/topic/${m.slug}`}
-                  className="block rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-indigo-400/40"
+                  className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-indigo-400/40"
                 >
-                  <p className="font-semibold text-white">{m.title}</p>
+                  <p className="font-semibold text-[var(--text)]">{m.title}</p>
                   <p className="mt-1 text-sm text-slate-400">
                     {m.category?.name || "General"} · {m.level || "beginner"}
                   </p>
@@ -1661,7 +1652,7 @@ function StudentDashboard({ user, onLogout }) {
   };
 
   const renderAssessments = () => (
-    <Card className="border border-white/10 bg-white/5 shadow-none">
+    <Card className="border border-slate-200 bg-white shadow-none">
       <CardContent className="p-6">
         <SectionTitle
           title="Assessments"
@@ -1672,11 +1663,11 @@ function StudentDashboard({ user, onLogout }) {
             assessments.map((assessment) => (
               <div
                 key={assessment._id}
-                className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-indigo-400/30"
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-indigo-400/30"
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h3 className="font-semibold text-white">{assessment.title}</h3>
+                    <h3 className="font-semibold text-[var(--text)]">{assessment.title}</h3>
                     <p className="mt-1 text-sm text-slate-400">
                       {assessment.description || "No description"} 
                     </p>
@@ -1707,7 +1698,7 @@ function StudentDashboard({ user, onLogout }) {
   );
 
   const renderProgress = () => (
-    <Card className="border border-white/10 bg-white/5 shadow-none">
+    <Card className="border border-slate-200 bg-white shadow-none">
       <CardContent className="p-6">
         <SectionTitle
           title="Progress"
@@ -1715,16 +1706,16 @@ function StudentDashboard({ user, onLogout }) {
         />
         <div className="mt-6 grid gap-6 xl:grid-cols-2">
           <div>
-            <h3 className="text-lg font-semibold text-white">Skill breakdown</h3>
+            <h3 className="text-lg font-semibold text-[var(--text)]">Skill breakdown</h3>
             <div className="mt-4 space-y-4">
               {skills.length ? (
                 skills.map((skill) => (
                   <div key={skill._id || skill.name}>
                     <div className="mb-2 flex items-center justify-between text-sm">
-                      <span className="text-white">{skill.name}</span>
-                      <span className="text-cyan-300">{skill.progress || 0}%</span>
+                      <span className="text-[var(--text)]">{skill.name}</span>
+                      <span className="text-[var(--primary)]">{skill.progress || 0}%</span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-800">
+                    <div className="h-2 rounded-full bg-slate-200">
                       <div
                         className="h-2 rounded-full bg-[linear-gradient(90deg,#6366f1_0%,#22d3ee_100%)]"
                         style={{ width: `${skill.progress || 0}%` }}
@@ -1739,15 +1730,15 @@ function StudentDashboard({ user, onLogout }) {
           </div>
 
           <div>
-            <h3 className="text-lg font-semibold text-white">Recent submissions</h3>
+            <h3 className="text-lg font-semibold text-[var(--text)]">Recent submissions</h3>
             <div className="mt-4 space-y-3">
               {submissions.length ? (
                 submissions.map((submission) => (
                   <div
                     key={submission._id}
-                    className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
-                    <p className="font-medium text-white">
+                    <p className="font-medium text-[var(--text)]">
                       {submission.assessment?.title || "Assessment"}
                     </p>
                     <p className="mt-1 text-sm text-slate-400">
@@ -1764,17 +1755,17 @@ function StudentDashboard({ user, onLogout }) {
         </div>
 
           <div className="mt-6">
-            <h3 className="text-lg font-semibold text-white">Recent learning activity</h3>
+            <h3 className="text-lg font-semibold text-[var(--text)]">Recent learning activity</h3>
             <div className="mt-4 space-y-3">
               {recentLearningMaterials.length ? (
                 recentLearningMaterials.map((item) => (
                   <div
                     key={item._id}
-                    className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="font-medium text-white">
+                        <p className="font-medium text-[var(--text)]">
                           {item.material?.title || "Study material"}
                         </p>
                         <p className="mt-1 text-sm text-slate-400">
@@ -1783,7 +1774,7 @@ function StudentDashboard({ user, onLogout }) {
                         </p>
                       </div>
                       <div className="text-left sm:text-right">
-                        <p className="text-lg font-bold text-cyan-300">
+                        <p className="text-lg font-bold text-[var(--primary)]">
                           {item.progressPercent || 0}%
                         </p>
                         <p className="text-xs text-slate-500">
@@ -1805,7 +1796,7 @@ function StudentDashboard({ user, onLogout }) {
   );
 
   const renderLearning = () => (
-    <Card className="border border-white/10 bg-white/5 shadow-none">
+    <Card className="border border-slate-200 bg-white shadow-none">
       <CardContent className="p-6">
         <SectionTitle
           title="Learning"
@@ -1819,18 +1810,18 @@ function StudentDashboard({ user, onLogout }) {
 
         <div className="mt-6 grid gap-6 xl:grid-cols-2">
           <div>
-            <h3 className="text-lg font-semibold text-white">Recent learning activity</h3>
+            <h3 className="text-lg font-semibold text-[var(--text)]">Recent learning activity</h3>
             <div className="mt-4 space-y-3">
               {recentLearningMaterials.length ? (
                 recentLearningMaterials.map((item) => (
                   <Link
                     key={item._id}
                     to={`/dashboard/learning/topic/${item.material?.slug}`}
-                    className="block rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-indigo-400/40"
+                    className="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-indigo-400/40"
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <p className="font-medium text-white">
+                        <p className="font-medium text-[var(--text)]">
                           {item.material?.title || "Study material"}
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
@@ -1839,7 +1830,7 @@ function StudentDashboard({ user, onLogout }) {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-cyan-300">
+                        <p className="text-sm font-semibold text-[var(--primary)]">
                           {item.progressPercent || 0}%
                         </p>
                         <p className="text-xs text-slate-500">
@@ -1864,7 +1855,7 @@ function StudentDashboard({ user, onLogout }) {
           </div>
 
           <div>
-            <h3 className="text-lg font-semibold text-white">Summary</h3>
+            <h3 className="text-lg font-semibold text-[var(--text)]">Summary</h3>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <DashboardMetricCard
                 title="Started"
@@ -1899,7 +1890,7 @@ function StudentDashboard({ user, onLogout }) {
         </div>
 
         <div className="mt-8">
-          <h3 className="text-lg font-semibold text-white">Recommended study materials</h3>
+          <h3 className="text-lg font-semibold text-[var(--text)]">Recommended study materials</h3>
           <p className="mt-1 text-sm text-slate-400">
             Picks from the library based on your skills and recent content.
           </p>
@@ -1909,16 +1900,16 @@ function StudentDashboard({ user, onLogout }) {
                 <Link
                   key={m._id}
                   to={`/dashboard/learning/topic/${m.slug}`}
-                  className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-indigo-400/40"
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-indigo-400/40"
                 >
-                  <p className="font-medium text-white">{m.title}</p>
+                  <p className="font-medium text-[var(--text)]">{m.title}</p>
                   <p className="mt-1 text-xs text-slate-400">{m.category?.name || "General"}</p>
                 </Link>
               ))
             ) : (
               <p className="text-sm text-slate-400 sm:col-span-2">
                 No recommendations yet.{" "}
-                <Link className="text-cyan-300 underline" to="/dashboard/learning#learning-explore-catalog">
+                <Link className="text-[var(--primary)] underline" to="/dashboard/learning#learning-explore-catalog">
                   Browse the catalog
                 </Link>
                 .
@@ -1944,11 +1935,10 @@ function StudentDashboard({ user, onLogout }) {
         role: displayUser.role,
       }}
       onLogout={onLogout}
-      headerIcon={Sparkles}
     >
       {loading ? (
-        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
-          <div className="flex items-center gap-3 text-slate-300">
+        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-slate-200 bg-white">
+            <div className="flex items-center gap-3 text-[var(--text-muted)]">
             <LoaderCircle className="h-5 w-5 animate-spin" />
             Loading your dashboard...
           </div>

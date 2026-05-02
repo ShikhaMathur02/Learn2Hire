@@ -1,8 +1,9 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ClipboardList, LoaderCircle, Sparkles } from "lucide-react";
 
 import { Button } from "../components/ui/button";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 import { Card, CardContent } from "../components/ui/card";
 
 function AssessmentsList() {
@@ -13,9 +14,8 @@ function AssessmentsList() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
 
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
@@ -25,9 +25,7 @@ function AssessmentsList() {
       setError("");
 
       try {
-        const headers = {
-          Authorization: `Bearer ${token}`,
-        };
+        const headers = {        };
 
         const [assessmentsRes, submissionsRes] = await Promise.all([
           fetch("/api/assessments", { headers }),
@@ -77,7 +75,7 @@ function AssessmentsList() {
 
   if (loading) {
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-200">
+      <div {...workspaceRootProps("student", "flex min-h-screen items-center justify-center text-slate-600")}>
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading assessments...
@@ -87,20 +85,25 @@ function AssessmentsList() {
   }
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-3 py-5 text-slate-50 sm:px-4 sm:py-6">
+    <div {...workspaceRootProps("student", "l2h-container-app min-h-screen py-5 sm:py-6")}>
       <div className="w-full">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-300">
-              <Link to="/dashboard" className="transition hover:text-white">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
+              <Link
+                to="/dashboard"
+                className="underline-offset-4 transition hover:text-[var(--primary)] hover:underline"
+              >
                 Dashboard
               </Link>
-              <span>/</span>
-              <span className="text-slate-200">Assessments</span>
+              <span className="text-[var(--text-subtle)]">/</span>
+              <span className="font-medium text-[var(--text)]">Assessments</span>
             </div>
-            <p className="text-sm font-medium text-cyan-200">Student Workspace</p>
-            <h1 className="mt-1 text-3xl font-bold text-white">Published Assessments</h1>
-            <p className="mt-2 text-sm text-slate-300">
+            <p className="text-sm font-semibold text-[var(--primary)]">Student Workspace</p>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--text)]">
+              Published Assessments
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--text-muted)]">
               Access all currently published assessments and continue from your dashboard.
             </p>
           </div>
@@ -112,7 +115,7 @@ function AssessmentsList() {
         </div>
 
         {error ? (
-          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
             {error}
           </div>
         ) : assessments.length ? (
@@ -130,25 +133,28 @@ function AssessmentsList() {
               return (
                 <Card
                   key={assessment._id}
-                  className="border border-white/10 bg-white/5 shadow-[0_24px_60px_rgba(2,6,23,0.25)]"
+                  className="border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04]"
                 >
                   <CardContent className="p-6">
                     <div className="mb-4 flex items-start justify-between gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
-                        <ClipboardList className="h-6 w-6" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[var(--primary)]">
+                        <ClipboardList className="h-6 w-6" aria-hidden />
                       </div>
-                      <span className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-300">
+                      <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold capitalize text-[var(--text-muted)]">
                         {assessment.status}
                       </span>
                     </div>
 
-                    <h2 className="text-xl font-semibold text-white">{assessment.title}</h2>
-                    <p className="mt-2 min-h-[48px] text-sm text-slate-400">
+                    <h2 className="text-xl font-semibold text-[var(--text)]">{assessment.title}</h2>
+                    <p className="mt-2 min-h-[48px] text-sm leading-relaxed text-[var(--text-muted)]">
                       {assessment.description || "No description provided for this assessment."}
                     </p>
 
-                    <div className="mt-4 space-y-2 text-sm text-slate-400">
-                      <p>Skill: {assessment.skill || "General"}</p>
+                    <div className="mt-4 space-y-2 text-sm text-[var(--text-muted)]">
+                      <p>
+                        <span className="font-semibold text-[var(--text)]">Skill:</span>{" "}
+                        {assessment.skill || "General"}
+                      </p>
                       <p>
                         {isDocumentOnly
                           ? "Format: Question paper (download)"
@@ -161,9 +167,9 @@ function AssessmentsList() {
                     </div>
 
                     {attempted && !isDocumentOnly ? (
-                      <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
-                        <p className="text-sm font-medium text-emerald-200">Already submitted</p>
-                        <p className="mt-1 text-sm text-emerald-100/80">
+                      <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                        <p className="text-sm font-semibold text-emerald-950">Already submitted</p>
+                        <p className="mt-1 text-sm text-emerald-900/90">
                           Score: {submission.score}/{submission.maxScore} ({percentage}%)
                         </p>
                       </div>
@@ -186,14 +192,14 @@ function AssessmentsList() {
             })}
           </div>
         ) : (
-          <Card className="border border-white/10 bg-white/5 shadow-none">
+          <Card className="border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04]">
             <CardContent className="flex flex-col items-start gap-4 p-6">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-cyan-300">
-                <Sparkles className="h-6 w-6" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[var(--primary)]">
+                <Sparkles className="h-6 w-6" aria-hidden />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-white">No assessments available</h2>
-                <p className="mt-2 text-sm text-slate-400">
+                <h2 className="text-lg font-semibold text-[var(--text)]">No assessments available</h2>
+                <p className="mt-2 text-sm text-[var(--text-muted)]">
                   Published assessments will appear here when faculty make them available.
                 </p>
               </div>

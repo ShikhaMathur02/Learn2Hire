@@ -111,7 +111,6 @@ function LearningSubjectPage({ mode = 'public' }) {
   const { categorySlug: slugParam } = useParams();
   const categorySlug = slugParam ? String(slugParam).trim().toLowerCase() : '';
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
   const storedUser = localStorage.getItem('user');
 
   let user = null;
@@ -121,7 +120,7 @@ function LearningSubjectPage({ mode = 'public' }) {
     user = null;
   }
 
-  const isAuthenticated = Boolean(token && user);
+  const isAuthenticated = Boolean(user);
   const isStudent = isAuthenticated && String(user?.role).toLowerCase() === 'student';
   const isStudentLoggedIn = mode === 'dashboard' && isStudent && isAuthenticated;
 
@@ -145,7 +144,7 @@ function LearningSubjectPage({ mode = 'public' }) {
       try {
         setLoading(true);
         setError('');
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const headers = {};
         const [catRes, matRes] = await Promise.all([
           fetch('/api/learning/subjects', { cache: 'no-store', headers }),
           fetch('/api/learning/materials', { cache: 'no-store', headers }),
@@ -157,11 +156,11 @@ function LearningSubjectPage({ mode = 'public' }) {
         setCategories(catData.data?.subjects || []);
         setMaterials(matData.data?.materials || []);
 
-        if (isStudentLoggedIn && token) {
+        if (isStudentLoggedIn) {
           try {
             const recRes = await fetch('/api/learning/materials/recommended/me', {
               cache: 'no-store',
-              headers: { Authorization: `Bearer ${token}` },
+              headers: {},
             });
             const recData = await readApiResponse(recRes);
             if (recRes.ok) setRecommendedMaterials(recData.data?.materials || []);
@@ -178,7 +177,7 @@ function LearningSubjectPage({ mode = 'public' }) {
       }
     };
     load();
-  }, [isStudentLoggedIn, token]);
+  }, [isStudentLoggedIn, user]);
 
   const selectedCategory = useMemo(
     () => categories.find((c) => slugEq(c.slug, categorySlug)) || null,
@@ -267,7 +266,7 @@ function LearningSubjectPage({ mode = 'public' }) {
     return <Navigate to={mode === 'dashboard' ? '/dashboard/learning' : '/learning'} replace />;
   }
 
-  const mainClassName = `w-full px-3 pb-8 sm:px-4 ${isDashboardLayout ? 'pt-2 sm:pt-4' : 'pt-24'}`;
+  const mainClassName = `w-full pb-8 ${isDashboardLayout ? 'pt-2 sm:pt-4' : 'l2h-container pt-24'}`;
 
   const pageMain = (
       <main className={mainClassName}>
@@ -465,8 +464,12 @@ function LearningSubjectPage({ mode = 'public' }) {
                 ))
               ) : (
                 <div className="overflow-hidden rounded-3xl border border-dashed border-slate-400/30 bg-white/5">
-                  <img src={learningEmptyIllustration} alt="" className="h-40 w-full object-cover opacity-50" />
-                  <div className={`p-8 text-center text-sm ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <img
+                    src={learningEmptyIllustration}
+                    alt=""
+                    className="mx-auto mt-10 block max-h-40 w-auto max-w-sm object-contain px-10 opacity-[0.55]"
+                  />
+                  <div className={`pb-10 pt-6 text-center text-sm ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}>
                     No materials match your filters for this subject.
                   </div>
                 </div>
@@ -489,7 +492,6 @@ function LearningSubjectPage({ mode = 'public' }) {
         onNavSectionSelect={handleNavSection}
         user={shellUser}
         onLogout={handleLogout}
-        headerIcon={Sparkles}
         showHistoryBack={false}
       >
         {pageMain}

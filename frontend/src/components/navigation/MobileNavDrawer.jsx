@@ -18,6 +18,7 @@ function MobileNavDrawer({
   onLogout,
   headerIcon: HeaderIcon,
   breakpoints = "mobile",
+  accentRole,
 }) {
   if (!open) return null;
 
@@ -27,32 +28,32 @@ function MobileNavDrawer({
     <>
       <button
         type="button"
-        className={`fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm ${bpClass}`}
+        className={`fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm ${bpClass}`}
         aria-label="Close menu"
         onClick={onClose}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-[70] flex w-[min(100vw-3rem,20rem)] flex-col border-r border-white/10 bg-slate-950 shadow-2xl shadow-black/50 ${bpClass}`}
+        className={`fixed inset-y-0 left-0 z-[70] flex w-[min(100vw-3rem,20rem)] flex-col border-r border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--surface-elevated)] ${bpClass}`}
         role="dialog"
         aria-modal="true"
         aria-label="Workspace navigation"
       >
-        <div className="flex items-center justify-between border-b border-white/10 p-4">
+        <div className="flex items-center justify-between border-b border-[var(--border)] p-4">
           <div className="flex min-w-0 items-center gap-3">
             {HeaderIcon ? (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-white shadow-md shadow-blue-600/20">
                 <HeaderIcon className="h-5 w-5" aria-hidden />
               </div>
             ) : null}
             <div className="min-w-0">
-              <p className="truncate text-base font-semibold text-white">{brandTitle}</p>
-              <p className="truncate text-xs font-medium text-slate-300">{brandSubtitle}</p>
+              <p className="truncate text-base font-semibold text-slate-900">{brandTitle}</p>
+              <p className="truncate text-xs font-medium capitalize text-slate-500">{brandSubtitle}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.08] text-white transition hover:bg-white/15 hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[var(--border)] bg-white text-slate-700 transition hover:bg-slate-50"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" aria-hidden />
@@ -61,15 +62,17 @@ function MobileNavDrawer({
 
         <div className="flex min-h-0 flex-1 flex-col p-4">
           <WorkspaceNavPanel
+            accentRole={accentRole}
             items={items}
             collapsed={false}
             activeSection={activeSection}
             onSelectSection={onSelectSection}
             onItemClick={onClose}
+            variant="light"
           />
         </div>
 
-        <div className="border-t border-white/10 p-4">
+        <div className="border-t border-[var(--border)] p-4">
           <Button
             type="button"
             variant="outline"
@@ -77,7 +80,7 @@ function MobileNavDrawer({
               onClose();
               onLogout();
             }}
-            className="w-full justify-center border-white/25 bg-white/[0.1] !text-white hover:bg-white/15 hover:!text-white"
+            className="w-full justify-center"
           >
             Logout
           </Button>

@@ -36,6 +36,9 @@ import learningEmptyIllustration from '../assets/illustrations/empty-state.png';
 const MATERIALS_SECTION_HASH = '#learning-materials-list';
 const EXPLORE_SCROLL_TARGET_ID = 'learning-explore-catalog';
 
+/** Visual offset aligned with `#learning-explore-catalog` `scroll-mt-24` and fixed SiteHeader */
+const LEARNING_NAV_SCROLL_OFFSET_PX = 96;
+
 /** Featured count on the learning hub; remaining subjects are reachable via the dropdown. */
 const FEATURED_SUBJECTS_COUNT = 4;
 /** Catalog grid: this many cards stay visible (one row of 4 on lg+); the rest sit in a details dropdown. */
@@ -109,42 +112,32 @@ function materialSortByReadAsc(a, b) {
   return (Number(a.estimatedReadMinutes) || 0) - (Number(b.estimatedReadMinutes) || 0);
 }
 
-function SectionHeader({ eyebrow, title, description, action, tone = 'light' }) {
-  const onDark = tone === 'dark';
+function SectionHeader({ eyebrow, title, description, action }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         {eyebrow ? (
-          <p
-            className={`text-sm font-semibold ${onDark ? 'text-indigo-300' : 'text-indigo-600'}`}
-          >
-            {eyebrow}
-          </p>
+          <p className="text-sm font-semibold text-[var(--primary)]">{eyebrow}</p>
         ) : null}
-        <h2
-          className={`mt-2 text-2xl font-bold tracking-tight sm:text-3xl ${
-            onDark ? 'text-white' : 'text-slate-900'
-          }`}
-        >
-          {title}
-        </h2>
-        <p
-          className={`mt-3 max-w-2xl text-sm leading-6 ${onDark ? 'text-slate-300' : 'text-slate-500'}`}
-        >
-          {description}
-        </p>
+        <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">{description}</p>
       </div>
       {action}
     </div>
   );
 }
 
-function scrollToExploreCatalog() {
-  window.requestAnimationFrame(() => {
-    document
-      .getElementById(EXPLORE_SCROLL_TARGET_ID)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+function scrollToExploreCatalog(smooth = true) {
+  const el = document.getElementById(EXPLORE_SCROLL_TARGET_ID);
+  if (!el) return;
+  const run = () => {
+    const top = Math.max(
+      0,
+      el.getBoundingClientRect().top + window.scrollY - LEARNING_NAV_SCROLL_OFFSET_PX
+    );
+    window.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+  };
+  window.requestAnimationFrame(() => window.requestAnimationFrame(run));
 }
 
 /** SPA-safe: scroll to catalog and sync the URL hash so the target is bookmarkable. */
@@ -158,40 +151,35 @@ function jumpToExploreCatalog(navigate, location) {
   });
 }
 
-/** Native select with visible chevron; optional hint when there are many options. */
+/** Native select with visible chevron */
 function LearningSelect({
   id,
   value,
   onChange,
-  dark = false,
-  className = '',
-  outerClassName = '',
+  className = "",
+  outerClassName = "",
   hint,
   children,
 }) {
   const selectCls = [
-    'w-full cursor-pointer appearance-none outline-none focus:ring-2',
-    dark
-      ? 'rounded-2xl border border-white/15 bg-slate-950/50 py-3 pl-4 pr-10 text-sm text-white ring-offset-slate-950 focus:ring-cyan-400/40'
-      : 'rounded-xl border border-slate-200 bg-white py-2.5 pl-3 pr-10 text-sm font-medium text-slate-900 focus:ring-indigo-400/40',
+    "w-full cursor-pointer appearance-none outline-none focus:ring-2",
+    "rounded-[10px] border border-[var(--border)] bg-white py-2.5 pl-3 pr-10 text-sm font-medium text-slate-900 focus:ring-[color:var(--primary)]/35",
     className,
-  ].join(' ');
+  ].join(" ");
 
   return (
-    <div className={['w-full', outerClassName].filter(Boolean).join(' ')}>
+    <div className={["w-full", outerClassName].filter(Boolean).join(" ")}>
       <div className="relative">
         <select id={id} value={value} onChange={onChange} className={selectCls}>
           {children}
         </select>
         <ChevronDown
-          className={`pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 opacity-90 ${
-            dark ? 'text-cyan-200' : 'text-indigo-600'
-          }`}
+          className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 opacity-90 text-[var(--primary)]"
           aria-hidden
         />
       </div>
       {hint ? (
-        <p className={`mt-1.5 flex items-start gap-1 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+        <p className="mt-1.5 flex items-start gap-1 text-xs text-slate-500">
           <ChevronDown className="mt-0.5 h-3 w-3 shrink-0 opacity-70" aria-hidden />
           <span>{hint}</span>
         </p>
@@ -200,96 +188,57 @@ function LearningSelect({
   );
 }
 
-function SubjectQuickTile({
-  category,
-  subjectPagePath,
-  setExploreSubjectId,
-  isDashboardLayout,
-}) {
-  const shell = isDashboardLayout
-    ? 'border-white/15 bg-white/5 text-white'
-    : 'border-slate-200/90 bg-white text-slate-900 shadow-sm';
-
+/** Full-width featured subject cards (hero + explore) — avoids cramped sidebar grids */
+function PopularSubjectCard({ category, subjectPagePath, setExploreSubjectId }) {
   const imgSrc = getSubjectImage(category.slug);
-  const desc = String(category.description || '').trim();
+  const desc = String(category.description || "").trim();
   const detail =
-    desc ||
-    'Notes, practice sets, and curated tracks — jump in to see everything for this subject.';
+    desc || "Notes, practice sets, and curated tracks tailored to this subject.";
 
   return (
-    <div
-      className={`flex h-full min-h-[300px] flex-col rounded-2xl border p-4 transition hover:-translate-y-0.5 sm:min-h-[316px] ${shell} ${
-        isDashboardLayout ? 'hover:border-cyan-400/35' : 'hover:border-indigo-200'
-      }`}
-    >
-      <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug">{category.name}</p>
-      <p className={`mt-1 shrink-0 text-xs ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}>
-        {category.materialCount ?? 0} materials
-      </p>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-2 pt-3">
-        <div
-          className={`relative h-[7.25rem] w-full shrink-0 overflow-hidden rounded-xl border ${
-            isDashboardLayout
-              ? 'border-white/10 bg-slate-950/50'
-              : 'border-slate-200/90 bg-slate-50'
-          }`}
-        >
-          {imgSrc ? (
-            <img
-              src={imgSrc}
-              alt=""
-              className="h-full w-full object-cover object-center"
-              loading="lazy"
-            />
-          ) : (
-            <div
-              className={`flex h-full w-full items-center justify-center ${
-                isDashboardLayout
-                  ? 'bg-gradient-to-br from-slate-800/90 via-indigo-950/70 to-slate-900/90'
-                  : 'bg-gradient-to-br from-indigo-50 via-white to-slate-100'
-              }`}
-            >
-              <BookOpen
-                className={`h-11 w-11 ${isDashboardLayout ? 'text-cyan-200/45' : 'text-indigo-300/90'}`}
-                aria-hidden
-              />
-            </div>
-          )}
-        </div>
-        <p
-          className={`line-clamp-3 min-h-[3.25rem] text-xs leading-snug ${
-            isDashboardLayout
-              ? desc
-                ? 'text-slate-400'
-                : 'text-slate-500'
-              : desc
-                ? 'text-slate-600'
-                : 'text-slate-500'
-          }`}
-        >
+    <article className="flex min-w-0 flex-col self-start overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_12px_42px_-28px_rgba(15,23,42,0.14)] transition duration-200 hover:-translate-y-0.5 hover:border-[color:var(--primary)]/40 hover:shadow-[0_16px_48px_-24px_rgba(37,99,235,0.18)]">
+      <div className="relative aspect-[16/10] max-h-[11rem] w-full shrink-0 overflow-hidden rounded-t-[inherit] bg-slate-100 sm:aspect-[16/9] sm:max-h-[12rem]">
+        {imgSrc ? (
+          <img
+            src={imgSrc}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-center"
+            loading="lazy"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-white">
+            <BookOpen className="h-9 w-9 text-slate-300 sm:h-10 sm:w-10" aria-hidden />
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col p-4 sm:p-5">
+        <h3 className="line-clamp-2 text-[0.9375rem] font-semibold leading-snug text-slate-900 sm:text-base">
+          {category.name}
+        </h3>
+        <p className="mt-1 text-xs font-medium tabular-nums text-slate-500">
+          {(category.materialCount ?? 0)} materials
+        </p>
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-600">
           {detail}
         </p>
+        <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4">
+          <Button asChild variant="primary" className="w-full justify-center text-sm">
+            <Link to={subjectPagePath(category.slug)}>Open subject</Link>
+          </Button>
+          <Button
+            type="button"
+            variant="default"
+            className="w-full justify-center text-sm"
+            onClick={() => {
+              setExploreSubjectId(String(category._id));
+              scrollToExploreCatalog();
+            }}
+          >
+            Filter catalog
+          </Button>
+        </div>
       </div>
-
-      <div className="mt-auto flex flex-col gap-2 pt-4">
-        <Button asChild variant="default" className="h-9 w-full justify-center text-xs">
-          <Link to={subjectPagePath(category.slug)}>Open subject</Link>
-        </Button>
-        <button
-          type="button"
-          className={`min-h-[2.25rem] text-center text-xs font-semibold leading-tight underline decoration-dotted underline-offset-2 transition hover:no-underline ${
-            isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'
-          }`}
-          onClick={() => {
-            setExploreSubjectId(String(category._id));
-            scrollToExploreCatalog();
-          }}
-        >
-          Filter catalog
-        </button>
-      </div>
-    </div>
+    </article>
   );
 }
 
@@ -380,13 +329,10 @@ function LearningTrackCard({
 function MaterialGridCard({
   material,
   topicBasePath = '/learning/topic',
-  isDashboardLayout = false,
   subjectPagePath,
   setExploreSubjectId,
 }) {
-  const shell = isDashboardLayout
-    ? 'border-white/15 bg-white/5 text-white'
-    : 'border-slate-200/90 bg-white text-slate-900 shadow-sm';
+  const shell = "border border-[var(--border)] bg-[var(--bg-card)] text-slate-900 shadow-sm";
 
   const cat =
     material.category && typeof material.category === 'object' ? material.category : null;
@@ -400,15 +346,11 @@ function MaterialGridCard({
 
   return (
     <div
-      className={`flex h-full min-h-[300px] flex-col rounded-2xl border p-4 transition hover:-translate-y-0.5 sm:min-h-[316px] ${shell} ${
-        isDashboardLayout ? 'hover:border-cyan-400/35' : 'hover:border-indigo-200'
-      }`}
+      className={`flex h-full min-h-[300px] flex-col rounded-[10px] border p-4 transition hover:-translate-y-0.5 hover:border-[color:var(--primary)]/35 sm:min-h-[316px] ${shell}`}
     >
       <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug">{material.title}</p>
       <div
-        className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug ${
-          isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
-        }`}
+        className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug text-slate-500"
       >
         <span className="font-medium text-current">{cat?.name || 'General'}</span>
         <span aria-hidden className="opacity-60">
@@ -429,13 +371,7 @@ function MaterialGridCard({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 pt-3">
-        <div
-          className={`relative h-[7.25rem] w-full shrink-0 overflow-hidden rounded-xl border ${
-            isDashboardLayout
-              ? 'border-white/10 bg-slate-950/50'
-              : 'border-slate-200/90 bg-slate-50'
-          }`}
-        >
+        <div className="relative h-[7.25rem] w-full shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50">
           {imgSrc ? (
             <img
               src={imgSrc}
@@ -444,29 +380,14 @@ function MaterialGridCard({
               loading="lazy"
             />
           ) : (
-            <div
-              className={`flex h-full w-full items-center justify-center ${
-                isDashboardLayout
-                  ? 'bg-gradient-to-br from-slate-800/90 via-indigo-950/70 to-slate-900/90'
-                  : 'bg-gradient-to-br from-indigo-50 via-white to-slate-100'
-              }`}
-            >
-              <BookText
-                className={`h-11 w-11 ${isDashboardLayout ? 'text-cyan-200/45' : 'text-indigo-300/90'}`}
-                aria-hidden
-              />
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-slate-100">
+              <BookText className="h-11 w-11 text-indigo-300/90" aria-hidden />
             </div>
           )}
         </div>
         <p
           className={`line-clamp-3 min-h-[3.25rem] text-xs leading-snug ${
-            isDashboardLayout
-              ? rawSummary
-                ? 'text-slate-400'
-                : 'text-slate-500'
-              : rawSummary
-                ? 'text-slate-600'
-                : 'text-slate-500'
+            rawSummary ? "text-slate-600" : "text-slate-500"
           }`}
         >
           {detail}
@@ -480,9 +401,7 @@ function MaterialGridCard({
         {canFilterSubject ? (
           <button
             type="button"
-            className={`min-h-[2.25rem] text-center text-xs font-semibold leading-tight underline decoration-dotted underline-offset-2 transition hover:no-underline ${
-              isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'
-            }`}
+            className="min-h-[2.25rem] text-center text-xs font-semibold leading-tight text-[var(--primary)] underline decoration-dotted underline-offset-2 transition hover:no-underline"
             onClick={() => {
               setExploreSubjectId(String(catId));
               scrollToExploreCatalog();
@@ -493,9 +412,7 @@ function MaterialGridCard({
         ) : cat?.slug && subjectPagePath ? (
           <Link
             to={subjectPagePath(cat.slug)}
-            className={`flex min-h-[2.25rem] items-center justify-center text-center text-xs font-semibold leading-tight underline decoration-dotted underline-offset-2 transition hover:no-underline ${
-              isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'
-            }`}
+            className="flex min-h-[2.25rem] items-center justify-center text-center text-xs font-semibold leading-tight text-[var(--primary)] underline decoration-dotted underline-offset-2 transition hover:no-underline"
           >
             Subject page
           </Link>
@@ -510,7 +427,6 @@ function MaterialGridCard({
 function LearningHomePage({ mode = 'auto' }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
   const storedUser = localStorage.getItem('user');
 
   let user = null;
@@ -520,7 +436,7 @@ function LearningHomePage({ mode = 'auto' }) {
     user = null;
   }
 
-  const isAuthenticated = Boolean(token && user);
+  const isAuthenticated = Boolean(user);
   const isStudent =
     isAuthenticated && user?.role && String(user.role).toLowerCase() === 'student';
 
@@ -570,9 +486,7 @@ function LearningHomePage({ mode = 'auto' }) {
         setLoading(true);
         setError('');
 
-        const optionalAuthHeaders = token
-          ? { Authorization: `Bearer ${token}` }
-          : {};
+        const optionalAuthHeaders = {};
 
         const [categoriesResponse, materialsResponse] = await Promise.all([
           fetch('/api/learning/subjects', {
@@ -598,8 +512,8 @@ function LearningHomePage({ mode = 'auto' }) {
         setCategories(categoriesData.data?.subjects || []);
         setMaterials(materialsData.data?.materials || []);
 
-        if (isStudentLoggedIn && token) {
-          const auth = { Authorization: `Bearer ${token}` };
+        if (isStudentLoggedIn) {
+          const auth = {};
           try {
             const [recommendedResponse, progressResponse] = await Promise.all([
               fetch('/api/learning/materials/recommended/me', {
@@ -648,7 +562,7 @@ function LearningHomePage({ mode = 'auto' }) {
     };
 
     fetchLearningData();
-  }, [isStudentLoggedIn, token]);
+  }, [isStudentLoggedIn]);
 
   const selectedCategory = useMemo(() => {
     if (!exploreSubjectId) return null;
@@ -707,7 +621,7 @@ function LearningHomePage({ mode = 'auto' }) {
 
     const targetEl = materialsListRef.current;
     const run = () => {
-      targetEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      targetEl?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
     };
     const t1 = window.setTimeout(run, 120);
     const t2 = window.setTimeout(run, 450);
@@ -726,18 +640,6 @@ function LearningHomePage({ mode = 'auto' }) {
     materials.length,
   ]);
 
-  useEffect(() => {
-    if (loading) return;
-    const raw = (location.hash || '').replace(/^#/, '');
-    if (raw !== 'learning-explore-catalog' && raw !== 'learning-explore-content') return undefined;
-    const run = () => scrollToExploreCatalog();
-    const t1 = window.setTimeout(run, 80);
-    const t2 = window.setTimeout(run, 400);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, [location.hash, location.pathname, loading]);
 
   const sortedMaterials = useMemo(() => {
     const list = [...filteredMaterials];
@@ -823,22 +725,18 @@ function LearningHomePage({ mode = 'auto' }) {
 
   const mainClassName = isDashboardLayout
     ? 'w-full pb-8'
-    : 'w-full px-3 pb-8 sm:px-4 pt-24';
+    : 'l2h-container w-full pb-8 pt-24';
 
   const mainContent = (
       <main className={mainClassName}>
-        <section className="relative overflow-hidden rounded-[38px] border border-indigo-200/40 bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#312e81_42%,#020617_100%)] px-4 py-8 text-white shadow-[0_35px_100px_rgba(49,46,129,0.28)] sm:px-6 sm:py-9 lg:px-8">
+        <section className="relative overflow-hidden rounded-[14px] border border-[var(--border)] bg-gradient-to-br from-[#eef2ff] via-white to-[#f8fafc] px-4 py-8 text-slate-900 shadow-[var(--surface-elevated)] sm:px-6 sm:py-9 lg:px-8">
           <div className="absolute right-0 top-0 h-52 w-52 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-fuchsia-500/10 blur-3xl" />
-          <img
-            src={learningHeroIllustration}
-            alt=""
-            className="pointer-events-none absolute -right-8 bottom-0 hidden h-full w-[480px] rounded-r-[38px] object-cover opacity-20 lg:block"
-          />
-
-          <div className="relative grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:gap-8">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-cyan-100 backdrop-blur">
+          <div
+            className={`relative z-10 grid min-w-0 gap-8 lg:gap-10 ${isStudentLoggedIn ? 'lg:grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,34rem)] xl:items-start xl:gap-x-10 2xl:grid-cols-[minmax(0,1.15fr)_minmax(26rem,1fr)]' : 'grid-cols-1'}`}
+          >
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-4 py-2 text-sm font-medium text-[var(--primary)] shadow-sm">
                 <Sparkles className="h-4 w-4" />
                 {isStudentLoggedIn
                   ? 'Student learning workspace with saved progress'
@@ -849,7 +747,7 @@ function LearningHomePage({ mode = 'auto' }) {
                   ? 'Continue your learning journey with saved student progress.'
                   : 'Hello, what do you want to learn today?'}
               </h1>
-              <p className="mt-4 max-w-2xl text-base text-slate-200 sm:text-lg">
+              <p className="mt-4 max-w-2xl text-base text-slate-600 sm:text-lg">
                 {isStudentLoggedIn
                   ? 'Pick up where you left off, follow recommended materials, and track your study momentum inside Learn2Hire.'
                   : 'Explore a GeeksforGeeks-inspired learning experience with clear subjects, latest reading tracks, and professional study resources for placements.'}
@@ -873,21 +771,39 @@ function LearningHomePage({ mode = 'auto' }) {
                       <Link to="/dashboard/learning/progress">My Progress</Link>
                     </Button>
                   </>
+                ) : isAuthenticated ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={() => jumpToExploreCatalog(navigate, location)}
+                    >
+                      Browse catalog
+                    </Button>
+                    <Button asChild variant="default">
+                      <Link to="/dashboard">Open workspace</Link>
+                    </Button>
+                  </>
                 ) : (
-                  <Button asChild variant="default">
-                    <Link to="/signup">Create Account</Link>
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={() => jumpToExploreCatalog(navigate, location)}
+                    >
+                      Browse catalog
+                    </Button>
+                    <Button asChild variant="default">
+                      <Link to="/signup">Create account</Link>
+                    </Button>
+                  </>
                 )}
 
                 {isStudentLoggedIn ? (
                   <Button asChild variant="default">
                     <Link to="/dashboard">Open Student Dashboard</Link>
                   </Button>
-                ) : (
-                  <Button asChild variant="default">
-                    <Link to="/login">Login</Link>
-                  </Button>
-                )}
+                ) : null}
               </div>
 
               <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -897,14 +813,14 @@ function LearningHomePage({ mode = 'auto' }) {
                   return (
                     <div
                       key={item.label}
-                      className="rounded-3xl border border-white/10 bg-white/10 p-5 backdrop-blur"
+                      className="rounded-3xl border border-slate-200 bg-slate-50 p-5 backdrop-blur"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-sm text-cyan-100">{item.label}</p>
-                          <p className="mt-3 text-3xl font-bold text-white">{item.value}</p>
+                          <p className="text-sm font-medium text-slate-600">{item.label}</p>
+                          <p className="mt-3 text-3xl font-bold text-slate-900">{item.value}</p>
                         </div>
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-cyan-100">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-[var(--primary)]">
                           <Icon className="h-5 w-5" />
                         </div>
                       </div>
@@ -915,326 +831,277 @@ function LearningHomePage({ mode = 'auto' }) {
             </div>
 
             {isStudentLoggedIn ? (
-              <div className="rounded-[32px] border border-white/10 bg-white/10 p-6 backdrop-blur-xl">
+              <div className="min-w-0 rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-6 shadow-[var(--surface-elevated)]">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/15 text-emerald-200">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-[10px] bg-emerald-50 text-emerald-600">
                       <BrainCircuit className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-emerald-100">Learning Overview</p>
-                      <h2 className="mt-1 text-2xl font-semibold text-white">
+                      <p className="text-sm font-medium text-emerald-700">Learning Overview</p>
+                      <h2 className="mt-1 text-2xl font-semibold text-slate-900">
                         Track your study progress
                       </h2>
                     </div>
                   </div>
-                  <div className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-100">
+                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">
                     Progress sync active
                   </div>
                 </div>
 
-                <p className="mt-4 max-w-xl text-sm leading-6 text-slate-200">
+                <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600">
                   Your student account saves reading progress, completion status, and learning
                   activity so you can continue studying without losing momentum.
                 </p>
 
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
+                    <div className="rounded-[10px] border border-[var(--border)] bg-slate-50 p-5">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-cyan-100">Started Materials</p>
-                      <BookOpen className="h-4 w-4 text-cyan-100" />
+                      <p className="text-sm font-medium text-slate-600">Started Materials</p>
+                      <BookOpen className="h-4 w-4 text-[var(--primary)]" />
                     </div>
-                    <p className="mt-3 text-3xl font-bold text-white">
+                    <p className="mt-3 text-3xl font-bold text-slate-900">
                       {studentProgressSummary.totalStarted}
                     </p>
-                    <p className="mt-2 text-xs text-slate-300">Materials opened from your account</p>
+                    <p className="mt-2 text-xs text-slate-500">Materials opened from your account</p>
                   </div>
-                  <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
+                  <div className="rounded-[10px] border border-[var(--border)] bg-slate-50 p-5">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-cyan-100">Completed Materials</p>
-                      <CheckCircle2 className="h-4 w-4 text-cyan-100" />
+                      <p className="text-sm font-medium text-slate-600">Completed Materials</p>
+                      <CheckCircle2 className="h-4 w-4 text-[var(--primary)]" />
                     </div>
-                    <p className="mt-3 text-3xl font-bold text-white">
+                    <p className="mt-3 text-3xl font-bold text-slate-900">
                       {studentProgressSummary.totalCompleted}
                     </p>
-                    <p className="mt-2 text-xs text-slate-300">Finished and marked complete</p>
+                    <p className="mt-2 text-xs text-slate-500">Finished and marked complete</p>
                   </div>
-                  <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
+                  <div className="rounded-[10px] border border-[var(--border)] bg-slate-50 p-5">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-cyan-100">Active Materials</p>
-                      <Target className="h-4 w-4 text-cyan-100" />
+                      <p className="text-sm font-medium text-slate-600">Active Materials</p>
+                      <Target className="h-4 w-4 text-[var(--primary)]" />
                     </div>
-                    <p className="mt-3 text-3xl font-bold text-white">
+                    <p className="mt-3 text-3xl font-bold text-slate-900">
                       {studentProgressSummary.inProgressCount}
                     </p>
-                    <p className="mt-2 text-xs text-slate-300">Currently being studied</p>
+                    <p className="mt-2 text-xs text-slate-500">Currently being studied</p>
                   </div>
-                  <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
+                  <div className="rounded-[10px] border border-[var(--border)] bg-slate-50 p-5">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-cyan-100">Average Completion</p>
-                      <TrendingUp className="h-4 w-4 text-cyan-100" />
+                      <p className="text-sm font-medium text-slate-600">Average Completion</p>
+                      <TrendingUp className="h-4 w-4 text-[var(--primary)]" />
                     </div>
-                    <p className="mt-3 text-3xl font-bold text-white">
+                    <p className="mt-3 text-3xl font-bold text-slate-900">
                       {studentProgressSummary.averageProgress}%
                     </p>
-                    <p className="mt-2 text-xs text-slate-300">Overall progress across saved materials</p>
+                    <p className="mt-2 text-xs text-slate-500">Overall progress across saved materials</p>
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-3xl border border-emerald-300/20 bg-emerald-400/10 p-5">
+                <div className="mt-6 rounded-[10px] border border-emerald-200 bg-emerald-50/80 p-5">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-200" />
-                    <p className="text-sm font-medium text-emerald-100">Student progress is enabled</p>
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    <p className="text-sm font-medium text-emerald-900">Student progress is enabled</p>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-200">
+                  <p className="mt-2 text-sm leading-6 text-emerald-900/80">
                     Continue any saved material at any time. Your study record is maintained in
                     your learning progress and reflected in your student skill profile.
                   </p>
                 </div>
               </div>
-            ) : (
-              <div className="rounded-[32px] border border-white/10 bg-white/10 p-6 backdrop-blur-xl">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-cyan-100">
-                    <Flame className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-cyan-100">Must Explore</p>
-                    <h2 className="mt-1 text-2xl font-semibold text-white">
-                      {selectedCategory ? selectedCategory.name : 'Trending Subject Picks'}
-                    </h2>
-                  </div>
-                </div>
-
-                <div className="mt-6 space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100">
-                    Popular tracks
-                  </p>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {featuredSubjects.map((category) => (
-                      <SubjectQuickTile
-                        key={category._id}
-                        category={category}
-                        subjectPagePath={subjectPagePath}
-                        setExploreSubjectId={setExploreSubjectId}
-                        isDashboardLayout
-                      />
-                    ))}
-                  </div>
-                  <div>
-                    <label htmlFor="hero-subject-jump" className="text-xs font-semibold text-cyan-100/90">
-                      All subjects
-                    </label>
-                    <LearningSelect
-                      id="hero-subject-jump"
-                      dark
-                      outerClassName="mt-2"
-                      value={exploreSubjectId}
-                      hint={subjectDropdownHint}
-                      onChange={(e) => {
-                        setExploreSubjectId(e.target.value);
-                        if (e.target.value) scrollToExploreCatalog();
-                      }}
-                    >
-                      <option value="">All subjects — full catalog</option>
-                      {categories.map((category) => (
-                        <option key={category._id} value={category._id}>
-                          {category.name} ({category.materialCount ?? 0})
-                        </option>
-                      ))}
-                    </LearningSelect>
-                  </div>
-                  <p className="text-sm leading-6 text-slate-200">
-                    {selectedCategory
-                      ? selectedCategory.description || 'Filters below apply to this subject.'
-                      : 'Start from a popular track or choose any subject from the menu.'}
-                  </p>
-                  {selectedCategory ? (
-                    <Button asChild variant="default" className="mt-1">
-                      <Link to={subjectPagePath(selectedCategory.slug)}>Subject overview</Link>
-                    </Button>
-                  ) : null}
-                </div>
-
-                {isPublicVisitor ? (
-                  <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-5">
-                    <p className="text-sm font-medium text-white">Student-only saved progress</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-200">
-                      Visitors can explore freely. Log in as a student to unlock saved progress,
-                      personalized recommendations, and your own study workspace.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-5">
-                    <p className="text-sm font-medium text-white">Browsing Mode</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-200">
-                      This account can explore materials, but progress tracking is reserved for
-                      student accounts only.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+            ) : null}
           </div>
-        </section>
 
-        <section className="mt-8">
-          <SectionHeader
-            tone={isDashboardLayout ? 'dark' : 'light'}
-            eyebrow="Explore"
-            title="Subjects to start with"
-            description="We highlight a few popular tracks. Every other subject is in the menu — pick one to filter the catalog below."
-          />
-
-          <div
-            className={`mt-6 rounded-[28px] border p-6 sm:p-7 ${
-              isDashboardLayout
-                ? 'border-white/10 bg-white/5 backdrop-blur-xl'
-                : 'border-slate-200/80 bg-white/90 shadow-[0_25px_70px_rgba(15,23,42,0.06)]'
-            }`}
-          >
-            <p
-              className={`text-xs font-semibold uppercase tracking-wide ${
-                isDashboardLayout ? 'text-cyan-100/90' : 'text-indigo-600'
-              }`}
-            >
-              Featured ({FEATURED_SUBJECTS_COUNT})
-            </p>
-            {/* One row on lg: 4 tiles + All subjects — same height as tiles (not including label) */}
-            <div className="mt-3 flex flex-col gap-3 lg:grid lg:min-h-0 lg:grid-cols-[minmax(0,4fr)_minmax(0,1fr)] lg:items-stretch lg:gap-4">
-              <div className="grid min-h-0 grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-3">
-                {featuredSubjects.map((category) => (
-                  <SubjectQuickTile
-                    key={category._id}
-                    category={category}
-                    subjectPagePath={subjectPagePath}
-                    setExploreSubjectId={setExploreSubjectId}
-                    isDashboardLayout={isDashboardLayout}
-                  />
-                ))}
+          {!isStudentLoggedIn ? (
+            <div className="relative z-10 mt-10 space-y-8 border-t border-slate-200/70 pt-10">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--primary)]">
+                  Popular tracks
+                </p>
+                <div className="mt-3">
+                  <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                    Start with a featured subject
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">
+                    Four entry points sized for readability—jump in, then scroll to materials or tune
+                    the catalog with the subject picker below.
+                  </p>
+                </div>
+                <div className="mt-6 grid grid-cols-1 items-start gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+                  {featuredSubjects.map((category) => (
+                    <PopularSubjectCard
+                      key={category._id}
+                      category={category}
+                      subjectPagePath={subjectPagePath}
+                      setExploreSubjectId={setExploreSubjectId}
+                    />
+                  ))}
+                </div>
               </div>
 
-              <div
-                className={`flex h-full min-h-[300px] w-full min-w-0 flex-col rounded-2xl border p-4 transition hover:-translate-y-0.5 sm:min-h-[316px] ${
-                  isDashboardLayout
-                    ? 'border-white/15 bg-white/5 text-white hover:border-cyan-400/35'
-                    : 'border-slate-200/90 bg-white text-slate-900 shadow-sm hover:border-indigo-200'
-                }`}
-              >
-                <label
-                  htmlFor="learning-subject-picker"
-                  className={`line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug ${isDashboardLayout ? 'text-white' : 'text-slate-900'}`}
-                >
-                  All subjects
-                </label>
-                <p
-                  className={`mt-1 shrink-0 text-xs leading-snug ${isDashboardLayout ? 'text-slate-400' : 'text-slate-500'}`}
-                >
-                  Browse the full list ({materials.length} materials).
-                </p>
-                <div className="mt-3 shrink-0">
+              <div className="mx-auto w-full max-w-lg rounded-2xl border border-[var(--border)] bg-white/95 p-5 shadow-sm sm:p-6">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+                    <Flame className="h-5 w-5 shrink-0" aria-hidden />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--primary)]">Subject filter</p>
+                    <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                      {selectedCategory ? selectedCategory.name : "Browse all subjects"}
+                    </h3>
+                  </div>
+                </div>
+                <div className="mt-5">
+                  <label htmlFor="hero-subject-jump" className="text-xs font-semibold text-slate-600">
+                    All subjects
+                  </label>
                   <LearningSelect
-                    id="learning-subject-picker"
-                    dark={isDashboardLayout}
-                    outerClassName=""
+                    id="hero-subject-jump"
+                    outerClassName="mt-2"
                     value={exploreSubjectId}
                     hint={subjectDropdownHint}
-                    onChange={(e) => setExploreSubjectId(e.target.value)}
+                    onChange={(e) => {
+                      setExploreSubjectId(e.target.value);
+                      if (e.target.value) scrollToExploreCatalog();
+                    }}
                   >
-                    <option value="">All subjects ({materials.length})</option>
+                    <option value="">All subjects — full catalog</option>
                     {categories.map((category) => (
                       <option key={category._id} value={category._id}>
-                        {category.name} · {category.materialCount ?? 0}
+                        {category.name} ({category.materialCount ?? 0})
                       </option>
                     ))}
                   </LearningSelect>
                 </div>
-                <div
-                  className={`relative mt-3 min-h-0 flex-1 overflow-hidden rounded-xl border ${
-                    isDashboardLayout ? 'border-white/10' : 'border-slate-200/90'
-                  }`}
-                >
-                  <img
-                    src={learningHeroIllustration}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-cover object-[center_30%]"
-                    loading="lazy"
-                  />
-                  <div
-                    className={
-                      isDashboardLayout
-                        ? 'absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-slate-950/10'
-                        : 'absolute inset-0 bg-gradient-to-t from-white/95 via-white/45 to-transparent'
-                    }
-                    aria-hidden
-                  />
-                  <div className="relative flex h-full min-h-[7.25rem] flex-col justify-end p-3">
-                    <p
-                      className={`text-xs font-semibold leading-snug ${
-                        isDashboardLayout ? 'text-cyan-100' : 'text-slate-800'
-                      }`}
-                    >
-                      Full catalog
-                    </p>
-                    <p
-                      className={`mt-1 text-[11px] leading-snug ${
-                        isDashboardLayout ? 'text-slate-300' : 'text-slate-600'
-                      }`}
-                    >
-                      Switch subjects anytime — materials and filters update below.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-auto flex flex-col gap-2 pt-4">
+                <p className="mt-5 text-sm leading-relaxed text-slate-600">
+                  {selectedCategory
+                    ? selectedCategory.description || "Catalog filters apply to this subject."
+                    : 'Pick a subject to focus readings and filters—or keep "all subjects" to scan the full shelf.'}
+                </p>
+                {selectedCategory ? (
+                  <Button asChild variant="default" className="mt-4 w-full justify-center">
+                    <Link to={subjectPagePath(selectedCategory.slug)}>Open subject overview</Link>
+                  </Button>
+                ) : (
                   <Button
                     type="button"
                     variant="default"
-                    className="h-9 w-full justify-center text-xs"
+                    className="mt-4 w-full justify-center"
                     onClick={() => jumpToExploreCatalog(navigate, location)}
                   >
                     Jump to catalog
                   </Button>
-                  {selectedCategory ? (
-                    <Button asChild variant="soft" className="h-9 w-full justify-center text-xs">
-                      <Link to={subjectPagePath(selectedCategory.slug)}>Open subject page</Link>
-                    </Button>
-                  ) : (
-                    <div className="min-h-[2.25rem]" aria-hidden />
-                  )}
-                </div>
+                )}
+
+                {isPublicVisitor ? (
+                  <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-medium text-slate-800">Student-only saved progress</p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                      Sign in as a student to unlock saved progress, tailored picks, and your study
+                      workspace.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-medium text-slate-800">Browsing mode</p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                      Progress tracking is for student accounts—exploration stays open here.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="mt-8">
+          <SectionHeader
+            eyebrow="Explore"
+            title="Filter the shelf"
+            description="Featured subjects sit above—you can tighten the catalog any time here. Choosing a subject refreshes readings, searches, and the material grids below."
+          />
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,400px)] lg:items-start">
+            <div className="flex min-h-0 flex-col rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] p-5 shadow-[var(--surface-elevated)] sm:p-7">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
+                Subject menu
+              </p>
+              <h3 className="mt-3 text-lg font-semibold text-slate-900 sm:text-xl">
+                Focus the catalog
+              </h3>
+              <p className="mt-3 max-w-prose text-sm leading-relaxed text-slate-600">
+                Matches the picker in the hero for consistency—ideal on smaller screens without scrolling back up.
+              </p>
+              <div className="mt-6 max-w-md shrink-0">
+                <LearningSelect
+                  id="learning-subject-picker-inline"
+                  value={exploreSubjectId}
+                  hint={subjectDropdownHint}
+                  onChange={(e) => setExploreSubjectId(e.target.value)}
+                >
+                  <option value="">All subjects ({materials.length})</option>
+                  {categories.map((category) => (
+                    <option key={category._id} value={category._id}>
+                      {category.name} · {category.materialCount ?? 0}
+                    </option>
+                  ))}
+                </LearningSelect>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => jumpToExploreCatalog(navigate, location)}
+                >
+                  Jump to catalog
+                </Button>
+                {selectedCategory ? (
+                  <Button asChild variant="default">
+                    <Link to={subjectPagePath(selectedCategory.slug)}>Open subject page</Link>
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="relative min-h-[220px] overflow-hidden rounded-2xl border border-slate-200/90 bg-slate-100 sm:min-h-[260px]">
+              <div className="absolute inset-0 flex items-center justify-center p-7 sm:p-10">
+                <img
+                  src={learningHeroIllustration}
+                  alt=""
+                  className="relative z-[1] h-auto max-h-[min(210px,38vh)] w-full max-w-lg object-contain"
+                  loading="lazy"
+                />
+              </div>
+              <div
+                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/72 via-slate-900/20 to-transparent"
+                aria-hidden
+              />
+              <div className="absolute inset-x-0 bottom-0 p-6 text-white">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/80">
+                  Guided reading
+                </p>
+                <p className="mt-3 text-xl font-semibold leading-snug tracking-tight sm:text-[1.35rem]">
+                  Full catalog awaits below
+                </p>
               </div>
             </div>
           </div>
         </section>
 
         {loading ? (
-          <div
-            className={`mt-7 flex h-40 items-center justify-center rounded-[32px] border ${
-              isDashboardLayout
-                ? 'border-white/10 bg-white/5 text-slate-300'
-                : 'border-slate-200/80 bg-white/90 text-slate-500 shadow-[0_25px_70px_rgba(15,23,42,0.08)]'
-            }`}
-          >
+          <div className="mt-7 flex h-40 items-center justify-center rounded-[32px] border border-slate-200/80 bg-white/95 text-slate-500 shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
             <div className="flex items-center gap-3">
               <LoaderCircle className="h-5 w-5 animate-spin" />
               Loading learning content...
             </div>
           </div>
         ) : error ? (
-          <div
-            className={`mt-7 rounded-[32px] border p-6 text-sm ${
-              isDashboardLayout
-                ? 'border-rose-400/30 bg-rose-950/40 text-rose-200'
-                : 'border-rose-200 bg-rose-50 text-rose-700'
-            }`}
-          >
+          <div className="mt-7 rounded-[32px] border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
             {error}
           </div>
         ) : (
           <>
             <section className="mt-8">
               <SectionHeader
-                tone={isDashboardLayout ? 'dark' : 'light'}
                 eyebrow={isStudentLoggedIn ? 'For You' : 'Featured'}
                 title={isStudentLoggedIn ? 'Recommended Learning Tracks' : 'Popular Learning Tracks'}
                 description={
@@ -1256,29 +1123,19 @@ function LearningHomePage({ mode = 'auto' }) {
                 ))}
               </div>
               {hasMoreLearningTracks ? (
-                <details
-                  className={`group mt-6 rounded-[28px] border shadow-sm ${
-                    isDashboardLayout
-                      ? 'border-white/15 bg-white/5'
-                      : 'border-indigo-200/60 bg-indigo-50/30'
-                  }`}
-                >
+                <details className="group mt-6 rounded-[28px] border border-indigo-200/60 bg-indigo-50/30 shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center justify-center gap-2 px-4 py-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
                     <ChevronDown
-                      className={`h-4 w-4 shrink-0 transition group-open:rotate-180 ${
-                        isDashboardLayout ? 'text-cyan-200' : 'text-indigo-700'
-                      }`}
+                      className={`h-4 w-4 shrink-0 transition group-open:rotate-180 text-indigo-700`}
                       aria-hidden
                     />
-                    <span className={isDashboardLayout ? 'text-cyan-100' : 'text-indigo-900'}>
+                    <span className="text-indigo-900">
                       View all {tracksSourceList.length} learning tracks (
                       {tracksSourceList.length - LEARNING_TRACKS_PREVIEW} more)
                     </span>
                   </summary>
                   <div
-                    className={`grid gap-5 border-t px-2 pb-4 pt-6 xl:grid-cols-3 ${
-                      isDashboardLayout ? 'border-white/10' : 'border-slate-200/20'
-                    }`}
+                    className={`grid gap-5 border-t px-2 pb-4 pt-6 xl:grid-cols-3 border-slate-200`}
                   >
                     {tracksSourceList.slice(LEARNING_TRACKS_PREVIEW).map((material) => (
                       <LearningTrackCard
@@ -1297,27 +1154,14 @@ function LearningHomePage({ mode = 'auto' }) {
         )}
 
         <section id={EXPLORE_SCROLL_TARGET_ID} className="mt-8 scroll-mt-24">
-          <Card
-            className={
-              isDashboardLayout
-                ? 'rounded-[34px] border border-white/10 bg-white/[0.07] shadow-[0_28px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl'
-                : 'rounded-[34px] border border-slate-200/80 bg-white/95 shadow-[0_25px_70px_rgba(15,23,42,0.08)]'
-            }
-          >
+          <Card className="rounded-[34px] border border-[var(--border)] bg-[var(--bg-card)] shadow-[0_25px_70px_rgba(15,23,42,0.08)]">
             <CardContent className="p-6 sm:p-8">
               <SectionHeader
-                tone={isDashboardLayout ? 'dark' : 'light'}
                 eyebrow="Catalog"
                 title="Explore materials"
                 description="Filter by subject, type, level, and search — then choose how to sort the cards below (newest, A–Z, or shortest read)."
                 action={
-                  <div
-                    className={`rounded-full px-4 py-2 text-sm font-medium ${
-                      isDashboardLayout
-                        ? 'bg-white/10 text-cyan-100 ring-1 ring-white/15'
-                        : 'bg-indigo-50 text-indigo-700'
-                    }`}
-                  >
+                  <div className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 ring-1 ring-indigo-100">
                     {loading
                       ? 'Loading…'
                       : `${sortedMaterials.length} result${sortedMaterials.length === 1 ? '' : 's'}`}
@@ -1326,25 +1170,16 @@ function LearningHomePage({ mode = 'auto' }) {
               />
 
               <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-12">
-                <label
-                  className={`flex flex-col rounded-2xl border px-4 py-3 xl:col-span-6 ${
-                    isDashboardLayout
-                      ? 'border-white/10 bg-slate-950/35'
-                      : 'border-slate-200 bg-slate-50/90'
-                  }`}
-                >
+                <label className="flex flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm xl:col-span-6">
                   <span
-                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
-                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
-                    }`}
+                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500`}
                   >
                     <Layers3
-                      className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                      className="h-4 w-4 text-[var(--primary)]"
                     />
                     Subject
                   </span>
                   <LearningSelect
-                    dark={isDashboardLayout}
                     outerClassName="mt-2"
                     value={exploreSubjectId}
                     hint={subjectDropdownHint}
@@ -1359,25 +1194,16 @@ function LearningHomePage({ mode = 'auto' }) {
                   </LearningSelect>
                 </label>
 
-                <label
-                  className={`flex flex-col rounded-2xl border px-4 py-3 xl:col-span-2 ${
-                    isDashboardLayout
-                      ? 'border-white/10 bg-slate-950/35'
-                      : 'border-slate-200 bg-slate-50/90'
-                  }`}
-                >
+                <label className="flex flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm xl:col-span-2">
                   <span
-                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
-                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
-                    }`}
+                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500`}
                   >
                     <Filter
-                      className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                      className="h-4 w-4 text-[var(--primary)]"
                     />
                     Type
                   </span>
                   <LearningSelect
-                    dark={isDashboardLayout}
                     outerClassName="mt-2"
                     value={filters.materialType}
                     onChange={(event) =>
@@ -1392,25 +1218,16 @@ function LearningHomePage({ mode = 'auto' }) {
                   </LearningSelect>
                 </label>
 
-                <label
-                  className={`flex flex-col rounded-2xl border px-4 py-3 xl:col-span-2 ${
-                    isDashboardLayout
-                      ? 'border-white/10 bg-slate-950/35'
-                      : 'border-slate-200 bg-slate-50/90'
-                  }`}
-                >
+                <label className="flex flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm xl:col-span-2">
                   <span
-                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
-                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
-                    }`}
+                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500`}
                   >
                     <GraduationCap
-                      className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                      className="h-4 w-4 text-[var(--primary)]"
                     />
                     Level
                   </span>
                   <LearningSelect
-                    dark={isDashboardLayout}
                     outerClassName="mt-2"
                     value={filters.level}
                     onChange={(event) =>
@@ -1424,26 +1241,17 @@ function LearningHomePage({ mode = 'auto' }) {
                   </LearningSelect>
                 </label>
 
-                <label
-                  className={`flex flex-col rounded-2xl border px-4 py-3 xl:col-span-2 ${
-                    isDashboardLayout
-                      ? 'border-white/10 bg-slate-950/35'
-                      : 'border-slate-200 bg-slate-50/90'
-                  }`}
-                >
+                <label className="flex flex-col rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm xl:col-span-2">
                   <span
-                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
-                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
-                    }`}
+                    className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500`}
                   >
                     <ArrowDownAZ
-                      className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                      className="h-4 w-4 text-[var(--primary)]"
                     />
                     Sort
                   </span>
                   <LearningSelect
                     id="learning-material-sort"
-                    dark={isDashboardLayout}
                     outerClassName="mt-2"
                     value={materialSort}
                     onChange={(e) => setMaterialSort(e.target.value)}
@@ -1455,20 +1263,12 @@ function LearningHomePage({ mode = 'auto' }) {
                 </label>
               </div>
 
-              <label
-                className={`mt-4 block rounded-2xl border px-4 py-3 ${
-                  isDashboardLayout
-                    ? 'border-white/10 bg-slate-950/35'
-                    : 'border-slate-200 bg-slate-50/90'
-                }`}
-              >
+              <label className="mt-4 block rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <div
-                  className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide ${
-                    isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
-                  }`}
+                  className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500`}
                 >
                   <Search
-                    className={`h-4 w-4 ${isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'}`}
+                    className="h-4 w-4 text-[var(--primary)]"
                   />
                   Search
                 </div>
@@ -1478,44 +1278,24 @@ function LearningHomePage({ mode = 'auto' }) {
                     setFilters((prev) => ({ ...prev, search: event.target.value }))
                   }
                   placeholder="Title, summary, or tag"
-                  className={`mt-2 w-full bg-transparent text-sm outline-none ${
-                    isDashboardLayout
-                      ? 'text-white placeholder:text-slate-500'
-                      : 'text-slate-900 placeholder:text-slate-400'
-                  }`}
+                  className="mt-2 w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
                 />
               </label>
 
               {isSearchActive ? (
-                <div
-                  className={`mt-6 flex flex-col gap-3 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between ${
-                    isDashboardLayout
-                      ? 'border-cyan-400/30 bg-cyan-500/10'
-                      : 'border-indigo-200 bg-indigo-50/90'
-                  }`}
-                >
+                <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-3">
-                    <div
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                        isDashboardLayout
-                          ? 'bg-cyan-500/20 text-cyan-100'
-                          : 'bg-indigo-100 text-indigo-700'
-                      }`}
-                    >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
                       <Search className="h-5 w-5" />
                     </div>
                     <div>
                       <p
-                        className={`text-sm font-semibold ${
-                          isDashboardLayout ? 'text-cyan-50' : 'text-indigo-900'
-                        }`}
+                        className={`text-sm font-semibold text-indigo-900`}
                       >
                         Search
                       </p>
                       <p
-                        className={`mt-1 text-sm ${
-                          isDashboardLayout ? 'text-slate-300' : 'text-slate-700'
-                        }`}
+                        className={`mt-1 text-sm text-slate-700`}
                       >
                         Filtering by &quot;{searchQueryTrimmed}&quot;. Results below use this text plus
                         subject, type, and level.
@@ -1524,35 +1304,19 @@ function LearningHomePage({ mode = 'auto' }) {
                   </div>
                 </div>
               ) : (
-                <div
-                  className={`mt-6 flex flex-col gap-4 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between ${
-                    isDashboardLayout
-                      ? 'border-white/10 bg-white/5'
-                      : 'border-indigo-100 bg-indigo-50/50'
-                  }`}
-                >
+                <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-3">
-                    <div
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                        isDashboardLayout
-                          ? 'bg-white/10 text-cyan-200'
-                          : 'bg-indigo-100 text-indigo-700'
-                      }`}
-                    >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
                       <TrendingUp className="h-5 w-5" />
                     </div>
                     <div>
                       <p
-                        className={`text-sm font-semibold ${
-                          isDashboardLayout ? 'text-white' : 'text-indigo-900'
-                        }`}
+                        className={`text-sm font-semibold text-indigo-900`}
                       >
                         Current focus
                       </p>
                       <p
-                        className={`mt-1 text-sm ${
-                          isDashboardLayout ? 'text-slate-300' : 'text-slate-600'
-                        }`}
+                        className={`mt-1 text-sm text-slate-600`}
                       >
                         {selectedCategory
                           ? selectedCategory.description ||
@@ -1572,21 +1336,17 @@ function LearningHomePage({ mode = 'auto' }) {
               <div
                 ref={materialsListRef}
                 id="learning-materials-list"
-                className={`mt-8 scroll-mt-24 border-t pt-8 ${
-                  isDashboardLayout ? 'border-white/10' : 'border-slate-200/80'
-                }`}
+                className={`mt-8 scroll-mt-24 border-t pt-8 border-slate-200`}
               >
                 {loading ? (
                   <div
-                    className={`flex min-h-[140px] items-center justify-center gap-2 text-sm ${
-                      isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
-                    }`}
+                    className={`flex min-h-[140px] items-center justify-center gap-2 text-sm text-slate-500`}
                   >
                     <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden />
                     Loading materials…
                   </div>
                 ) : error ? (
-                  <p className={isDashboardLayout ? 'text-sm text-rose-300' : 'text-sm text-rose-600'}>
+                  <p className="text-rose-600">
                     {error}
                   </p>
                 ) : (
@@ -1594,23 +1354,17 @@ function LearningHomePage({ mode = 'auto' }) {
                     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                       <div>
                         <p
-                          className={`text-sm font-semibold ${
-                            isDashboardLayout ? 'text-cyan-200' : 'text-indigo-600'
-                          }`}
+                          className={`text-sm font-semibold text-indigo-600`}
                         >
                           Materials
                         </p>
                         <h3
-                          className={`mt-1 text-lg font-bold ${
-                            isDashboardLayout ? 'text-white' : 'text-slate-900'
-                          }`}
+                          className={`mt-1 text-lg font-bold text-slate-900`}
                         >
                           {selectedCategory ? `In ${selectedCategory.name}` : 'All matching materials'}
                         </h3>
                         <p
-                          className={`mt-1 text-sm ${
-                            isDashboardLayout ? 'text-slate-400' : 'text-slate-500'
-                          }`}
+                          className={`mt-1 text-sm text-slate-500`}
                         >
                           {materialSort === 'newest' && 'Ordered by publish date (newest first).'}
                           {materialSort === 'title' && 'Ordered alphabetically by title.'}
@@ -1618,13 +1372,7 @@ function LearningHomePage({ mode = 'auto' }) {
                             'Ordered by estimated reading time (shortest first).'}
                         </p>
                       </div>
-                      <div
-                        className={`rounded-full px-4 py-2 text-sm font-medium ${
-                          isDashboardLayout
-                            ? 'bg-white/10 text-cyan-100 ring-1 ring-white/15'
-                            : 'bg-indigo-50 text-indigo-700'
-                        }`}
-                      >
+                      <div className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 ring-1 ring-indigo-100">
                         {sortedMaterials.length > MATERIAL_LIST_VISIBLE_FIRST
                           ? `Showing ${MATERIAL_LIST_VISIBLE_FIRST} of ${sortedMaterials.length}`
                           : `${sortedMaterials.length} material${sortedMaterials.length === 1 ? '' : 's'}`}
@@ -1639,28 +1387,17 @@ function LearningHomePage({ mode = 'auto' }) {
                               key={material._id}
                               material={material}
                               topicBasePath={topicBasePath}
-                              isDashboardLayout={isDashboardLayout}
                               subjectPagePath={subjectPagePath}
                               setExploreSubjectId={setExploreSubjectId}
                             />
                           ))}
                           {sortedMaterials.length > MATERIAL_LIST_VISIBLE_FIRST ? (
-                            <details
-                              className={`group col-span-full rounded-[28px] border shadow-sm ${
-                                isDashboardLayout
-                                  ? 'border-white/10 bg-white/5'
-                                  : 'border-indigo-200/60 bg-indigo-50/30'
-                              }`}
-                            >
+                            <details className="group col-span-full rounded-[28px] border border-indigo-200/60 bg-indigo-50/30 shadow-sm">
                               <summary
-                                className={`flex cursor-pointer list-none items-center justify-center gap-2 px-4 py-4 text-sm font-semibold [&::-webkit-details-marker]:hidden ${
-                                  isDashboardLayout ? 'text-cyan-100' : 'text-indigo-900'
-                                }`}
+                                className={`flex cursor-pointer list-none items-center justify-center gap-2 px-4 py-4 text-sm font-semibold [&::-webkit-details-marker]:hidden text-indigo-900`}
                               >
                                 <ChevronDown
-                                  className={`h-4 w-4 shrink-0 transition group-open:rotate-180 ${
-                                    isDashboardLayout ? 'text-cyan-200' : 'text-indigo-700'
-                                  }`}
+                                  className={`h-4 w-4 shrink-0 transition group-open:rotate-180 text-indigo-700`}
                                   aria-hidden
                                 />
                                 <span>
@@ -1668,16 +1405,13 @@ function LearningHomePage({ mode = 'auto' }) {
                                 </span>
                               </summary>
                               <div
-                                className={`grid grid-cols-1 gap-3 border-t px-1 pb-4 pt-4 sm:grid-cols-2 sm:px-2 lg:grid-cols-4 ${
-                                  isDashboardLayout ? 'border-white/10' : 'border-slate-200/20'
-                                }`}
+                                className={`grid grid-cols-1 gap-3 border-t px-1 pb-4 pt-4 sm:grid-cols-2 sm:px-2 lg:grid-cols-4 border-slate-200`}
                               >
                                 {sortedMaterials.slice(MATERIAL_LIST_VISIBLE_FIRST).map((material) => (
                                   <MaterialGridCard
                                     key={`more-${material._id}`}
                                     material={material}
                                     topicBasePath={topicBasePath}
-                                    isDashboardLayout={isDashboardLayout}
                                     subjectPagePath={subjectPagePath}
                                     setExploreSubjectId={setExploreSubjectId}
                                   />
@@ -1687,17 +1421,11 @@ function LearningHomePage({ mode = 'auto' }) {
                           ) : null}
                         </>
                       ) : (
-                        <div
-                          className={`col-span-full overflow-hidden rounded-3xl border border-dashed text-center text-sm ${
-                            isDashboardLayout
-                              ? 'border-white/15 bg-slate-950/40 text-slate-400'
-                              : 'border-slate-300 bg-slate-50 text-slate-500'
-                          }`}
-                        >
+                        <div className="col-span-full overflow-hidden rounded-3xl border border-dashed border-slate-300 bg-slate-50 text-center text-sm text-slate-500">
                           <img
                             src={learningEmptyIllustration}
                             alt=""
-                            className="mx-auto h-40 w-full object-cover opacity-60"
+                            className="mx-auto mt-8 block max-h-44 w-auto max-w-md object-contain px-8 opacity-[0.65]"
                           />
                           <div className="p-6">
                             {materials.length > 0 &&
@@ -1738,7 +1466,6 @@ function LearningHomePage({ mode = 'auto' }) {
         onNavSectionSelect={handleNavSection}
         user={shellUser}
         onLogout={handleLogout}
-        headerIcon={Sparkles}
       >
         {mainContent}
       </DarkWorkspaceShell>

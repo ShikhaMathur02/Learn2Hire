@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -16,6 +16,7 @@ import {
 } from "../components/dashboard/DashboardTopNav";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 
 function CompanyTalentPage() {
   const navigate = useNavigate();
@@ -37,9 +38,8 @@ function CompanyTalentPage() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
     const raw = localStorage.getItem("user");
-    if (!token || !raw) {
+    if (!localStorage.getItem("user") || !raw) {
       navigate("/login");
       return;
     }
@@ -56,8 +56,7 @@ function CompanyTalentPage() {
   }, [navigate]);
 
   const loadTalent = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!localStorage.getItem("user")) return;
     setLoading(true);
     setError("");
     try {
@@ -65,7 +64,7 @@ function CompanyTalentPage() {
       if (appliedQ.trim()) params.set("q", appliedQ.trim());
       if (appliedSkill.trim()) params.set("skill", appliedSkill.trim());
       const tRes = await fetch(`/api/jobs/company/talent?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const tData = await readApiResponse(tRes);
       if (!tRes.ok) throw new Error(tData.message || "Failed to load talent.");
@@ -78,11 +77,10 @@ function CompanyTalentPage() {
   }, [appliedQ, appliedSkill]);
 
   const loadJobs = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!localStorage.getItem("user")) return;
     try {
       const jRes = await fetch("/api/jobs", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const jData = await readApiResponse(jRes);
       if (jRes.ok) setJobs(jData.data?.jobs || []);
@@ -108,10 +106,9 @@ function CompanyTalentPage() {
     setPickNote("");
     setDetailLoading(true);
     setError("");
-    const token = localStorage.getItem("token");
     try {
       const res = await fetch(`/api/jobs/company/students/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(res);
       if (!res.ok) throw new Error(data.message || "Could not load profile.");
@@ -126,18 +123,14 @@ function CompanyTalentPage() {
 
   const sendInterest = async () => {
     if (!detailUserId) return;
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!localStorage.getItem("user")) return;
     setPickSending(true);
     setSuccess("");
     setError("");
     try {
       const res = await fetch("/api/jobs/company/express-interest", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentUserId: detailUserId,
           jobId: pickJobId || undefined,
@@ -161,19 +154,19 @@ function CompanyTalentPage() {
   };
 
   const inputClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20";
+    "h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20";
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
+      <div {...workspaceRootProps("company", "flex min-h-screen items-center justify-center text-slate-600")}>
         <LoaderCircle className="h-6 w-6 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
-      <div className="w-full px-3 py-5 sm:px-4 sm:py-6">
+    <div {...workspaceRootProps("company", "min-h-screen")}>
+      <div className="l2h-container-app w-full py-5 sm:py-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
           workspaceLabel="Company Workspace"
@@ -191,8 +184,8 @@ function CompanyTalentPage() {
           ]}
         />
 
-        <div className="mt-4 rounded-[32px] border border-white/10 bg-slate-950/45 shadow-[0_30px_80px_rgba(15,23,42,0.45)] backdrop-blur">
-          <div className="space-y-6 p-5 sm:p-6 xl:p-7">
+        <div className="mt-4 rounded-[32px] border border-[var(--border)] bg-[var(--bg-card)] p-5 shadow-[var(--shadow-card)] sm:p-6 xl:p-7">
+          <div className="space-y-6">
             <div className="flex flex-wrap items-center gap-3">
               <Button type="button" variant="outline" onClick={() => navigate("/dashboard")}>
                 <ArrowLeft className="h-4 w-4" />
@@ -200,24 +193,24 @@ function CompanyTalentPage() {
               </Button>
               <Link
                 to="/company/jobs"
-                className="text-sm text-cyan-300 underline-offset-4 hover:underline"
+                className="text-sm font-medium text-[var(--primary)] underline-offset-4 hover:underline"
               >
                 Job manager
               </Link>
             </div>
 
             {error ? (
-              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
                 {error}
               </div>
             ) : null}
             {success ? (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
                 {success}
               </div>
             ) : null}
 
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
                   <div className="flex-1">
@@ -273,18 +266,18 @@ function CompanyTalentPage() {
                             openDetail(row.userId);
                           }
                         }}
-                        className={`w-full cursor-pointer rounded-2xl border p-4 text-left transition outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
+                        className={`w-full cursor-pointer rounded-2xl border p-4 text-left transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 ${
                           detailUserId === row.userId
-                            ? "border-cyan-400/50 bg-cyan-500/10"
-                            : "border-white/10 bg-slate-900/50 hover:border-white/20"
+                            ? "border-[var(--primary)]/50 bg-[var(--primary)]/10"
+                            : "border-slate-200 bg-slate-50 hover:border-[var(--primary)]/25"
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/15 text-cyan-300">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)]/15 text-[var(--primary)]">
                             <UserRound className="h-5 w-5" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-white">{row.name}</p>
+                            <p className="font-semibold text-slate-900">{row.name}</p>
                             <p className="truncate text-xs text-slate-400">{row.email}</p>
                             <p className="mt-1 text-xs text-slate-500">
                               {[row.course, row.branch, row.year].filter(Boolean).join(" · ") ||
@@ -298,7 +291,7 @@ function CompanyTalentPage() {
                             ) : null}
                             <Link
                               to={`/dashboard/learners/${row.userId}`}
-                              className="mt-2 inline-block text-xs font-medium text-cyan-300 underline-offset-4 hover:underline"
+                              className="mt-2 inline-block text-xs font-medium text-[var(--primary)] underline-offset-4 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                               onKeyDown={(e) => e.stopPropagation()}
                             >
@@ -313,7 +306,7 @@ function CompanyTalentPage() {
                   )}
                 </div>
 
-                <Card className="border border-white/10 bg-white/5 shadow-none lg:min-h-[420px]">
+                <Card className="border border-slate-200 bg-white shadow-none lg:min-h-[420px]">
                   <CardContent className="p-6">
                     {!detailUserId ? (
                       <p className="text-sm text-slate-400">
@@ -327,31 +320,31 @@ function CompanyTalentPage() {
                     ) : detail ? (
                       <div className="space-y-5">
                         <div>
-                          <h2 className="text-xl font-bold text-white">{detail.user?.name}</h2>
+                          <h2 className="text-xl font-bold text-slate-900">{detail.user?.name}</h2>
                           <p className="text-sm text-slate-400">{detail.user?.email}</p>
                           {detail.profile?.bio ? (
-                            <p className="mt-3 text-sm leading-6 text-slate-300">
+                            <p className="mt-3 text-sm leading-6 text-slate-700">
                               {detail.profile.bio}
                             </p>
                           ) : null}
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
-                          <h3 className="text-sm font-semibold text-white">Tools & technologies</h3>
-                          <p className="mt-2 text-sm text-slate-300">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <h3 className="text-sm font-semibold text-slate-900">Tools & technologies</h3>
+                          <p className="mt-2 text-sm text-slate-600">
                             {(detail.profile?.toolsAndTechnologies || []).length
                               ? detail.profile.toolsAndTechnologies.join(", ")
                               : "Not listed yet."}
                           </p>
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
-                          <h3 className="text-sm font-semibold text-white">Skills & assessments</h3>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <h3 className="text-sm font-semibold text-slate-900">Skills & assessments</h3>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {(detail.derivedSkills || []).map((s) => (
                               <span
                                 key={s.name}
-                                className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-slate-200"
+                                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-800"
                               >
                                 {s.name} · {Math.round(s.progress ?? 0)}%
                               </span>
@@ -363,9 +356,9 @@ function CompanyTalentPage() {
                           </p>
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
-                          <h3 className="text-sm font-semibold text-white">Learning activity</h3>
-                          <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto text-sm text-slate-300">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <h3 className="text-sm font-semibold text-slate-900">Learning activity</h3>
+                          <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto text-sm text-slate-700">
                             {(detail.learningActivity || []).slice(0, 12).map((row) => (
                               <li key={`${row.material?.slug}-${row.lastViewedAt}`} className="flex justify-between gap-2">
                                 <span className="truncate">
@@ -380,9 +373,9 @@ function CompanyTalentPage() {
                           </ul>
                         </div>
 
-                        <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4">
-                          <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-                            <BriefcaseBusiness className="h-4 w-4 text-cyan-300" />
+                        <div className="rounded-2xl border border-[var(--primary)]/25 bg-white p-4">
+                          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                            <BriefcaseBusiness className="h-4 w-4 text-[var(--primary)]" />
                             Express interest
                           </h3>
                           <p className="mt-1 text-xs text-slate-400">
@@ -404,7 +397,7 @@ function CompanyTalentPage() {
                               ))}
                           </select>
                           <textarea
-                            className="mt-3 min-h-[72px] w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
+                            className="mt-3 min-h-[72px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                             value={pickNote}
                             onChange={(e) => setPickNote(e.target.value)}
                             placeholder="Short message (optional)"

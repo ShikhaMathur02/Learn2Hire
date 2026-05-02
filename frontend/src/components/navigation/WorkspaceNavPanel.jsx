@@ -2,24 +2,31 @@ import { Link, useLocation } from "react-router-dom";
 
 import { cn } from "../../lib/utils";
 
+/** Left rail accent keyed by authenticated role (`user.role`). */
+const ACCENT_RAIL = {
+  student: "border-l-emerald-500",
+  college: "border-l-slate-500",
+  faculty: "border-l-violet-600",
+  admin: "border-l-[color:var(--admin)]",
+  company: "border-l-teal-600",
+};
+
 /**
- * Shared sidebar / drawer nav list for workspace dashboards.
- *
- * @param {Object} props
- * @param {{ id: string, label: string, icon: import("lucide-react").LucideIcon, path?: string }[]} props.items
- * @param {boolean} [props.collapsed=false] — icon-only rail (desktop)
- * @param {string} [props.activeSection] — in-dashboard section id
- * @param {(id: string) => void} [props.onSelectSection]
- * @param {() => void} [props.onItemClick] — e.g. close mobile drawer
+ * Sidebar / drawer nav list for workspace dashboards.
  */
 function WorkspaceNavPanel({
   items,
   collapsed = false,
+  accentRole,
   activeSection,
   onSelectSection,
   onItemClick,
+  variant = "light",
 }) {
   const { pathname } = useLocation();
+
+  const isDark = variant === "dark";
+  const railAccent = accentRole && ACCENT_RAIL[accentRole] ? ACCENT_RAIL[accentRole] : "border-l-blue-600";
 
   const isItemActive = (item) => {
     if (item.path) {
@@ -36,25 +43,42 @@ function WorkspaceNavPanel({
     return activeSection === item.id;
   };
 
-  const itemClass = (active) =>
-    cn(
-      "flex w-full shrink-0 items-center gap-3 text-left text-sm font-medium transition",
-      collapsed ? "justify-center rounded-xl px-2 py-2.5" : "rounded-2xl px-4 py-3",
-      active
-        ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-        : "text-slate-200 hover:bg-white/[0.08] hover:text-white"
+  const linkClass = (active) => {
+    if (isDark) {
+      return cn(
+        "flex w-full shrink-0 items-center gap-3 text-left text-sm font-medium transition duration-150",
+        collapsed ? "justify-center rounded-xl px-2 py-2.5" : "rounded-2xl px-4 py-3",
+        active
+          ? "bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+          : "text-slate-200 hover:bg-white/[0.08] hover:text-white"
+      );
+    }
+
+    return cn(
+        "flex w-full shrink-0 items-center gap-3 text-left text-sm font-medium transition duration-150",
+        collapsed ? "justify-center rounded-[10px] px-2 py-2.5" : "rounded-[10px] px-3.5 py-3",
+        active
+        ? collapsed
+          ? "border border-slate-200 bg-blue-50 text-[var(--primary)] shadow-sm"
+          : cn(
+              "border border-slate-100 border-l-[3px] bg-[#f8faff] font-semibold text-[var(--primary)] shadow-sm",
+              railAccent
+            )
+        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
     );
+  };
 
   return (
     <nav
       className={cn(
         "flex min-h-0 flex-1 flex-col overflow-y-auto pb-2",
-        collapsed ? "gap-1.5" : "gap-2"
+        collapsed ? "gap-1.5 px-1" : "gap-1.5 pr-1"
       )}
     >
       {items.map((item) => {
         const Icon = item.icon;
         const active = isItemActive(item);
+        const cls = linkClass(active);
 
         if (item.path) {
           return (
@@ -63,10 +87,10 @@ function WorkspaceNavPanel({
               to={item.path}
               title={collapsed ? item.label : undefined}
               onClick={onItemClick}
-              className={itemClass(active)}
+              className={cls}
             >
               <Icon
-                className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")}
+                className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-[18px] w-[18px]")}
                 aria-hidden
               />
               {!collapsed ? <span className="truncate">{item.label}</span> : null}
@@ -83,10 +107,10 @@ function WorkspaceNavPanel({
               onSelectSection?.(item.id);
               onItemClick?.();
             }}
-            className={itemClass(active)}
+            className={cls}
           >
             <Icon
-              className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")}
+              className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-[18px] w-[18px]")}
               aria-hidden
             />
             {!collapsed ? <span className="truncate">{item.label}</span> : null}

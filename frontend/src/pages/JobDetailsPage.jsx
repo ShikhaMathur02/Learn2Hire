@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { readApiResponse } from "../lib/api";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 import { studentNavItems } from "../config/studentNavItems";
 import { clearAuthSession } from "../lib/authSession";
 import { DarkWorkspaceShell } from "../components/layout/DarkWorkspaceShell";
@@ -47,8 +48,16 @@ function JobDetailsPage() {
   const [hasExpressedInterest, setHasExpressedInterest] = useState(false);
   const [interestNote, setInterestNote] = useState("");
   const [applyResumeFile, setApplyResumeFile] = useState(null);
+  /** Apply form only — shown next to Submit so validation/API feedback is visible while scrolled to the footer. */
+  const [applyBanner, setApplyBanner] = useState(null);
+  const applyCardRef = useRef(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  useLayoutEffect(() => {
+    if (!applyBanner?.text || !applyCardRef.current) return;
+    applyCardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [applyBanner]);
 
   const handleLogout = () => {
     clearAuthSession();
@@ -69,10 +78,9 @@ function JobDetailsPage() {
   );
 
   const fetchData = useCallback(async () => {
-    const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
 
-    if (!token || !storedUser) {
+    if (!storedUser) {
       navigate("/login");
       return;
     }
@@ -98,9 +106,7 @@ function JobDetailsPage() {
     try {
       setError("");
 
-      const headers = {
-        Authorization: `Bearer ${token}`,
-      };
+      const headers = {      };
 
       const [jobRes, applicationsRes, savedRes] = await Promise.all([
         fetch(`/api/jobs/${id}`, { headers }),
@@ -158,8 +164,7 @@ function JobDetailsPage() {
   }, [fetchData]);
 
   const handleSaveToggle = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
@@ -171,9 +176,7 @@ function JobDetailsPage() {
     try {
       const response = await fetch(`/api/jobs/${id}/save`, {
         method: isSaved ? "DELETE" : "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: {},
       });
 
       const data = await readApiResponse(
@@ -196,11 +199,10 @@ function JobDetailsPage() {
 
   const handleDownloadJd = async () => {
     if (!id) return;
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!localStorage.getItem("user")) return;
     try {
       const res = await fetch(`/api/jobs/${id}/jd`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       if (!res.ok) {
         const data = await readApiResponse(res);
@@ -219,8 +221,7 @@ function JobDetailsPage() {
   };
 
   const handleExpressInterest = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
@@ -234,9 +235,7 @@ function JobDetailsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+          Accept: "application/json",        },
         body: JSON.stringify({ jobId: id, message: interestNote.trim() }),
       });
 
@@ -261,21 +260,25 @@ function JobDetailsPage() {
 
   const handleApply = async (e) => {
     e.preventDefault();
-
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
 
     if (!applyResumeFile) {
-      setError("Please attach your résumé (PDF or Word) before submitting.");
+      setError("");
+      setSuccess("");
+      setApplyBanner({
+        variant: "error",
+        text: "Please attach your résumé (PDF or Word) before submitting.",
+      });
       return;
     }
 
     setSubmitting(true);
     setError("");
     setSuccess("");
+    setApplyBanner(null);
 
     try {
       const fd = new FormData();
@@ -285,9 +288,7 @@ function JobDetailsPage() {
 
       const response = await fetch(`/api/jobs/${id}/apply`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: {},
         body: fd,
       });
 
@@ -300,12 +301,19 @@ function JobDetailsPage() {
         throw new Error(data.message || "Failed to submit application.");
       }
 
-      setSuccess("Application submitted successfully.");
+      setApplyBanner({
+        variant: "success",
+        text: "Application submitted successfully.",
+      });
       setApplyResumeFile(null);
       window.dispatchEvent(new CustomEvent("learn2hire-notifications-changed"));
       await fetchData();
+      setApplyBanner(null);
     } catch (err) {
-      setError(err.message || "Unable to submit application.");
+      setApplyBanner({
+        variant: "error",
+        text: err.message || "Unable to submit application.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -335,7 +343,6 @@ function JobDetailsPage() {
           role: shellUser.role || "student",
         }}
         onLogout={handleLogout}
-        headerIcon={Sparkles}
         actionItems={[
           {
             label: "Back to jobs",
@@ -344,8 +351,8 @@ function JobDetailsPage() {
           },
         ]}
       >
-        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
-          <div className="flex items-center gap-3 text-slate-300">
+        <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-slate-200 bg-white">
+          <div className="flex items-center gap-3 text-[var(--text-muted)]">
             <LoaderCircle className="h-6 w-6 animate-spin" />
             Loading job details...
           </div>
@@ -356,8 +363,8 @@ function JobDetailsPage() {
 
   if (user && user.role !== "student" && error) {
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-4 text-center text-slate-200">
-        <p className="max-w-md text-sm">{error}</p>
+      <div {...workspaceRootProps(user.role, "flex min-h-screen items-center justify-center px-4 text-center")}>
+        <p className="max-w-md text-sm text-[var(--text)]">{error}</p>
       </div>
     );
   }
@@ -379,7 +386,6 @@ function JobDetailsPage() {
         role: user?.role || "student",
       }}
       onLogout={handleLogout}
-      headerIcon={Sparkles}
       actionItems={[
         {
           label: "Back to jobs",
@@ -389,27 +395,35 @@ function JobDetailsPage() {
       ]}
     >
         {error ? (
-          <div className="mb-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950"
+          >
             {error}
           </div>
         ) : null}
 
         {success ? (
-          <div className="mb-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+          <div
+            role="status"
+            aria-live="polite"
+            className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950"
+          >
             {success}
           </div>
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <Card className="border border-white/10 bg-white/5 shadow-none">
+          <Card className="border border-slate-200 bg-white shadow-none">
             <CardContent className="p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[var(--primary)]">
                     <BriefcaseBusiness className="h-6 w-6" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-white">{job?.title}</h2>
+                    <h2 className="text-2xl font-bold text-[var(--text)]">{job?.title}</h2>
                     <p className="mt-1 text-sm text-slate-400">
                       {job?.createdBy?.name || "Company"}
                     </p>
@@ -430,32 +444,32 @@ function JobDetailsPage() {
               </div>
 
               <div className="mt-6 flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-[var(--text)]">
                   <MapPin className="h-3.5 w-3.5" />
                   {job?.location || "Remote"}
                 </span>
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs capitalize text-slate-200">
+                <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium capitalize text-[var(--text)]">
                   {job?.employmentType}
                 </span>
-                <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs capitalize text-emerald-300">
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold capitalize text-emerald-900">
                   {existingApplication ? existingApplication.status : job?.status}
                 </span>
               </div>
 
-              <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/60 p-5">
-                <h3 className="text-lg font-semibold text-white">About this role</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-300">
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <h3 className="text-lg font-semibold text-[var(--text)]">About this role</h3>
+                <p className="mt-3 text-sm leading-7 text-[var(--text-muted)]">
                   {job?.description || "No description provided for this role."}
                 </p>
               </div>
 
               {job?.hasJdDocument ? (
-                <div className="mt-6 rounded-2xl border border-cyan-400/25 bg-cyan-500/5 p-5">
+                <div className="mt-6 rounded-2xl border border-sky-200/90 bg-white p-5 ring-1 ring-sky-500/15">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
-                      <FileText className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" />
+                      <FileText className="mt-0.5 h-5 w-5 shrink-0 text-[var(--primary)]" />
                       <div>
-                        <h3 className="text-lg font-semibold text-white">Official job description</h3>
+                        <h3 className="text-lg font-semibold text-[var(--text)]">Official job description</h3>
                         <p className="mt-1 text-sm text-slate-400">
                           PDF provided by the employer: {job.jdOriginalName || "job-description.pdf"}
                         </p>
@@ -470,19 +484,19 @@ function JobDetailsPage() {
               ) : null}
 
               <div className="mt-6">
-                <h3 className="text-lg font-semibold text-white">Required skills</h3>
+                <h3 className="text-lg font-semibold text-[var(--text)]">Required skills</h3>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {job?.skillsRequired?.length ? (
                     job.skillsRequired.map((skill) => (
                       <span
                         key={skill}
-                        className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300"
+                        className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-950"
                       >
                         {skill}
                       </span>
                     ))
                   ) : (
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
+                    <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
                       General role
                     </span>
                   )}
@@ -492,51 +506,51 @@ function JobDetailsPage() {
           </Card>
 
           <div className="space-y-6">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-white">Company Info</h2>
+                <h2 className="text-2xl font-bold text-[var(--text)]">Company Info</h2>
                 <p className="mt-2 text-sm text-slate-400">
                   Employers on Learn2Hire reach students at every partner college.
                 </p>
                 <div className="mt-6 space-y-4">
-                  <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-sm text-slate-400">Company</p>
-                    <p className="mt-2 text-lg font-semibold text-white">
+                    <p className="mt-2 text-lg font-semibold text-[var(--text)]">
                       {job?.createdBy?.name || "Company"}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-sm text-slate-400">Contact</p>
-                    <p className="mt-2 text-sm text-white">{job?.createdBy?.email || "Not shared"}</p>
+                    <p className="mt-2 text-sm font-medium text-[var(--text)]">{job?.createdBy?.email || "Not shared"}</p>
                   </div>
                   {job?.createdBy?.companyBio?.trim() ? (
-                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <p className="text-sm text-slate-400">Bio</p>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--text-muted)]">
                         {job.createdBy.companyBio}
                       </p>
                     </div>
                   ) : null}
                   {job?.createdBy?.companyDetails?.trim() ? (
-                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <p className="text-sm text-slate-400">About the company</p>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--text-muted)]">
                         {job.createdBy.companyDetails}
                       </p>
                     </div>
                   ) : null}
                   {job?.createdBy?.companyGoals?.trim() ? (
-                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <p className="text-sm text-slate-400">Goals</p>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--text-muted)]">
                         {job.createdBy.companyGoals}
                       </p>
                     </div>
                   ) : null}
                   {job?.createdBy?.companyFocusAreas?.trim() ? (
-                    <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <p className="text-sm text-slate-400">Focus areas</p>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--text-muted)]">
                         {job.createdBy.companyFocusAreas}
                       </p>
                     </div>
@@ -553,26 +567,31 @@ function JobDetailsPage() {
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <div
+              ref={applyCardRef}
+              tabIndex={-1}
+              className="scroll-mt-28 outline-none lg:scroll-mt-32"
+            >
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
                 {existingApplication ? (
                   <>
-                    <h2 className="text-2xl font-bold text-white">Application Submitted</h2>
+                    <h2 className="text-2xl font-bold text-[var(--text)]">Application Submitted</h2>
                     <p className="mt-2 text-sm text-slate-400">
                       Your application is already recorded for this role.
                     </p>
 
                     <div className="mt-6 space-y-4">
-                      <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                         <p className="text-sm text-slate-400">Status</p>
-                        <p className="mt-2 text-lg font-semibold capitalize text-white">
+                        <p className="mt-2 text-lg font-semibold capitalize text-[var(--text)]">
                           {existingApplication.status}
                         </p>
                       </div>
                       {existingApplication.coverLetter ? (
-                        <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <p className="text-sm text-slate-400">Cover Letter</p>
-                          <p className="mt-2 text-sm leading-6 text-slate-300">
+                          <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
                             {existingApplication.coverLetter}
                           </p>
                         </div>
@@ -589,7 +608,7 @@ function JobDetailsPage() {
                             href={existingApplication.portfolioLink}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[var(--primary)] shadow-sm transition hover:bg-slate-50"
                           >
                             Portfolio Link
                             <ExternalLink className="h-4 w-4" />
@@ -600,7 +619,7 @@ function JobDetailsPage() {
                   </>
                 ) : (
                   <>
-                    <h2 className="text-2xl font-bold text-white">Apply to this job</h2>
+                    <h2 className="text-2xl font-bold text-[var(--text)]">Apply to this job</h2>
                     <p className="mt-2 text-sm text-slate-400">
                       Attach your résumé (PDF or Word, max 5 MB), add an optional cover letter and
                       links, then submit. Your file is stored securely and shared only with this
@@ -608,16 +627,16 @@ function JobDetailsPage() {
                     </p>
 
                     {hasExpressedInterest ? (
-                      <div className="mt-4 rounded-2xl border border-cyan-400/25 bg-cyan-500/10 p-4 text-sm text-cyan-100">
-                        <p className="font-medium text-white">Interest sent</p>
-                        <p className="mt-1 text-cyan-100/90">
+                      <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+                        <p className="font-semibold text-sky-950">Interest sent</p>
+                        <p className="mt-1 text-sky-900">
                           The employer was notified that you are interested. You can still submit a
                           full application below.
                         </p>
                       </div>
                     ) : (
-                      <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-                        <p className="text-sm font-semibold text-white">Show interest (optional)</p>
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-sm font-semibold text-[var(--text)]">Show interest (optional)</p>
                         <p className="mt-1 text-xs text-slate-400">
                           Sends the company a notification without submitting a full application
                           yet. To share your résumé, complete the application form below.
@@ -628,12 +647,12 @@ function JobDetailsPage() {
                           rows={2}
                           maxLength={500}
                           placeholder="Optional short note to the recruiter (max 500 characters)"
-                          className="mt-3 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                          className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                         />
                         <Button
                           type="button"
                           variant="outline"
-                          className="mt-3 w-full border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/10"
+                          className="mt-3 w-full border-slate-200 text-[var(--primary)] hover:bg-blue-50"
                           disabled={interestSubmitting}
                           onClick={handleExpressInterest}
                         >
@@ -657,11 +676,11 @@ function JobDetailsPage() {
                         }
                         rows={5}
                         placeholder="Write a short note about your skills, projects, or why this role fits you."
-                        className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                       />
-                      <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
-                        <label className="text-sm font-medium text-white" htmlFor="apply-resume">
-                          Résumé <span className="text-rose-300">*</span>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <label className="text-sm font-semibold text-[var(--text)]" htmlFor="apply-resume">
+                          Résumé <span className="text-rose-600">*</span>
                         </label>
                         <p className="mt-1 text-xs text-slate-400">
                           PDF, .doc, or .docx — required for this application.
@@ -670,14 +689,15 @@ function JobDetailsPage() {
                           id="apply-resume"
                           type="file"
                           accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                          className="mt-3 block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-500/20 file:px-3 file:py-2 file:text-cyan-100"
+                          className="mt-3 block w-full text-sm text-[var(--text)] file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
                           onChange={(e) => {
                             const f = e.target.files?.[0] || null;
                             setApplyResumeFile(f);
+                            if (f) setApplyBanner(null);
                           }}
                         />
                         {applyResumeFile ? (
-                          <p className="mt-2 text-xs text-emerald-300">
+                          <p className="mt-2 text-xs font-semibold text-emerald-800">
                             Selected: {applyResumeFile.name}
                           </p>
                         ) : null}
@@ -689,8 +709,21 @@ function JobDetailsPage() {
                           setForm((prev) => ({ ...prev, portfolioLink: e.target.value }))
                         }
                         placeholder="Portfolio or project link (optional)"
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                        className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                       />
+                      {applyBanner ? (
+                        <div
+                          role={applyBanner.variant === "error" ? "alert" : "status"}
+                          aria-live={applyBanner.variant === "error" ? "assertive" : "polite"}
+                          className={
+                            applyBanner.variant === "error"
+                              ? "rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-950 shadow-sm ring-1 ring-rose-500/15"
+                              : "rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-950 shadow-sm ring-1 ring-emerald-500/15"
+                          }
+                        >
+                          {applyBanner.text}
+                        </div>
+                      ) : null}
                       <Button type="submit" disabled={submitting} className="w-full">
                         {submitting ? "Submitting..." : "Submit Application"}
                         {!submitting ? <Send className="h-4 w-4" /> : null}
@@ -700,6 +733,7 @@ function JobDetailsPage() {
                 )}
               </CardContent>
             </Card>
+            </div>
           </div>
         </div>
     </DarkWorkspaceShell>

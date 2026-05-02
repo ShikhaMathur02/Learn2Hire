@@ -23,28 +23,15 @@ const {
 } = require('../utils/studentProfileFieldValidation');
 const { JOB_CREATED_BY_SELECT } = require('../constants/jobCreatedBySelect');
 const { syncCompanyFullyApproved } = require('../utils/campusApproval');
+const { cascadeDeleteLimitedUser } = require('../utils/cascadeDeleteLimitedUser');
 
 const validRoles = ['student', 'faculty', 'company', 'admin', 'college'];
-
-const ensureAdmin = (req, res) => {
-  if (req.user.role !== 'admin') {
-    res.status(403).json({
-      success: false,
-      message: 'Only admin users can access this resource.',
-    });
-    return false;
-  }
-
-  return true;
-};
 
 // @desc    Get admin analytics overview
 // @route   GET /api/admin/analytics
 // @access  Private (admin only)
 exports.getAnalytics = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const [
       totalUsers,
       totalProfiles,
@@ -121,8 +108,6 @@ exports.getAnalytics = async (req, res) => {
 // @access  Private (admin only)
 exports.getUsers = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const query = {};
     const { role, search } = req.query;
 
@@ -159,8 +144,6 @@ exports.getUsers = async (req, res) => {
 // @access  Private (admin only)
 exports.getAdminUserDetail = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });
@@ -168,7 +151,7 @@ exports.getAdminUserDetail = async (req, res) => {
 
     const user = await User.findById(id)
       .select(
-        'name email role createdAt updatedAt facultyApprovalStatus collegeApprovalStatus platformApprovalStatus affiliatedCollege managedByCollege facultyQualification facultySubjects'
+        'name email role createdAt updatedAt facultyApprovalStatus collegeApprovalStatus platformApprovalStatus affiliatedCollege managedByCollege facultyDesignation facultyQualification facultySubjects'
       )
       .populate('affiliatedCollege', 'name email role collegeApprovalStatus createdAt')
       .populate('managedByCollege', 'name email role collegeApprovalStatus createdAt')
@@ -204,8 +187,6 @@ exports.getAdminUserDetail = async (req, res) => {
 // @access  Private (admin only)
 exports.patchFacultyProfile = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });
@@ -227,11 +208,14 @@ exports.patchFacultyProfile = async (req, res) => {
     if (body.facultySubjects !== undefined) {
       target.facultySubjects = t(body.facultySubjects);
     }
+    if (body.facultyDesignation !== undefined) {
+      target.facultyDesignation = t(body.facultyDesignation);
+    }
     await target.save();
 
     const user = await User.findById(id)
       .select(
-        'name email role facultyQualification facultySubjects facultyApprovalStatus affiliatedCollege managedByCollege createdAt updatedAt'
+        'name email role facultyDesignation facultyQualification facultySubjects facultyApprovalStatus affiliatedCollege managedByCollege createdAt updatedAt'
       )
       .populate('affiliatedCollege', 'name email')
       .populate('managedByCollege', 'name email')
@@ -255,8 +239,6 @@ exports.patchFacultyProfile = async (req, res) => {
 // @access  Private (admin only)
 exports.updateUserRole = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -334,8 +316,6 @@ exports.updateUserRole = async (req, res) => {
 // @access  Private (admin only)
 exports.getPlatformInsights = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const [
       users,
       jobs,
@@ -354,7 +334,7 @@ exports.getPlatformInsights = async (req, res) => {
     ] = await Promise.all([
       User.find()
         .select(
-          'name email role managedByCollege facultyApprovalStatus studentCampusApprovalStatus collegeApprovalStatus platformApprovalStatus affiliatedCollege facultyQualification facultySubjects createdAt updatedAt'
+          'name email role managedByCollege facultyApprovalStatus studentCampusApprovalStatus collegeApprovalStatus platformApprovalStatus affiliatedCollege facultyDesignation facultyQualification facultySubjects createdAt updatedAt'
         )
         .sort({ createdAt: -1 })
         .limit(300)
@@ -546,8 +526,6 @@ exports.getPlatformInsights = async (req, res) => {
 // @access  Private (admin only)
 exports.importStudentsFromSheet = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     if (!req.file?.buffer) {
       return res.status(400).json({
         success: false,
@@ -613,8 +591,6 @@ exports.importStudentsFromSheet = async (req, res) => {
 // @access  Private (admin only)
 exports.patchStudentCohort = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });
@@ -689,8 +665,6 @@ exports.patchStudentCohort = async (req, res) => {
 // @access  Private (admin only)
 exports.deleteUser = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });
@@ -716,13 +690,7 @@ exports.deleteUser = async (req, res) => {
     }
 
     if (target.role === 'student' || target.role === 'alumni') {
-      await StudentProfile.deleteMany({ user: id });
-      await LearningProgress.deleteMany({ user: id });
-      await AssessmentSubmission.deleteMany({ user: id });
-      await JobApplication.deleteMany({ student: id });
-      await SavedJob.deleteMany({ student: id });
-      await Notification.deleteMany({ recipient: id });
-      await User.findByIdAndDelete(id);
+      await cascadeDeleteLimitedUser(target.role, id);
       return res.status(200).json({
         success: true,
         message: 'User and related learner data removed.',
@@ -730,16 +698,7 @@ exports.deleteUser = async (req, res) => {
     }
 
     if (target.role === 'faculty') {
-      const assessmentIds = (await Assessment.find({ createdBy: id }).select('_id').lean()).map((a) => a._id);
-      if (assessmentIds.length) {
-        await AssessmentSubmission.deleteMany({ assessment: { $in: assessmentIds } });
-        await Assessment.deleteMany({ _id: { $in: assessmentIds } });
-      }
-      await AssessmentSubmission.deleteMany({ user: id });
-      await StudyMaterial.deleteMany({ createdBy: id });
-      await LearningProgress.deleteMany({ user: id });
-      await Notification.deleteMany({ recipient: id });
-      await User.findByIdAndDelete(id);
+      await cascadeDeleteLimitedUser('faculty', id);
       return res.status(200).json({
         success: true,
         message:
@@ -795,8 +754,6 @@ const isStrongPasswordAdmin = (password) => {
 // @access  Private (admin only)
 exports.createCollegeAccount = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { name, email, password } = req.body || {};
     const norm = String(email || '').trim().toLowerCase();
     if (!name?.trim() || !norm || !password) {
@@ -866,8 +823,6 @@ exports.createCollegeAccount = async (req, res) => {
 // @access  Private (admin only)
 exports.setCollegeApproval = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });
@@ -956,8 +911,6 @@ exports.setCollegeApproval = async (req, res) => {
 // @access  Private (admin only)
 exports.setPlatformUserApproval = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });
@@ -1070,8 +1023,6 @@ const COLLEGE_DETAIL_PROFILE_SELECT =
 // @access  Private (admin only)
 exports.getCollegeDetail = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });
@@ -1171,8 +1122,6 @@ exports.getCollegeDetail = async (req, res) => {
 // @access  Private (admin only)
 exports.deleteCollege = async (req, res) => {
   try {
-    if (!ensureAdmin(req, res)) return;
-
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });

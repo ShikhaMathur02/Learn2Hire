@@ -7,7 +7,12 @@ const normalizeHeader = (value) =>
     .toLowerCase()
     .replace(/\s+/g, '');
 
-const asString = (value) => String(value || '').trim();
+const asString = (value) => {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'number' && Number.isFinite(value))
+    return value % 1 === 0 ? String(Math.trunc(value)) : String(value);
+  return String(value).trim();
+};
 
 const parseWorkbookRows = (buffer) => {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
@@ -59,13 +64,28 @@ const pickFirst = (row, keys) => {
 };
 
 /**
- * Roster sheet columns (header row). Aliases are normalized (spaces removed, lowercased).
- * Required for import: Course, Branch (or Program), Year, Email id; cohort must match the
- * class selected in the form. Optional: S.No., Name, Department, Semester, Contact number.
+ * Many spreadsheets use separate columns Course/Degree vs Program vs Branch inconsistently:
+ * — "Program" is often **B.Tech** (degree) while Branch is **CSE**; we normalized both to keys
+ *   `course`/`program`/… so consume `program` for **course** when Course is empty,
+ *   and for **branch** only when Branch is empty and Course is already filled.
  */
 const extractStudentBulkRow = (row) => {
   const r = row || {};
-  const branch = pickFirst(r, ['branch', 'program', 'specialization', 'stream']);
+
+  let course = pickFirst(r, ['course', 'degree', 'programme']);
+  let branch = pickFirst(r, ['branch', 'specialization', 'stream']);
+
+  const programColumn = pickFirst(r, ['program']);
+  if (!course && programColumn) {
+    course = programColumn;
+  } else if (course && !branch && programColumn) {
+    branch = programColumn;
+  } else if (!course && !branch && programColumn) {
+    branch = programColumn;
+  }
+
+  const yearRaw = pickFirst(r, ['year', 'academicyear', 'yr', 'class', 'stuclass']);
+
   return {
     sno: pickFirst(r, [
       'sno',
@@ -74,6 +94,11 @@ const extractStudentBulkRow = (row) => {
       'serialnumber',
       's.no',
       's.no.',
+      'rollno',
+      'rollnumber',
+      'roll',
+      'regno',
+      'registrationno',
       '#',
       'no',
     ]),
@@ -81,9 +106,9 @@ const extractStudentBulkRow = (row) => {
     department: pickFirst(r, ['department', 'dept', 'discipline', 'school']),
     branch,
     program: branch,
-    course: pickFirst(r, ['course', 'degree', 'programme']),
+    course,
     semester: pickFirst(r, ['semester', 'sem']),
-    year: pickFirst(r, ['year', 'academicyear', 'yr']),
+    year: yearRaw,
     contact: pickFirst(r, [
       'contactnumber',
       'contact',
@@ -97,20 +122,115 @@ const extractStudentBulkRow = (row) => {
   };
 };
 
-const normKey = (s) => String(s || '').trim().toLowerCase();
+/** Collapse casing, dots, whitespace for forgiving course/branch compares (B.Tech ≈ BTech). */
+const cohortTokenNorm = (s) =>
+  String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[.\s_-]+/g, '');
+
+const normKey = (s) =>
+  String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+
+/** Map common spreadsheet year variants to picker values ("1", "year 4", IV → same as selectors). */
+const canonicalYearKey = (raw) => {
+  const t = cohortTokenNorm(String(raw || '').replace(/°/g, ''));
+  if (!t) return '';
+  const onlyDigits = t.replace(/\D/g, '');
+  if (
+    onlyDigits === '1' ||
+    t.includes('year1') ||
+    t.endsWith('1styear') ||
+    t === '1styear' ||
+    t === 'firstyear' ||
+    t === 'fy' ||
+    t === 'i'
+  ) {
+    return cohortTokenNorm('1st year');
+  }
+  if (
+    onlyDigits === '2' ||
+    t.includes('year2') ||
+    t.endsWith('2ndyear') ||
+    t === '2ndyear' ||
+    t === 'secondyear' ||
+    t === 'ii'
+  ) {
+    return cohortTokenNorm('2nd year');
+  }
+  if (
+    onlyDigits === '3' ||
+    t.includes('year3') ||
+    t.endsWith('3rdyear') ||
+    t === '3rdyear' ||
+    t === 'thirdyear' ||
+    t === 'iii'
+  ) {
+    return cohortTokenNorm('3rd year');
+  }
+  if (
+    onlyDigits === '4' ||
+    t.includes('year4') ||
+    t.endsWith('4thyear') ||
+    t === '4thyear' ||
+    t === 'fourthyear' ||
+    t === 'finalyear' ||
+    t === 'iv'
+  ) {
+    return cohortTokenNorm('4th year');
+  }
+
+  let u = normKey(raw).replace(/\s+/g, '');
+  u = u.replace(/(\d)(st|nd|rd|th)/gi, '$1');
+  if (u.includes('year')) {
+    const m = u.match(/(\d+)/);
+    if (m && m[1]) return canonicalYearKey(m[1]);
+  }
+
+  return normKey(raw).replace(/\s+/g, '');
+};
 
 const cohortRowMatchesTarget = (row, target) => {
   const rowBranch = row.branch || row.program;
+  const yRow = canonicalYearKey(row.year);
+  const yTarget = canonicalYearKey(target.year);
   return (
-    normKey(row.course) === normKey(target.course) &&
-    normKey(rowBranch) === normKey(target.program) &&
-    normKey(row.year) === normKey(target.year)
+    cohortTokenNorm(row.course) === cohortTokenNorm(target.course) &&
+    cohortTokenNorm(rowBranch) === cohortTokenNorm(target.program) &&
+    (yRow && yTarget ? yRow === yTarget : normKey(row.year) === normKey(target.year))
   );
 };
 
+/**
+ * Faculty roster columns: Name, Email, Designation (or Title), optional Password.
+ * Default password matches student roster: Firstname@123
+ */
+const extractFacultyBulkRow = (row) => {
+  const r = row || {};
+  return {
+    name: pickFirst(r, ['name', 'facultyname', 'fullname', 'teachername']),
+    email: pickFirst(r, ['email', 'emailid', 'e-mail', 'mail']),
+    designation: pickFirst(r, [
+      'designation',
+      'title',
+      'position',
+      'jobtitle',
+      'rank',
+      'facultyrole',
+    ]),
+    password: pickFirst(r, ['password', 'passwd', 'pwd', 'initialpassword']),
+  };
+};
+
+const FACULTY_ROSTER_SHEET_FORMAT_HINT =
+  'Use a header row with: Name, Email, Designation (you may use Title or Position instead), and optional Password. If Password is blank, new accounts use Firstname@123. Duplicate emails in one file are skipped (first row wins).';
+
 /** Single-line description for API responses and UI. */
 const STUDENT_ROSTER_SHEET_FORMAT_HINT =
-  'Use a header row with: S.No., Name, Department, Branch, Course, Semester, Year, Contact number, Email id. Branch may be labeled Program. Course, Branch, and Year in each row must match the class you select; Semester in the sheet overrides the optional form value when present. Default password: Firstname@123.';
+  'Use a header row with: S.No., Name, Department, Branch, Course, Semester, Year, Contact number, Email id. If you use a “Program” column for the degree (B.Tech, MCA, …) and “Branch” for specialization (CSE, IT, …), both are supported. Course, Branch, and Year in each row must match the class you select; Semester in the sheet overrides the optional form value when present. Default password: Firstname@123.';
 
 const displayNameFromEmail = (email) => {
   const local = String(email || '').split('@')[0] || 'student';
@@ -143,8 +263,10 @@ module.exports = {
   parseWorkbookRows,
   parseTabularFileRows,
   extractStudentBulkRow,
+  extractFacultyBulkRow,
   cohortRowMatchesTarget,
   displayNameFromEmail,
   defaultStudentPasswordFromRow,
   STUDENT_ROSTER_SHEET_FORMAT_HINT,
+  FACULTY_ROSTER_SHEET_FORMAT_HINT,
 };

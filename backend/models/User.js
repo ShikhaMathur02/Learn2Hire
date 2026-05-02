@@ -67,6 +67,12 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
     /** Optional faculty metadata (admin-managed; shown on admin user profile). */
+    facultyDesignation: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 200,
+    },
     facultyQualification: {
       type: String,
       default: '',

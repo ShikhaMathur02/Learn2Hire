@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -11,6 +11,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 
 import { readApiResponse } from "../lib/api";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 
@@ -62,10 +63,9 @@ function CompanyJobsPage() {
   );
 
   const fetchJobs = useCallback(async () => {
-    const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
 
-    if (!token || !storedUser) {
+    if (!storedUser) {
       navigate("/login");
       return [];
     }
@@ -89,9 +89,7 @@ function CompanyJobsPage() {
     }
 
     const response = await fetch("/api/jobs", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: {},
     });
 
     const data = await readApiResponse(
@@ -120,16 +118,13 @@ function CompanyJobsPage() {
         return;
       }
 
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!user) {
         navigate("/login");
         return;
       }
 
       const response = await fetch(`/api/jobs/${jobId}/applications`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: {},
       });
 
       const data = await readApiResponse(
@@ -150,7 +145,7 @@ function CompanyJobsPage() {
 
       setApplications(data.data?.applications || []);
     },
-    [navigate]
+    [navigate, user]
   );
 
   const fetchInterests = useCallback(
@@ -160,14 +155,13 @@ function CompanyJobsPage() {
         return;
       }
 
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!user) {
         navigate("/login");
         return;
       }
 
       const response = await fetch(`/api/jobs/${jobId}/interests`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
 
       const data = await readApiResponse(
@@ -189,7 +183,7 @@ function CompanyJobsPage() {
 
       setInterests(data.data?.interests || []);
     },
-    [navigate]
+    [navigate, user]
   );
 
   const refreshPage = useCallback(async () => {
@@ -265,12 +259,11 @@ function CompanyJobsPage() {
   };
 
   const handleDownloadApplicantResume = async (studentId, downloadName) => {
-    const token = localStorage.getItem("token");
-    if (!token || !selectedJobId || !studentId) return;
+    if (!selectedJobId || !studentId) return;
     setError("");
     try {
       const res = await fetch(`/api/jobs/${selectedJobId}/students/${studentId}/resume`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       if (!res.ok) {
         const data = await readApiResponse(res);
@@ -306,8 +299,7 @@ function CompanyJobsPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!user) {
         navigate("/login");
         return;
       }
@@ -316,7 +308,6 @@ function CompanyJobsPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...form,
@@ -358,17 +349,14 @@ function CompanyJobsPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!user) {
         navigate("/login");
         return;
       }
 
       const response = await fetch(`/api/jobs/${selectedJobId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: {},
       });
 
       const data = await readApiResponse(
@@ -397,8 +385,7 @@ function CompanyJobsPage() {
       setError("Please choose a PDF file for the job description.");
       return;
     }
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user) {
       navigate("/login");
       return;
     }
@@ -410,7 +397,7 @@ function CompanyJobsPage() {
       fd.append("jd", file);
       const res = await fetch(`/api/jobs/${selectedJobId}/jd`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
         body: fd,
       });
       const data = await readApiResponse(
@@ -429,14 +416,13 @@ function CompanyJobsPage() {
 
   const handleDownloadJd = async () => {
     if (!selectedJobId) return;
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!user) {
       navigate("/login");
       return;
     }
     try {
       const res = await fetch(`/api/jobs/${selectedJobId}/jd`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       if (!res.ok) {
         const data = await readApiResponse(res);
@@ -460,8 +446,7 @@ function CompanyJobsPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!user) {
         navigate("/login");
         return;
       }
@@ -470,7 +455,6 @@ function CompanyJobsPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status }),
       });
@@ -494,11 +478,11 @@ function CompanyJobsPage() {
   };
 
   const inputClassName =
-    "h-12 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20";
+    "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20";
 
   if (loading) {
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-300">
+      <div {...workspaceRootProps("company", "flex min-h-screen items-center justify-center text-slate-600")}>
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading company jobs...
@@ -508,24 +492,30 @@ function CompanyJobsPage() {
   }
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-3 py-5 text-white sm:px-4 sm:py-6">
+    <div {...workspaceRootProps("company", "l2h-container-app min-h-screen py-5 sm:py-6")}>
       <div className="w-full">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-              <Link to="/dashboard" className="transition hover:text-white">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
+              <Link
+                to="/dashboard"
+                className="font-medium text-[var(--primary)] transition hover:underline"
+              >
                 Dashboard
               </Link>
               <span>/</span>
-              <span className="text-slate-300">Manage Jobs</span>
-              <span className="text-slate-600">·</span>
-              <Link to="/company/talent" className="transition hover:text-white">
+              <span className="font-medium text-[var(--text)]">Manage Jobs</span>
+              <span className="text-[var(--text-subtle)]">·</span>
+              <Link
+                to="/company/talent"
+                className="font-medium text-[var(--primary)] transition hover:underline"
+              >
                 Talent pool
               </Link>
             </div>
-            <p className="text-sm font-medium text-cyan-300">Company Workspace</p>
-            <h1 className="mt-1 text-3xl font-bold">Manage Job Posts</h1>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="text-sm font-semibold text-[var(--primary)]">Company Workspace</p>
+            <h1 className="mt-1 text-3xl font-bold text-[var(--text)]">Manage Job Posts</h1>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
               Update role details, change status, review applicants, and remove old openings.
             </p>
           </div>
@@ -537,21 +527,21 @@ function CompanyJobsPage() {
         </div>
 
         {error ? (
-          <div className="mb-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
             {error}
           </div>
         ) : null}
 
         {success ? (
-          <div className="mb-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
             {success}
           </div>
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-          <Card className="border border-white/10 bg-white/5 shadow-none">
+          <Card className="border border-slate-200 bg-white shadow-none">
             <CardContent className="p-6">
-              <h2 className="text-2xl font-bold text-white">Your Jobs</h2>
+              <h2 className="text-2xl font-bold text-slate-900">Your Jobs</h2>
               <p className="mt-2 text-sm text-slate-400">
                 Select a role to edit details and review applicants.
               </p>
@@ -565,18 +555,18 @@ function CompanyJobsPage() {
                       onClick={() => handleSelectJob(job)}
                       className={`w-full rounded-2xl border p-4 text-left transition ${
                         selectedJobId === job._id
-                          ? "border-cyan-400 bg-cyan-400/10"
-                          : "border-white/10 bg-slate-900/60 hover:border-indigo-400/30"
+                          ? "border-[var(--primary)] bg-[var(--primary)]/10"
+                          : "border-slate-200 bg-slate-50 hover:border-[var(--primary)]/30"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/15 text-cyan-300">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)]">
                               <BriefcaseBusiness className="h-5 w-5" />
                             </div>
                             <div>
-                              <h3 className="font-semibold text-white">{job.title}</h3>
+                              <h3 className="font-semibold text-slate-900">{job.title}</h3>
                               <p className="mt-1 text-sm text-slate-400">
                                 {job.location || "Remote"} · {job.employmentType}
                               </p>
@@ -584,11 +574,11 @@ function CompanyJobsPage() {
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium capitalize text-slate-200">
+                          <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium capitalize text-slate-600">
                             {job.status}
                           </span>
                           {job.postingAudience === "single_college" && job.targetCollege?.name ? (
-                            <span className="max-w-[10rem] text-right text-[11px] text-amber-200/90">
+                            <span className="max-w-[10rem] text-right text-[11px] text-amber-800/90">
                               {job.targetCollege.name} only
                             </span>
                           ) : (
@@ -599,7 +589,7 @@ function CompanyJobsPage() {
                     </button>
                   ))
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
                     No jobs created yet. Go back to the company dashboard to create your first job
                     post.
                   </div>
@@ -609,11 +599,11 @@ function CompanyJobsPage() {
           </Card>
 
           <div className="space-y-6">
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Edit Job</h2>
+                    <h2 className="text-2xl font-bold text-slate-900">Edit Job</h2>
                     <p className="mt-2 text-sm text-slate-400">
                       Keep this opening updated for applicants.
                     </p>
@@ -672,7 +662,7 @@ function CompanyJobsPage() {
                       <option value="closed">Closed</option>
                     </select>
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-300">
+                      <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                         Visibility
                       </label>
                       <select
@@ -693,7 +683,7 @@ function CompanyJobsPage() {
                     </div>
                     {form.postingAudience === "single_college" ? (
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-300">
+                        <label className="mb-2 block text-sm font-medium text-[var(--text-muted)]">
                           College
                         </label>
                         <select
@@ -720,23 +710,23 @@ function CompanyJobsPage() {
                       }
                       rows={5}
                       placeholder="Describe the role, responsibilities, and expectations"
-                      className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                     />
 
-                    <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3">
-                          <FileText className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" />
+                          <FileText className="mt-0.5 h-5 w-5 shrink-0 text-[var(--primary)]" />
                           <div>
-                            <p className="text-sm font-semibold text-white">
+                            <p className="text-sm font-semibold text-slate-900">
                               Job description document (PDF)
                             </p>
                             <p className="mt-1 text-xs text-slate-400">
                               Upload a formal JD. Students get a notification when you add or replace
-                              it on an <span className="text-slate-300">open</span> role.
+                              it on an <span className="font-semibold text-slate-800">open</span> role.
                             </p>
                             {selectedJob?.hasJdDocument ? (
-                              <p className="mt-2 text-xs text-emerald-300">
+                              <p className="mt-2 text-xs text-emerald-800">
                                 Current file: {selectedJob.jdOriginalName || "job-description.pdf"}
                               </p>
                             ) : (
@@ -751,7 +741,7 @@ function CompanyJobsPage() {
                               Download
                             </Button>
                           ) : null}
-                          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">
+                          <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--primary)]/40 bg-[var(--primary)]/10 px-4 py-2 text-sm font-medium text-[var(--primary-dark)] transition hover:bg-[var(--primary)]/20">
                             <Upload className="h-4 w-4" />
                             {jdUploading ? "Uploading…" : "Upload PDF"}
                             <input
@@ -778,16 +768,16 @@ function CompanyJobsPage() {
                     </div>
                   </form>
                 ) : (
-                  <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                  <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
                     Select a job from the left to start managing it.
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-white">Applicants</h2>
+                <h2 className="text-2xl font-bold text-slate-900">Applicants</h2>
                 <p className="mt-2 text-sm text-slate-400">
                   Review applications for the selected job and move candidates through the pipeline.
                 </p>
@@ -797,12 +787,12 @@ function CompanyJobsPage() {
                     applications.map((application) => (
                       <div
                         key={application._id}
-                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                       >
                         <div className="flex flex-col gap-4">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                              <h3 className="font-semibold text-white">
+                              <h3 className="font-semibold text-slate-900">
                                 {application.student?.name || "Applicant"}
                               </h3>
                               <p className="mt-1 text-sm text-slate-400">
@@ -816,45 +806,45 @@ function CompanyJobsPage() {
                                 ).toLocaleDateString()}
                               </p>
                             </div>
-                            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium capitalize text-slate-200">
+                            <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-medium capitalize text-slate-600">
                               {application.status}
                             </span>
                           </div>
 
                           {application.studentProfile?.bio ? (
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm leading-6 text-slate-300">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
                               {application.studentProfile.bio}
                             </div>
                           ) : null}
 
                           {application.coverLetter ? (
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm leading-6 text-slate-300">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
                               {application.coverLetter}
                             </div>
                           ) : null}
 
                           <div className="grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
                                 Skills
                               </p>
-                              <p className="mt-2 text-lg font-semibold text-white">
+                              <p className="mt-2 text-lg font-semibold text-slate-900">
                                 {application.studentProfile?.skills?.length || 0}
                               </p>
                             </div>
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
                                 Courses
                               </p>
-                              <p className="mt-2 text-lg font-semibold text-white">
+                              <p className="mt-2 text-lg font-semibold text-slate-900">
                                 {application.studentProfile?.stats?.coursesCompleted || 0}
                               </p>
                             </div>
-                            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
                                 Assessments
                               </p>
-                              <p className="mt-2 text-lg font-semibold text-white">
+                              <p className="mt-2 text-lg font-semibold text-slate-900">
                                 {application.studentProfile?.stats?.assessmentsTaken || 0}
                               </p>
                             </div>
@@ -865,7 +855,7 @@ function CompanyJobsPage() {
                               {application.studentProfile.skills.slice(0, 6).map((skill) => (
                                 <span
                                   key={skill._id || `${application._id}-${skill.name}`}
-                                  className="rounded-full bg-cyan-400/10 px-3 py-1 text-xs text-cyan-300"
+                                  className="rounded-full bg-[var(--primary)]/12 px-3 py-1 text-xs text-[var(--primary-dark)]"
                                 >
                                   {skill.name} {typeof skill.progress === "number" ? `· ${skill.progress}%` : ""}
                                 </span>
@@ -879,7 +869,7 @@ function CompanyJobsPage() {
                                 href={application.portfolioLink}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
+                                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 transition hover:bg-slate-50"
                               >
                                 Portfolio Link
                                 <ExternalLink className="h-4 w-4" />
@@ -889,7 +879,7 @@ function CompanyJobsPage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                className="border-cyan-400/40 text-cyan-100"
+                                className="border-[var(--primary)]/40 text-[var(--primary-dark)]"
                                 onClick={() =>
                                   handleDownloadApplicantResume(
                                     application.student._id,
@@ -910,7 +900,7 @@ function CompanyJobsPage() {
                                 handleApplicationStatus(application._id, e.target.value)
                               }
                               disabled={updatingApplicationId === application._id}
-                              className="h-11 rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none focus:border-cyan-400"
+                              className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                             >
                               <option value="applied">Applied</option>
                               <option value="reviewing">Reviewing</option>
@@ -926,7 +916,7 @@ function CompanyJobsPage() {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
                       No applicants for the selected job yet.
                     </div>
                   )}
@@ -934,9 +924,9 @@ function CompanyJobsPage() {
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-white/5 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-white">Interested candidates</h2>
+                <h2 className="text-2xl font-bold text-slate-900">Interested candidates</h2>
                 <p className="mt-2 text-sm text-slate-400">
                   Learners who notified you of interest before applying. Their snapshot résumé (if any)
                   is from when they clicked interest.
@@ -946,23 +936,23 @@ function CompanyJobsPage() {
                     interests.map((row) => (
                       <div
                         key={row._id}
-                        className="rounded-2xl border border-white/10 bg-slate-900/60 p-4"
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <h3 className="font-semibold text-white">
+                            <h3 className="font-semibold text-slate-900">
                               {row.student?.name || "Learner"}
                             </h3>
                             <p className="mt-1 text-sm text-slate-400">{row.student?.email}</p>
                             {row.message ? (
-                              <p className="mt-2 text-sm text-slate-300">{row.message}</p>
+                              <p className="mt-2 text-sm text-slate-600">{row.message}</p>
                             ) : null}
                           </div>
                           {row.hasResumeFile && row.student?._id ? (
                             <Button
                               type="button"
                               variant="outline"
-                              className="shrink-0 border-cyan-400/40 text-cyan-100"
+                              className="shrink-0 border-[var(--primary)]/40 text-[var(--primary-dark)]"
                               onClick={() =>
                                 handleDownloadApplicantResume(
                                   row.student._id,
@@ -980,7 +970,7 @@ function CompanyJobsPage() {
                       </div>
                     ))
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400">
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
                       No interest notifications for this job yet.
                     </div>
                   )}

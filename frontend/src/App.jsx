@@ -1,31 +1,48 @@
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import ForgotPassword from './pages/ForgotPassword';
-import AdminJobsPage from './pages/AdminJobsPage';
-import AdminCollegeDetailPage from './pages/AdminCollegeDetailPage';
-import AdminUserProfilePage from './pages/AdminUserProfilePage';
-import LearnerSummaryPage from './pages/LearnerSummaryPage';
-import CompanyJobsPage from './pages/CompanyJobsPage';
-import CompanyTalentPage from './pages/CompanyTalentPage';
-import Dashboard from './pages/Dashboard';
-import CreateAssessment from './pages/CreateAssessment';
-import JobDetailsPage from './pages/JobDetailsPage';
+
 import LandingPage from './pages/LandingPage';
-import NotificationsPage from './pages/NotificationsPage';
-import AssessmentsList from './pages/AssessmentsList';
-import JobsPage from './pages/JobsPage';
-import StudentAssessment from './pages/StudentAssessment';
-import LearningHomePage from './pages/LearningHomePage';
-import LearningSubjectPage from './pages/LearningSubjectPage';
-import MaterialDetailsPage from './pages/MaterialDetailsPage';
-import MyLearningProgressPage from './pages/MyLearningProgressPage';
-import LearningManagePage from './pages/LearningManagePage';
 import { ClearSessionOnMount } from './components/auth/ClearSessionOnMount.jsx';
 import { useAuthSession } from './lib/authSession';
 import { NotificationProvider } from './context/NotificationContext.jsx';
+import { SessionHydration } from './components/auth/SessionHydration.jsx';
 import './App.css';
+
+const Login = lazy(() => import('./pages/Login'));
+const Signup = lazy(() => import('./pages/Signup'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const AdminJobsPage = lazy(() => import('./pages/AdminJobsPage'));
+const AdminCollegeDetailPage = lazy(() => import('./pages/AdminCollegeDetailPage'));
+const AdminUserProfilePage = lazy(() => import('./pages/AdminUserProfilePage'));
+const AdminTestimonialsPage = lazy(() => import('./pages/AdminTestimonialsPage'));
+const LearnerSummaryPage = lazy(() => import('./pages/LearnerSummaryPage'));
+const CompanyJobsPage = lazy(() => import('./pages/CompanyJobsPage'));
+const CompanyTalentPage = lazy(() => import('./pages/CompanyTalentPage'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const CollegeRosterPage = lazy(() => import('./pages/CollegeRosterPage'));
+const CreateAssessment = lazy(() => import('./pages/CreateAssessment'));
+const JobDetailsPage = lazy(() => import('./pages/JobDetailsPage'));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const AssessmentsList = lazy(() => import('./pages/AssessmentsList'));
+const JobsPage = lazy(() => import('./pages/JobsPage'));
+const StudentAssessment = lazy(() => import('./pages/StudentAssessment'));
+const LearningHomePage = lazy(() => import('./pages/LearningHomePage'));
+const LearningSubjectPage = lazy(() => import('./pages/LearningSubjectPage'));
+const MaterialDetailsPage = lazy(() => import('./pages/MaterialDetailsPage'));
+const MyLearningProgressPage = lazy(() => import('./pages/MyLearningProgressPage'));
+const LearningManagePage = lazy(() => import('./pages/LearningManagePage'));
+
+function RouteFallback() {
+  return (
+    <div
+      className="flex min-h-[50vh] items-center justify-center bg-[var(--light)] text-slate-500"
+      role="status"
+      aria-live="polite"
+    >
+      <span className="text-sm font-medium">Loading…</span>
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuthSession();
@@ -59,8 +76,10 @@ function ScrollToTopOnRouteChange() {
 function App() {
   return (
     <NotificationProvider>
-      <ScrollToTopOnRouteChange />
-      <Routes>
+      <SessionHydration />
+      <Suspense fallback={<RouteFallback />}>
+        <ScrollToTopOnRouteChange />
+        <Routes>
       <Route
         path="/"
         element={
@@ -108,6 +127,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/college/roster"
+        element={
+          <ProtectedRoute>
+            <CollegeRosterPage />
           </ProtectedRoute>
         }
       />
@@ -206,6 +233,14 @@ function App() {
         }
       />
       <Route
+        path="/admin/testimonials"
+        element={
+          <ProtectedRoute>
+            <AdminTestimonialsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/users/:userId"
         element={
           <ProtectedRoute>
@@ -270,7 +305,8 @@ function App() {
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        </Routes>
+      </Suspense>
     </NotificationProvider>
   );
 }

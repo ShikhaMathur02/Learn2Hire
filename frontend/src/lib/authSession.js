@@ -5,7 +5,6 @@ let cachedSnapshot = null;
 function computeSnapshot() {
   if (typeof window === 'undefined') {
     return {
-      token: null,
       user: null,
       isAuthenticated: false,
       role: null,
@@ -13,7 +12,6 @@ function computeSnapshot() {
       learningPath: '/learning#learning-explore-catalog',
     };
   }
-  const token = localStorage.getItem('token');
   const storedUser = localStorage.getItem('user');
   let user = null;
   try {
@@ -21,18 +19,19 @@ function computeSnapshot() {
   } catch {
     user = null;
   }
-  const isAuthenticated = Boolean(token && user);
+  /** Session is validated against httpOnly cookie via SessionHydration + API; we keep a user snapshot only. */
+  const isAuthenticated = Boolean(user);
   const role = user?.role ? String(user.role).toLowerCase() : null;
   const isStudent = isAuthenticated && role === 'student';
   const learningPath = isStudent
     ? '/dashboard/learning#learning-explore-catalog'
     : '/learning#learning-explore-catalog';
-  return { token, user, isAuthenticated, role, isStudent, learningPath };
+  return { user, isAuthenticated, role, isStudent, learningPath };
 }
 
 function getSnapshot() {
   const next = computeSnapshot();
-  const key = `${next.token ?? ''}|${storedUserKey(next.user)}`;
+  const key = storedUserKey(next.user);
   if (cachedSnapshot && cachedSnapshot.key === key) {
     return cachedSnapshot.snapshot;
   }
@@ -53,7 +52,6 @@ function storedUserKey(user) {
 function getServerSnapshot() {
   if (typeof window === 'undefined') {
     return {
-      token: null,
       user: null,
       isAuthenticated: false,
       role: null,
@@ -87,11 +85,18 @@ export function notifyAuthChange() {
   window.dispatchEvent(new Event('learn2hire-auth-change'));
 }
 
-/** Clear session and notify listeners so headers and routes stay consistent. */
+/** Remove user snapshot from localStorage only (instant); use before async cookie logout. */
+export function clearLocalAuthSnapshot() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  notifyAuthChange();
+}
+
+/** Clear httpOnly cookie + local snapshot; notify listeners. */
 export function clearAuthSession() {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    notifyAuthChange();
-  }
+  if (typeof window === 'undefined') return;
+  void fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).finally(() => {
+    clearLocalAuthSnapshot();
+  });
 }

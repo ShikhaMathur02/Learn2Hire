@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "../components/ui/button";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 import { Card, CardContent } from "../components/ui/card";
 
 function formatTime(seconds) {
@@ -43,9 +44,8 @@ function StudentAssessment() {
   const [timeExpired, setTimeExpired] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
 
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
@@ -55,9 +55,7 @@ function StudentAssessment() {
       setError("");
 
       try {
-        const headers = {
-          Authorization: `Bearer ${token}`,
-        };
+        const headers = {        };
 
         const [assessmentRes, submissionsRes] = await Promise.all([
           fetch(`/api/assessments/${id}`, { headers }),
@@ -151,9 +149,7 @@ function StudentAssessment() {
     async ({ autoSubmit = false } = {}) => {
       setError("");
       setSuccess("");
-
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!localStorage.getItem("user")) {
         navigate("/login");
         return;
       }
@@ -187,8 +183,7 @@ function StudentAssessment() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+        },
           body: JSON.stringify({
             assessmentId: id,
             answers: formattedAnswers,
@@ -259,7 +254,7 @@ function StudentAssessment() {
 
   if (loading) {
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-200">
+      <div {...workspaceRootProps("student", "flex min-h-screen items-center justify-center text-slate-600")}>
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading assessment...
@@ -269,26 +264,32 @@ function StudentAssessment() {
   }
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] px-3 py-5 text-slate-50 sm:px-4 sm:py-6">
+    <div {...workspaceRootProps("student", "l2h-container-app min-h-screen py-5 sm:py-6")}>
       <div className="w-full">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-              <Link to="/dashboard" className="transition hover:text-white">
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
+              <Link
+                to="/dashboard"
+                className="underline-offset-4 transition hover:text-[var(--primary)] hover:underline"
+              >
                 Dashboard
               </Link>
-              <span>/</span>
-              <Link to="/assessments" className="transition hover:text-white">
+              <span className="text-[var(--text-subtle)]">/</span>
+              <Link
+                to="/assessments"
+                className="underline-offset-4 transition hover:text-[var(--primary)] hover:underline"
+              >
                 Assessments
               </Link>
-              <span>/</span>
-              <span className="text-slate-300">Assessment</span>
+              <span className="text-[var(--text-subtle)]">/</span>
+              <span className="font-medium text-[var(--text)]">Assessment</span>
             </div>
-            <p className="text-sm font-medium text-cyan-300">Student Workspace</p>
-            <h1 className="mt-1 text-3xl font-bold">
+            <p className="text-sm font-semibold text-[var(--primary)]">Student Workspace</p>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--text)]">
               {assessment?.title || "Assessment"}
             </h1>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
               {assessment?.description ||
                 (isDocumentOnly
                   ? "Download or open the question paper using the buttons below."
@@ -303,41 +304,41 @@ function StudentAssessment() {
         </div>
 
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card className="border border-white/10 bg-white/5 shadow-none">
+          <Card className="border border-slate-200 bg-white shadow-none">
             <CardContent className="p-5">
-              <p className="text-sm text-slate-400">Skill</p>
-              <p className="mt-2 text-lg font-semibold text-white">
+              <p className="text-sm font-medium text-[var(--text-muted)]">Skill</p>
+              <p className="mt-2 text-lg font-semibold text-[var(--text)]">
                 {assessment?.skill || "General"}
               </p>
             </CardContent>
           </Card>
-          <Card className="border border-white/10 bg-white/5 shadow-none">
+          <Card className="border border-slate-200 bg-white shadow-none">
             <CardContent className="p-5">
-              <p className="text-sm text-slate-400">Format</p>
-              <p className="mt-2 text-lg font-semibold text-white">
+              <p className="text-sm font-medium text-[var(--text-muted)]">Format</p>
+              <p className="mt-2 text-lg font-semibold text-[var(--text)]">
                 {isDocumentOnly ? "Document" : totalQuestions > 0 ? "Online MCQ" : "—"}
               </p>
             </CardContent>
           </Card>
-          <Card className="border border-white/10 bg-white/5 shadow-none">
+          <Card className="border border-slate-200 bg-white shadow-none">
             <CardContent className="p-5">
-              <p className="text-sm text-slate-400">Questions</p>
-              <p className="mt-2 text-lg font-semibold text-white">{totalQuestions}</p>
+              <p className="text-sm font-medium text-[var(--text-muted)]">Questions</p>
+              <p className="mt-2 text-lg font-semibold text-[var(--text)]">{totalQuestions}</p>
             </CardContent>
           </Card>
-          <Card className="border border-white/10 bg-white/5 shadow-none">
+          <Card className="border border-slate-200 bg-white shadow-none">
             <CardContent className="p-5">
-              <p className="text-sm text-slate-400">Time Limit</p>
-              <p className="mt-2 text-lg font-semibold text-white">
+              <p className="text-sm font-medium text-[var(--text-muted)]">Time Limit</p>
+              <p className="mt-2 text-lg font-semibold text-[var(--text)]">
                 {assessment?.timeLimit ? `${assessment.timeLimit} mins` : "No limit"}
               </p>
             </CardContent>
           </Card>
           {totalQuestions > 0 ? (
-            <Card className="border border-white/10 bg-white/5 shadow-none sm:col-span-2 xl:col-span-4">
+            <Card className="border border-slate-200 bg-white shadow-none sm:col-span-2 xl:col-span-4">
               <CardContent className="p-5">
-                <p className="text-sm text-slate-400">Answered</p>
-                <p className="mt-2 text-lg font-semibold text-white">
+                <p className="text-sm font-medium text-[var(--text-muted)]">Answered</p>
+                <p className="mt-2 text-lg font-semibold text-[var(--text)]">
                   {answeredCount}/{totalQuestions}
                 </p>
               </CardContent>
@@ -346,16 +347,16 @@ function StudentAssessment() {
         </div>
 
         {questionPaperPath ? (
-          <Card className="mb-6 border border-cyan-400/25 bg-cyan-500/5 shadow-none">
+          <Card className="mb-6 border border-sky-200/90 bg-white shadow-none ring-1 ring-sky-500/15">
             <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-cyan-300">
-                  <FileText className="h-6 w-6" />
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-[var(--primary)]">
+                  <FileText className="h-6 w-6" aria-hidden />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-cyan-200">Question paper</p>
-                  <p className="mt-1 text-sm text-slate-300">{questionPaperName}</p>
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="text-sm font-semibold text-sky-900">Question paper</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--text)]">{questionPaperName}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
                     Open in the browser or download to complete offline, per your instructor&apos;s
                     instructions.
                   </p>
@@ -368,7 +369,7 @@ function StudentAssessment() {
                     Open
                   </a>
                 </Button>
-                <Button asChild variant="outline" className="gap-2 border-white/20 text-white">
+                <Button asChild variant="outline" className="gap-2">
                   <a href={questionPaperPath} download={questionPaperName}>
                     <Download className="h-4 w-4" />
                     Download
@@ -380,38 +381,42 @@ function StudentAssessment() {
         ) : null}
 
         {existingSubmission ? (
-          <Card className="border border-emerald-400/20 bg-emerald-500/10 shadow-none">
+          <Card className="border border-emerald-200 bg-emerald-50/90 shadow-none ring-1 ring-emerald-600/15">
             <CardContent className="p-6">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <div className="flex items-center gap-2 text-emerald-200">
-                    <CheckCircle2 className="h-5 w-5" />
-                    <span className="text-sm font-medium">
+                  <div className="flex items-center gap-2 text-emerald-900">
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
+                    <span className="text-sm font-semibold">
                       {success || "Assessment already submitted"}
                     </span>
                   </div>
-                  <h2 className="mt-3 text-2xl font-semibold text-white">
+                  <h2 className="mt-3 text-2xl font-semibold text-emerald-950">
                     {getPerformanceLabel(percentage)}
                   </h2>
-                  <p className="mt-2 text-sm text-emerald-100/80">
+                  <p className="mt-2 text-sm text-emerald-900/85">
                     Your score has been recorded and you can review the summary below.
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Score</p>
-                    <p className="mt-2 text-2xl font-bold text-white">
+                  <div className="rounded-2xl border border-slate-300/90 bg-white p-4 shadow-sm">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-800">
+                      Score
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-[var(--text)]">
                       {existingSubmission.score}/{existingSubmission.maxScore}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Result</p>
-                    <p className="mt-2 text-2xl font-bold text-cyan-300">{percentage}%</p>
+                  <div className="rounded-2xl border border-slate-300/90 bg-white p-4 shadow-sm">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-800">Result</p>
+                    <p className="mt-2 text-2xl font-bold text-[var(--primary)]">{percentage}%</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Submitted</p>
-                    <p className="mt-2 text-sm font-semibold text-white">
+                  <div className="rounded-2xl border border-slate-300/90 bg-white p-4 shadow-sm">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-800">
+                      Submitted
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--text)]">
                       {existingSubmission.submittedAt
                         ? new Date(existingSubmission.submittedAt).toLocaleString()
                         : "Recorded"}
@@ -429,10 +434,10 @@ function StudentAssessment() {
             </CardContent>
           </Card>
         ) : isDocumentOnly ? (
-          <Card className="border border-white/10 bg-white/5 shadow-none">
+          <Card className="border border-slate-200 bg-white shadow-none">
             <CardContent className="p-6">
-              <h2 className="text-lg font-semibold text-white">Document assessment</h2>
-              <p className="mt-2 text-sm text-slate-400">
+              <h2 className="text-lg font-semibold text-[var(--text)]">Document assessment</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">
                 This assessment is delivered as a file only. Use Open or Download above. There is no
                 online answer sheet for this test.
               </p>
@@ -446,14 +451,14 @@ function StudentAssessment() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <div className="flex items-center gap-3 text-sm text-slate-300">
-                  <Trophy className="h-5 w-5 text-cyan-300" />
+              <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-card)] p-5 shadow-[var(--surface-elevated)] ring-1 ring-slate-950/[0.04]">
+                <div className="flex items-center gap-3 text-sm font-medium text-[var(--text)]">
+                  <Trophy className="h-5 w-5 shrink-0 text-[var(--primary)]" aria-hidden />
                   {answeredCount} of {totalQuestions} questions answered
                 </div>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200/90">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-indigo-500 transition-all"
+                    className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-indigo-500 transition-all"
                     style={{
                       width: `${totalQuestions ? (answeredCount / totalQuestions) * 100 : 0}%`,
                     }}
@@ -464,21 +469,24 @@ function StudentAssessment() {
               <Card
                 className={`border shadow-none ${
                   timeExpired
-                    ? "border-rose-400/30 bg-rose-500/10"
-                    : "border-white/10 bg-white/5"
+                    ? "border-rose-200 bg-rose-50 ring-1 ring-rose-500/15"
+                    : "border-slate-200 bg-white"
                 }`}
               >
                 <CardContent className="p-5">
                   <div className="flex items-center gap-3">
-                    <Clock3 className="h-5 w-5 text-cyan-300" />
+                    <Clock3
+                      className={`h-5 w-5 shrink-0 ${timeExpired ? "text-rose-600" : "text-[var(--primary)]"}`}
+                      aria-hidden
+                    />
                     <div>
-                      <p className="text-sm text-slate-400">Timer</p>
-                      <p className="mt-1 text-2xl font-bold text-white">
+                      <p className="text-sm font-medium text-[var(--text-muted)]">Timer</p>
+                      <p className="mt-1 text-2xl font-bold tracking-tight text-[var(--text)] tabular-nums">
                         {hasTimeLimit && timeLeft !== null ? formatTime(timeLeft) : "No limit"}
                       </p>
                     </div>
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-400">
+                  <p className="mt-3 text-xs leading-5 text-[var(--text-muted)]">
                     {hasTimeLimit
                       ? "When time ends, your selected answers are submitted automatically."
                       : "Take your time and submit when you are ready."}
@@ -490,19 +498,19 @@ function StudentAssessment() {
             {assessment?.questions?.map((question, questionIndex) => (
               <Card
                 key={question._id || `question-${questionIndex}`}
-                className="border border-white/10 bg-white/5 shadow-none"
+                className="border border-slate-200 bg-white shadow-none"
               >
                 <CardContent className="p-6">
                   <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-cyan-300">
+                      <p className="text-sm font-semibold text-[var(--primary)]">
                         Question {questionIndex + 1}
                       </p>
-                      <h2 className="mt-1 text-lg font-semibold text-white">
+                      <h2 className="mt-1 text-lg font-semibold leading-snug text-[var(--text)]">
                         {question.question}
                       </h2>
                     </div>
-                    <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-300">
+                    <span className="rounded-full border border-[var(--border)] bg-slate-100 px-3 py-1 text-xs font-semibold text-[var(--text-muted)]">
                       {question.marks || 1} mark{(question.marks || 1) > 1 ? "s" : ""}
                     </span>
                   </div>
@@ -516,10 +524,10 @@ function StudentAssessment() {
                           type="button"
                           onClick={() => handleAnswerChange(questionIndex, option)}
                           disabled={timeExpired}
-                          className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                          className={`w-full rounded-2xl border px-4 py-3 text-left text-sm font-medium leading-relaxed transition ${
                             selected
-                              ? "border-cyan-400 bg-cyan-400/10 text-white"
-                              : "border-white/10 bg-slate-900/60 text-slate-300 hover:border-indigo-400/40 hover:bg-slate-900"
+                              ? "border-[var(--primary)] bg-blue-50 text-[var(--text)] shadow-sm ring-1 ring-[color:var(--primary)]/20"
+                              : "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text)] hover:border-[color:var(--primary)]/40 hover:bg-blue-50/60"
                           } ${timeExpired ? "cursor-not-allowed opacity-60" : ""}`}
                         >
                           {option}
@@ -532,13 +540,13 @@ function StudentAssessment() {
             ))}
 
             {error ? (
-              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
                 {error}
               </div>
             ) : null}
 
             {success ? (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
                 {success}
               </div>
             ) : null}

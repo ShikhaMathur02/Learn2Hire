@@ -1,15 +1,15 @@
 import { useLayoutEffect } from "react";
 
-import { clearAuthSession } from "../../lib/authSession";
+import { clearLocalAuthSnapshot, notifyAuthChange } from "../../lib/authSession";
 
 /**
- * Clears token/user on first mount so marketing and sign-in surfaces are always anonymous.
- * Navigating here ends the previous session (same browser).
- * useLayoutEffect runs before paint to avoid a flash of logged-in chrome.
+ * Clears user snapshot on first mount so marketing and sign-in surfaces look anonymous.
+ * Ends the browser session server-side via logout (cookie) without waiting for that request.
  */
 export function ClearSessionOnMount() {
   useLayoutEffect(() => {
-    clearAuthSession();
+    clearLocalAuthSnapshot();
+    void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
   }, []);
   return null;
 }

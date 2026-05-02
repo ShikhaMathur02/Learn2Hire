@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bell, CheckCheck, Filter, LoaderCircle, Sparkles } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -13,6 +13,7 @@ import {
 import { Button } from "../components/ui/button";
 import { NavDropdown } from "../components/ui/nav-dropdown";
 import { Card, CardContent } from "../components/ui/card";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 
 function emitNotificationsChanged() {
   window.dispatchEvent(new CustomEvent("learn2hire-notifications-changed"));
@@ -57,8 +58,7 @@ function NotificationsPage() {
 
   useEffect(() => {
     const fetchNotifications = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) {
+      if (!localStorage.getItem("user")) {
         navigate("/login");
         return;
       }
@@ -78,9 +78,7 @@ function NotificationsPage() {
 
         setError("");
         const response = await fetch("/api/notifications", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: {},
         });
 
         const data = await readApiResponse(
@@ -121,8 +119,7 @@ function NotificationsPage() {
   }, [filter, notifications]);
 
   const handleMarkRead = async (notificationId) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
@@ -134,9 +131,7 @@ function NotificationsPage() {
     try {
       const response = await fetch(`/api/notifications/${notificationId}/read`, {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: {},
       });
 
       const data = await readApiResponse(
@@ -165,8 +160,7 @@ function NotificationsPage() {
   };
 
   const handleMarkAllRead = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
@@ -178,9 +172,7 @@ function NotificationsPage() {
     try {
       const response = await fetch("/api/notifications/read-all", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: {},
       });
 
       const data = await readApiResponse(
@@ -209,7 +201,7 @@ function NotificationsPage() {
 
   const filterDropdown = (
     <NavDropdown
-      theme="dark"
+      theme="light"
       align="right"
       icon={Filter}
       label={filter === "all" ? "Showing: All" : `Showing: Unread (${unreadCount})`}
@@ -244,13 +236,13 @@ function NotificationsPage() {
   const listSection = (
     <>
  {error ? (
-          <div className="mb-6 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <div className="mb-6 rounded-[10px] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
             {error}
           </div>
         ) : null}
 
         {success ? (
-          <div className="mb-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+          <div className="mb-6 rounded-[10px] border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
             {success}
           </div>
         ) : null}
@@ -260,32 +252,32 @@ function NotificationsPage() {
             visibleNotifications.map((notification) => (
               <Card
                 key={notification._id}
-                className={`border bg-white/5 shadow-none ${
-                  notification.isRead ? "border-white/10" : "border-cyan-400/30"
+                className={`border shadow-[var(--surface-elevated)] ${
+                  notification.isRead
+                    ? "border-[var(--border)] bg-[var(--bg-card)]"
+                    : "border-blue-100 bg-[#eff6ff]/90"
                 }`}
               >
                 <CardContent className="p-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/25 text-cyan-200">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-blue-50 text-[var(--primary)]">
                         <Bell className="h-5 w-5 stroke-[2.25]" strokeWidth={2.25} />
                       </div>
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="text-lg font-semibold text-white">
-                            {notification.title}
-                          </h2>
+                          <h2 className="text-lg font-semibold text-slate-900">{notification.title}</h2>
                           {!notification.isRead ? (
-                            <span className="rounded-full bg-cyan-400/20 px-3 py-1 text-xs font-semibold text-cyan-100">
+                            <span className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-semibold text-white uppercase tracking-wide">
                               New
                             </span>
                           ) : null}
                         </div>
-                        <p className="mt-2 text-sm font-medium leading-6 text-slate-200">
+                        <p className="mt-2 text-sm font-medium leading-6 text-slate-700">
                           {notification.message}
                         </p>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-slate-400">
-                          <span className="rounded-full bg-white/5 px-3 py-1 capitalize">
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-slate-500">
+                          <span className="rounded-full border border-[var(--border)] bg-[#f8fafc] px-3 py-1 capitalize">
                             {notification.category}
                           </span>
                           <span>{new Date(notification.createdAt).toLocaleString()}</span>
@@ -323,8 +315,8 @@ function NotificationsPage() {
               </Card>
             ))
           ) : (
-            <Card className="border border-white/10 bg-white/5 shadow-none">
-              <CardContent className="p-6 text-sm font-medium text-slate-300">
+            <Card className="border border-[var(--border)] bg-[var(--bg-card)] shadow-sm">
+              <CardContent className="p-6 text-sm font-medium text-slate-600">
                 No notifications found for the selected filter.
               </CardContent>
             </Card>
@@ -351,11 +343,10 @@ function NotificationsPage() {
             role: shellUser.role || "student",
           }}
           onLogout={handleLogout}
-          headerIcon={Sparkles}
           actions={filterDropdown}
         >
-          <div className="flex min-h-[260px] items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
-            <div className="flex items-center gap-3 text-slate-100">
+          <div className="flex min-h-[260px] items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--surface-elevated)]">
+            <div className="flex items-center gap-3 text-slate-600">
               <LoaderCircle className="h-6 w-6 animate-spin" />
               Loading notifications...
             </div>
@@ -364,7 +355,7 @@ function NotificationsPage() {
       );
     }
     return (
-      <div className="l2h-dark-ui flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-slate-100">
+      <div {...workspaceRootProps(viewerRole || viewerUser?.role, "flex min-h-screen items-center justify-center text-slate-600")}>
         <div className="flex items-center gap-3">
           <LoaderCircle className="h-5 w-5 animate-spin" />
           Loading notifications...
@@ -390,7 +381,6 @@ function NotificationsPage() {
           role: viewerUser?.role || "student",
         }}
         onLogout={handleLogout}
-        headerIcon={Sparkles}
         actions={filterDropdown}
       >
         {listSection}
@@ -399,7 +389,7 @@ function NotificationsPage() {
   }
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
+    <div {...workspaceRootProps(viewerRole || viewerUser?.role, "min-h-screen")}>
       <div className="p-3 sm:p-4">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}

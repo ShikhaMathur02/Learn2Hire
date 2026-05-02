@@ -15,7 +15,7 @@ const {
 const { protect } = require('../middleware/authMiddleware');
 
 /** Keep in sync with frontend `PROFILE_PHOTO_MAX_BYTES` in `avatarUtils.js`. */
-const PROFILE_PHOTO_MAX_BYTES = 25 * 1024 * 1024;
+const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
 const avatarUpload = multer({
   storage: multer.memoryStorage(),
@@ -38,7 +38,7 @@ router.post('/photo', (req, res, next) => {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({
           success: false,
-          message: 'Profile photo must be 25 MB or smaller.',
+          message: 'Profile photo must be 5 MB or smaller.',
         });
       }
       return res.status(400).json({

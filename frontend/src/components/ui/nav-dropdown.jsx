@@ -8,7 +8,7 @@ import { cn } from "../../lib/utils";
  * Small anchored menu for toolbar / page actions.
  *
  * @param {Object} props
- * @param {"dark" | "light"} [props.theme="dark"]
+ * @param {"dark" | "light"} [props.theme="light"]
  * @param {"left" | "right"} [props.align="right"]
  * @param {string} props.label
  * @param {import("lucide-react").LucideIcon} [props.icon]
@@ -17,7 +17,7 @@ import { cn } from "../../lib/utils";
  * @param {string} [props.menuClassName] — extra classes on the menu panel
  */
 export function NavDropdown({
-  theme = "dark",
+  theme = "light",
   align = "right",
   label,
   icon: Icon,

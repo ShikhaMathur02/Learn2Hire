@@ -82,18 +82,14 @@ function NotificationProvider({ children }) {
   );
 
   const fetchUnreadCount = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!localStorage.getItem("user")) return;
 
     const htmlMsg =
       "Notifications API returned HTML instead of JSON. Restart the backend server and refresh the page.";
 
     try {
       let response = await fetch("/api/notifications/unread-count", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
+        headers: { Accept: "application/json" },
       });
       let data = await readApiResponse(response, htmlMsg);
 
@@ -104,10 +100,7 @@ function NotificationProvider({ children }) {
 
       if (!response.ok || n === null) {
         response = await fetch("/api/notifications", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
+          headers: { Accept: "application/json" },
         });
         data = await readApiResponse(response, htmlMsg);
         if (response.status === 401 || !response.ok) return;

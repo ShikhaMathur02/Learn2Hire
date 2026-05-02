@@ -1,5 +1,5 @@
 /** Max size for profile photo uploads (must match backend multer limit). */
-export const PROFILE_PHOTO_MAX_BYTES = 25 * 1024 * 1024;
+export const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
 /**
  * Turn a stored path like `/uploads/avatars/...` into a full URL when the app

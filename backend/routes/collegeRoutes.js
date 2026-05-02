@@ -1,10 +1,13 @@
 const express = require('express');
 const {
   createRosterUser,
+  deleteCollegeRosterMember,
+  deleteCollegeRosterMembersBulk,
   getCollegeInsights,
   getPendingFaculty,
   getPendingStudents,
   getRoster,
+  importFacultyFromSheet,
   importStudentsFromSheet,
   setFacultyApproval,
   setStudentCampusApproval,
@@ -19,8 +22,11 @@ router.use(protect);
 
 router.get('/insights', getCollegeInsights);
 router.get('/roster', getRoster);
+router.delete('/roster/members/:id', deleteCollegeRosterMember);
+router.post('/roster/members/delete-many', deleteCollegeRosterMembersBulk);
 router.post('/roster', createRosterUser);
 router.post('/roster/import/students', singleSpreadsheet('file'), importStudentsFromSheet);
+router.post('/roster/import/faculty', singleSpreadsheet('file'), importFacultyFromSheet);
 router.get('/faculty/pending', getPendingFaculty);
 router.patch('/faculty/:id/approval', setFacultyApproval);
 router.get('/students/pending', getPendingStudents);

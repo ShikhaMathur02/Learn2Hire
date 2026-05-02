@@ -11,12 +11,17 @@
     "seed:colleges": "node scripts/seedNamedColleges.js",
     "seed:learning": "node scripts/seedLearningSubjects.js && node scripts/seedStudyMaterials.js",
     "seed:doc-users": "node scripts/seedScreenshotDemoUsers.js",
-    "verify:learning": "node scripts/verifyLearningContent.js"
+    "verify:learning": "node scripts/verifyLearningContent.js",
+    "test": "node --test ./test/smoke.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.4.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^6.8.0",
     "mongoose": "^8.5.0",

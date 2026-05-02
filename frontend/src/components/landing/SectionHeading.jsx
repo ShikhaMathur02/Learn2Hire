@@ -1,10 +1,12 @@
 function SectionHeading({ title, description }) {
   return (
-    <div className="mb-10 w-full max-w-none text-center">
-      <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+    <div className="mb-8 w-full text-center sm:mb-10">
+      <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">
         {title}
       </h2>
-      <p className="mt-3 text-base text-slate-700 sm:text-lg">{description}</p>
+      <p className="mx-auto mt-3 max-w-6xl text-pretty text-sm leading-relaxed text-slate-700 sm:text-base md:text-lg">
+        {description}
+      </p>
     </div>
   );
 }

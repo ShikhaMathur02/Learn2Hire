@@ -72,7 +72,7 @@ exports.getProfileSummaryForViewer = async (req, res) => {
 
     const target = await User.findById(userId)
       .select(
-        'name email role profilePhoto affiliatedCollege managedByCollege facultyQualification facultySubjects'
+        'name email role profilePhoto affiliatedCollege managedByCollege facultyDesignation facultyQualification facultySubjects'
       )
       .populate('affiliatedCollege', 'name')
       .populate('managedByCollege', 'name')
@@ -107,11 +107,13 @@ exports.getProfileSummaryForViewer = async (req, res) => {
             branch: '',
             year: '',
             semester: '',
+            serialNumber: '',
             bio: '',
             skills: [],
             toolsAndTechnologies: [],
             overallScore: null,
             stats: {},
+            facultyDesignation: target.facultyDesignation || '',
             facultyQualification: target.facultyQualification || '',
             facultySubjects: target.facultySubjects || '',
           },
@@ -157,6 +159,7 @@ exports.getProfileSummaryForViewer = async (req, res) => {
           branch: profile?.branch || '',
           year: profile?.year || '',
           semester: profile?.semester || '',
+          serialNumber: profile?.serialNumber || '',
           bio: profile?.bio || '',
           skills,
           toolsAndTechnologies: tools,

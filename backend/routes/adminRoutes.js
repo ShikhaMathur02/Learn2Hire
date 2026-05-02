@@ -16,12 +16,20 @@ const {
   getCollegeDetail,
   deleteCollege,
 } = require('../controllers/adminController');
+const {
+  listAdminTestimonials,
+  createTestimonial,
+  updateTestimonial,
+  deleteTestimonial,
+} = require('../controllers/landingTestimonialController');
 const { protect } = require('../middleware/authMiddleware');
+const { requireAdmin } = require('../middleware/requireAdmin');
 const { singleSpreadsheet } = require('../utils/multerSpreadsheet');
 
 const router = express.Router();
 
 router.use(protect);
+router.use(requireAdmin);
 
 router.get('/analytics', getAnalytics);
 router.get('/insights', getPlatformInsights);
@@ -37,5 +45,10 @@ router.delete('/colleges/:id', deleteCollege);
 router.patch('/users/:id/student-profile', patchStudentCohort);
 router.delete('/users/:id', deleteUser);
 router.patch('/users/:id/role', updateUserRole);
+
+router.get('/testimonials', listAdminTestimonials);
+router.post('/testimonials', createTestimonial);
+router.patch('/testimonials/:id', updateTestimonial);
+router.delete('/testimonials/:id', deleteTestimonial);
 
 module.exports = router;

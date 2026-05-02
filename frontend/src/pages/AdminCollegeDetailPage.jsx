@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import {
 } from "../components/dashboard/DashboardTopNav";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { workspaceRootProps } from "../lib/workspaceTheme";
 
 function formatStatus(c) {
   const s = c?.collegeApprovalStatus;
@@ -35,9 +36,8 @@ function AdminCollegeDetailPage() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
     const raw = localStorage.getItem("user");
-    if (!token || !raw) {
+    if (!localStorage.getItem("user") || !raw) {
       navigate("/login", { replace: true });
       return;
     }
@@ -54,14 +54,13 @@ function AdminCollegeDetailPage() {
   }, [navigate]);
 
   const load = useCallback(async () => {
-    const token = localStorage.getItem("token");
-    if (!token || !collegeId) return;
+    if (!localStorage.getItem("user") || !collegeId) return;
     setLoading(true);
     setError("");
     try {
       const res = await fetch(`/api/admin/colleges/${collegeId}`, {
         cache: "no-store",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(res);
       if (res.status === 401) {
@@ -92,8 +91,7 @@ function AdminCollegeDetailPage() {
     ) {
       return;
     }
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (!localStorage.getItem("user")) {
       navigate("/login");
       return;
     }
@@ -103,7 +101,7 @@ function AdminCollegeDetailPage() {
     try {
       const res = await fetch(`/api/admin/colleges/${collegeId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await readApiResponse(res);
       if (!res.ok) {
@@ -120,7 +118,7 @@ function AdminCollegeDetailPage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-400">
+      <div {...workspaceRootProps("admin", "flex min-h-screen items-center justify-center text-slate-600")}>
         <LoaderCircle className="h-8 w-8 animate-spin" />
       </div>
     );
@@ -133,7 +131,7 @@ function AdminCollegeDetailPage() {
   const campusAssessments = detail?.campusAssessments || [];
 
   return (
-    <div className="l2h-dark-ui min-h-screen bg-[radial-gradient(circle_at_top_left,#6366f1_0%,#4b5e8a_38%,#334155_100%)] text-white">
+    <div {...workspaceRootProps("admin", "min-h-screen")}>
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <DashboardTopNav
           className={workspaceDashboardHeaderClassName}
@@ -161,18 +159,18 @@ function AdminCollegeDetailPage() {
         />
 
         {error ? (
-          <div className="mb-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">
+          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-950">
             {error}
           </div>
         ) : null}
         {success ? (
-          <div className="mb-4 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+          <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-950">
             {success}
           </div>
         ) : null}
 
         {loading ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-8 text-slate-400">
+          <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-8 text-[var(--text-muted)]">
             <LoaderCircle className="h-6 w-6 animate-spin" />
             Loading campus data…
           </div>
@@ -182,7 +180,7 @@ function AdminCollegeDetailPage() {
           <>
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h1 className="text-2xl font-bold">{college.name}</h1>
+                <h1 className="text-2xl font-bold text-[var(--text)]">{college.name}</h1>
                 <p className="mt-1 text-slate-400">{college.email}</p>
                 <p className="mt-2 text-xs text-slate-500">
                   Registered {college.createdAt ? new Date(college.createdAt).toLocaleString() : "—"}
@@ -190,7 +188,7 @@ function AdminCollegeDetailPage() {
                     ? ` · Updated ${new Date(college.updatedAt).toLocaleString()}`
                     : ""}
                 </p>
-                <p className="mt-2 text-sm capitalize text-amber-200/90">
+                <p className="mt-2 text-sm font-medium capitalize text-amber-900">
                   Platform status: {formatStatus(college)}
                 </p>
               </div>
@@ -207,9 +205,9 @@ function AdminCollegeDetailPage() {
             </div>
 
             <div className="mb-6 grid gap-4 sm:grid-cols-3">
-              <Card className="border border-white/10 bg-white/5 shadow-none">
+              <Card className="border border-slate-200 bg-white shadow-none">
                 <CardContent className="flex items-center gap-4 p-5">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/20 text-cyan-300">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)]">
                     <GraduationCap className="h-6 w-6" />
                   </div>
                   <div>
@@ -218,9 +216,9 @@ function AdminCollegeDetailPage() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border border-white/10 bg-white/5 shadow-none">
+              <Card className="border border-slate-200 bg-white shadow-none">
                 <CardContent className="flex items-center gap-4 p-5">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/20 text-cyan-300">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--primary)]/15 text-[var(--primary)]">
                     <Users className="h-6 w-6" />
                   </div>
                   <div>
@@ -229,9 +227,9 @@ function AdminCollegeDetailPage() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border border-white/10 bg-white/5 shadow-none">
+              <Card className="border border-slate-200 bg-white shadow-none">
                 <CardContent className="flex items-center gap-4 p-5">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-200">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-800">
                     <Building2 className="h-6 w-6" />
                   </div>
                   <div>
@@ -242,25 +240,25 @@ function AdminCollegeDetailPage() {
               </Card>
             </div>
 
-            <Card className="mb-6 border border-white/10 bg-slate-950/40 shadow-none">
+            <Card className="mb-6 border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h2 className="text-lg font-bold">Assessments (this campus)</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Assessments (this campus)</h2>
                     <p className="mt-1 text-sm text-slate-400">
                       Created by this college account or faculty linked to this campus.
                     </p>
                   </div>
                   <Link
                     to="/assessments/create"
-                    className="shrink-0 text-sm font-medium text-cyan-300 underline hover:text-cyan-200"
+                    className="shrink-0 text-sm font-medium text-[var(--primary)] underline hover:text-[var(--primary-dark)]"
                   >
                     Create assessment
                   </Link>
                 </div>
-                <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
                   <table className="w-full min-w-[560px] text-left text-sm">
-                    <thead className="bg-slate-900/70 text-xs uppercase tracking-wide text-slate-400">
+                    <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="px-3 py-2">Title</th>
                         <th className="px-3 py-2">Creator</th>
@@ -272,20 +270,20 @@ function AdminCollegeDetailPage() {
                     <tbody>
                       {campusAssessments.length ? (
                         campusAssessments.map((a) => (
-                          <tr key={a._id} className="border-t border-white/5">
-                            <td className="px-3 py-2 font-medium text-white">{a.title}</td>
+                          <tr key={a._id} className="border-t border-slate-200">
+                            <td className="px-3 py-2 font-medium text-slate-900">{a.title}</td>
                             <td className="px-3 py-2 text-xs text-slate-400">
                               {a.createdBy?.name || "—"}{" "}
                               <span className="text-slate-500">({a.createdBy?.role || "—"})</span>
                             </td>
-                            <td className="px-3 py-2 capitalize text-slate-300">{a.status}</td>
+                            <td className="px-3 py-2 capitalize text-slate-700">{a.status}</td>
                             <td className="px-3 py-2 text-xs text-slate-500">
                               {a.createdAt ? new Date(a.createdAt).toLocaleString() : "—"}
                             </td>
                             <td className="px-3 py-2">
                               <Link
                                 to={`/assessments/${a._id}`}
-                                className="text-xs text-cyan-300 underline"
+                                className="text-xs font-medium text-[var(--primary)] underline"
                               >
                                 View
                               </Link>
@@ -305,15 +303,15 @@ function AdminCollegeDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="mb-6 border border-white/10 bg-slate-950/40 shadow-none">
+            <Card className="mb-6 border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-lg font-bold">Students linked to this campus</h2>
+                <h2 className="text-lg font-bold text-slate-900">Students linked to this campus</h2>
                 <p className="mt-1 text-sm text-slate-400">
                   Sign-ups or roster imports that reference this college.
                 </p>
-                <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
                   <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead className="bg-slate-900/70 text-xs uppercase tracking-wide text-slate-400">
+                    <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="px-3 py-2">Name</th>
                         <th className="px-3 py-2">Email</th>
@@ -330,10 +328,10 @@ function AdminCollegeDetailPage() {
                             ? [p.course, p.branch, p.year, p.semester].filter(Boolean).join(" · ")
                             : "—";
                           return (
-                            <tr key={s._id} className="border-t border-white/5">
-                              <td className="px-3 py-2 text-white">{s.name}</td>
+                            <tr key={s._id} className="border-t border-slate-200">
+                              <td className="px-3 py-2 text-slate-900">{s.name}</td>
                               <td className="px-3 py-2 text-slate-400">{s.email}</td>
-                              <td className="px-3 py-2 text-slate-300">{cohort || "—"}</td>
+                              <td className="px-3 py-2 text-slate-700">{cohort || "—"}</td>
                               <td className="px-3 py-2 text-xs text-slate-400">
                                 {p?.studentPhone || p?.city || "—"}
                               </td>
@@ -364,15 +362,15 @@ function AdminCollegeDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="border border-white/10 bg-slate-950/40 shadow-none">
+            <Card className="border border-slate-200 bg-white shadow-none">
               <CardContent className="p-6">
-                <h2 className="text-lg font-bold">Faculty linked to this campus</h2>
+                <h2 className="text-lg font-bold text-slate-900">Faculty linked to this campus</h2>
                 <p className="mt-1 text-sm text-slate-400">
                   Includes pending approvals that selected this institution at signup.
                 </p>
-                <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
                   <table className="w-full min-w-[560px] text-left text-sm">
-                    <thead className="bg-slate-900/70 text-xs uppercase tracking-wide text-slate-400">
+                    <thead className="bg-white text-xs uppercase tracking-wide text-slate-400">
                       <tr>
                         <th className="px-3 py-2">Name</th>
                         <th className="px-3 py-2">Email</th>
@@ -384,10 +382,10 @@ function AdminCollegeDetailPage() {
                     <tbody>
                       {faculty.length ? (
                         faculty.map((f) => (
-                          <tr key={f._id} className="border-t border-white/5">
-                            <td className="px-3 py-2 text-white">{f.name}</td>
+                          <tr key={f._id} className="border-t border-slate-200">
+                            <td className="px-3 py-2 text-slate-900">{f.name}</td>
                             <td className="px-3 py-2 text-slate-400">{f.email}</td>
-                            <td className="px-3 py-2 capitalize text-slate-300">
+                            <td className="px-3 py-2 capitalize text-slate-700">
                               {f.facultyApprovalStatus || "approved"}
                             </td>
                             <td className="px-3 py-2 text-xs text-slate-500">

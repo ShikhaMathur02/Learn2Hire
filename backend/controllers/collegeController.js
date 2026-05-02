@@ -8,10 +8,12 @@ const {
   asString,
   parseTabularFileRows,
   extractStudentBulkRow,
+  extractFacultyBulkRow,
   cohortRowMatchesTarget,
   displayNameFromEmail,
   defaultStudentPasswordFromRow,
   STUDENT_ROSTER_SHEET_FORMAT_HINT,
+  FACULTY_ROSTER_SHEET_FORMAT_HINT,
 } = require('../utils/uploadParsers');
 const { createBulkNotifications } = require('../utils/notificationService');
 const { sendApprovalGrantedEmail } = require('../utils/otpDelivery');
@@ -22,6 +24,7 @@ const {
 const { JOB_CREATED_BY_SELECT } = require('../constants/jobCreatedBySelect');
 const { openJobVisibilityFilterForViewer } = require('../utils/jobPostingVisibility');
 const { syncCompanyFullyApproved } = require('../utils/campusApproval');
+const { cascadeDeleteLimitedUser } = require('../utils/cascadeDeleteLimitedUser');
 
 const normalizeRole = (r) => String(r || '').trim().toLowerCase();
 
@@ -84,6 +87,12 @@ const canBulkImportStudents = (req) => {
   return false;
 };
 
+/** Campus faculty roster from sheet: college or admin only (admin passes collegeId). */
+const canBulkImportFaculty = (req) => {
+  const r = normalizeRole(req.user?.role);
+  return r === 'admin' || r === 'college';
+};
+
 const studentCampusCollegeId = (u) => u.managedByCollege || u.affiliatedCollege;
 
 const canReviewStudentCampusApproval = (req, studentUser) => {
@@ -112,7 +121,7 @@ const resolveStudentImportCollegeId = async (req) => {
     return req.user._id;
   }
   if (role === 'faculty') {
-    const cid = req.user.affiliatedCollege;
+    const cid = req.user.affiliatedCollege || req.user.managedByCollege;
     if (!cid) {
       throw new Error('FACULTY_NO_COLLEGE');
     }
@@ -147,6 +156,63 @@ const isStrongPassword = (password) => {
   );
 };
 
+const rosterLookupStudentClassStages = (() => {
+  const studentProfileColl = StudentProfile.collection.name;
+  return [
+    {
+      $lookup: {
+        from: studentProfileColl,
+        localField: '_id',
+        foreignField: 'user',
+        pipeline: [
+          { $limit: 1 },
+          {
+            $project: {
+              course: 1,
+              branch: 1,
+              year: 1,
+              semester: 1,
+              department: 1,
+              serialNumber: 1,
+            },
+          },
+        ],
+        as: '__rosterSp',
+      },
+    },
+    {
+      $set: {
+        studentClass: {
+          $cond: [
+            { $eq: ['$role', 'student'] },
+            {
+              $let: {
+                vars: { p: { $arrayElemAt: ['$__rosterSp', 0] } },
+                in: {
+                  $cond: [
+                    { $ne: ['$$p', null] },
+                    {
+                      course: { $ifNull: ['$$p.course', ''] },
+                      branch: { $ifNull: ['$$p.branch', ''] },
+                      year: { $ifNull: ['$$p.year', ''] },
+                      semester: { $ifNull: ['$$p.semester', ''] },
+                      department: { $ifNull: ['$$p.department', ''] },
+                      serialNumber: { $ifNull: ['$$p.serialNumber', ''] },
+                    },
+                    null,
+                  ],
+                },
+              },
+            },
+            '$$REMOVE',
+          ],
+        },
+      },
+    },
+    { $project: { __rosterSp: 0, password: 0 } },
+  ];
+})();
+
 // @desc    List campus roster (students & faculty created by this college)
 // @route   GET /api/college/roster
 exports.getRoster = async (req, res) => {
@@ -159,12 +225,21 @@ exports.getRoster = async (req, res) => {
     }
 
     if (normalizeRole(req.user.role) === 'college') {
-      const roster = await User.find({
-        managedByCollege: req.user._id,
-        role: { $in: ['student', 'faculty'] },
-      })
-        .select('name email role facultyApprovalStatus createdAt')
-        .sort({ createdAt: -1 });
+      const collegeOid =
+        req.user._id instanceof mongoose.Types.ObjectId
+          ? req.user._id
+          : new mongoose.Types.ObjectId(String(req.user._id));
+
+      const roster = await User.aggregate([
+        {
+          $match: {
+            managedByCollege: collegeOid,
+            role: { $in: ['student', 'faculty'] },
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        ...rosterLookupStudentClassStages,
+      ]).exec();
 
       return res.status(200).json({
         success: true,
@@ -173,13 +248,17 @@ exports.getRoster = async (req, res) => {
       });
     }
 
-    const roster = await User.find({
-      managedByCollege: { $ne: null },
-      role: { $in: ['student', 'faculty'] },
-    })
-      .select('name email role facultyApprovalStatus managedByCollege createdAt')
-      .sort({ createdAt: -1 })
-      .limit(500);
+    const roster = await User.aggregate([
+      {
+        $match: {
+          managedByCollege: { $ne: null },
+          role: { $in: ['student', 'faculty'] },
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      { $limit: 500 },
+      ...rosterLookupStudentClassStages,
+    ]).exec();
 
     return res.status(200).json({
       success: true,
@@ -961,9 +1040,23 @@ exports.importStudentsFromSheet = async (req, res) => {
       });
     }
 
+    const seenEmailsInFile = new Set();
+    const dedupedRows = [];
+    let duplicateEmailsSkipped = 0;
+    for (const raw of rows) {
+      const extracted = extractStudentBulkRow(raw);
+      const emailKey = asString(extracted.email).toLowerCase();
+      if (emailKey && seenEmailsInFile.has(emailKey)) {
+        duplicateEmailsSkipped += 1;
+        continue;
+      }
+      if (emailKey) seenEmailsInFile.add(emailKey);
+      dedupedRows.push(raw);
+    }
+
     const results = [];
 
-    for (const raw of rows) {
+    for (const raw of dedupedRows) {
       const extracted = extractStudentBulkRow(raw);
       const email = asString(extracted.email).toLowerCase();
 
@@ -1015,13 +1108,22 @@ exports.importStudentsFromSheet = async (req, res) => {
 
       const semesterVal = asString(extracted.semester) || asString(targetSemester);
 
+      const courseStored =
+        asString(extracted.course) ||
+        asString(targetCourse).trim();
+      const branchStored =
+        asString(extracted.branch || extracted.program) ||
+        asString(targetProgram).trim();
+      const yearStored = asString(extracted.year) || asString(targetYear).trim();
+
       await StudentProfile.create({
         user: user._id,
-        course: extracted.course,
+        course: courseStored,
         department: asString(extracted.department),
-        branch: extracted.branch || extracted.program,
-        year: extracted.year,
+        branch: branchStored,
+        year: yearStored,
         semester: semesterVal,
+        serialNumber: asString(extracted.sno),
         studentPhone: asString(extracted.contact),
       });
 
@@ -1037,15 +1139,372 @@ exports.importStudentsFromSheet = async (req, res) => {
     const created = results.filter((r) => r.ok).length;
     const failed = results.length - created;
 
+    const msgParts = [
+      `Student import finished. Created: ${created}, Failed: ${failed}.`,
+    ];
+    if (duplicateEmailsSkipped > 0) {
+      msgParts.push(
+        `Skipped ${duplicateEmailsSkipped} duplicate row${duplicateEmailsSkipped === 1 ? '' : 's'} (same email listed more than once in the file).`
+      );
+    }
+
     res.status(200).json({
       success: true,
-      message: `Student import finished. Created: ${created}, Failed: ${failed}`,
+      message: msgParts.join(' '),
       data: {
         created,
         failed,
+        duplicateEmailsSkipped,
         results,
         templateHint: STUDENT_ROSTER_SHEET_FORMAT_HINT,
       },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @route   POST /api/college/roster/import/faculty
+exports.importFacultyFromSheet = async (req, res) => {
+  try {
+    if (!canBulkImportFaculty(req)) {
+      return res.status(403).json({
+        success: false,
+        message:
+          'Only a college campus account or platform admin can import faculty from a spreadsheet.',
+      });
+    }
+
+    if (!req.file?.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload an Excel (.xlsx, .xls) or CSV file.',
+      });
+    }
+
+    let collegeId;
+    try {
+      collegeId = await resolveStudentImportCollegeId(req);
+    } catch (e) {
+      const code = e.message;
+      if (code === 'FACULTY_NO_COLLEGE') {
+        return res.status(400).json({
+          success: false,
+          message: 'Your profile must be linked to a campus before importing faculty.',
+        });
+      }
+      if (code === 'ADMIN_COLLEGE_REQUIRED') {
+        return res.status(400).json({
+          success: false,
+          message: 'Admin must pass collegeId (approved college user id) with this import.',
+        });
+      }
+      if (code === 'ADMIN_COLLEGE_INVALID') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid collegeId.',
+        });
+      }
+      if (code === 'ADMIN_COLLEGE_NOT_APPROVED') {
+        return res.status(400).json({
+          success: false,
+          message: 'That college is not approved yet.',
+        });
+      }
+      return res.status(403).json({
+        success: false,
+        message: 'Not allowed to resolve college for import.',
+      });
+    }
+
+    const rows = parseTabularFileRows(req.file.buffer, req.file.originalname || '');
+    if (!rows.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sheet is empty.',
+      });
+    }
+
+    const seenEmailsInFile = new Set();
+    const dedupedRows = [];
+    let duplicateEmailsSkipped = 0;
+    for (const raw of rows) {
+      const extracted = extractFacultyBulkRow(raw);
+      const emailKey = asString(extracted.email).toLowerCase();
+      if (emailKey && seenEmailsInFile.has(emailKey)) {
+        duplicateEmailsSkipped += 1;
+        continue;
+      }
+      if (emailKey) seenEmailsInFile.add(emailKey);
+      dedupedRows.push(raw);
+    }
+
+    const results = [];
+
+    for (const raw of dedupedRows) {
+      const extracted = extractFacultyBulkRow(raw);
+      const email = asString(extracted.email).toLowerCase();
+
+      if (!email) {
+        results.push({
+          email: '',
+          ok: false,
+          message: 'Missing email',
+        });
+        continue;
+      }
+
+      if (!asString(extracted.designation)) {
+        results.push({
+          email,
+          ok: false,
+          message: 'Missing designation',
+        });
+        continue;
+      }
+
+      const displayName =
+        asString(extracted.name) || displayNameFromEmail(email);
+
+      let plainPassword = asString(extracted.password);
+      if (!plainPassword) {
+        plainPassword = defaultStudentPasswordFromRow({
+          email,
+          name: extracted.name,
+        });
+      }
+      if (!isStrongPassword(plainPassword)) {
+        results.push({
+          email,
+          ok: false,
+          message:
+            'Password must be at least 8 characters with uppercase, lowercase, number, and special character—or leave blank for Firstname@123.',
+        });
+        continue;
+      }
+
+      const exists = await User.findOne({ email });
+      if (exists) {
+        results.push({ email, ok: false, message: 'Email already exists' });
+        continue;
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(plainPassword, salt);
+
+      await User.create({
+        name: displayName,
+        email,
+        password: hashedPassword,
+        role: 'faculty',
+        managedByCollege: collegeId,
+        affiliatedCollege: collegeId,
+        facultyApprovalStatus: 'approved',
+        facultyDesignation: asString(extracted.designation),
+      });
+
+      results.push({
+        email,
+        ok: true,
+        message: 'Created',
+      });
+    }
+
+    const created = results.filter((r) => r.ok).length;
+    const failed = results.length - created;
+
+    const msgParts = [
+      `Faculty import finished. Created: ${created}, Failed: ${failed}.`,
+    ];
+    if (duplicateEmailsSkipped > 0) {
+      msgParts.push(
+        `Skipped ${duplicateEmailsSkipped} duplicate row${duplicateEmailsSkipped === 1 ? '' : 's'} (same email listed more than once in the file).`
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      message: msgParts.join(' '),
+      data: {
+        created,
+        failed,
+        duplicateEmailsSkipped,
+        results,
+        templateHint: FACULTY_ROSTER_SHEET_FORMAT_HINT,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+/** Compare ObjectIds and legacy string ids safely across lean() / JWT user refs. */
+const sameOwningCollege = (collegeOid, managedByCollege) => {
+  if (!managedByCollege || !collegeOid) return false;
+  try {
+    const owner =
+      collegeOid instanceof mongoose.Types.ObjectId
+        ? collegeOid
+        : new mongoose.Types.ObjectId(String(collegeOid));
+    const ref =
+      managedByCollege instanceof mongoose.Types.ObjectId
+        ? managedByCollege
+        : new mongoose.Types.ObjectId(String(managedByCollege));
+    return owner.equals(ref);
+  } catch {
+    return String(managedByCollege || '') === String(collegeOid || '');
+  }
+};
+
+const assertCollegeOwnsRosterMember = (collegeOid, target) => {
+  if (!target) {
+    return {
+      ok: false,
+      code: 'NOT_FOUND',
+      status: 404,
+      message: 'User not found.',
+    };
+  }
+  if (target.role !== 'student' && target.role !== 'faculty') {
+    return {
+      ok: false,
+      code: 'INVALID_ROLE',
+      status: 400,
+      message: 'This account cannot be removed from the campus roster.',
+    };
+  }
+  if (!sameOwningCollege(collegeOid, target.managedByCollege)) {
+    return {
+      ok: false,
+      code: 'FORBIDDEN',
+      status: 403,
+      message: 'You can only remove accounts your campus added under Manage people.',
+    };
+  }
+  return { ok: true };
+};
+
+// @desc    Remove one roster member managed by this college (student or faculty).
+// @route   DELETE /api/college/roster/members/:id
+exports.deleteCollegeRosterMember = async (req, res) => {
+  try {
+    if (normalizeRole(req.user.role) !== 'college') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only a campus dashboard account can remove roster members.',
+      });
+    }
+
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid user id.' });
+    }
+
+    const collegeOid = req.user._id;
+    const target = await User.findById(id).select('role managedByCollege').lean();
+    const check = assertCollegeOwnsRosterMember(collegeOid, target);
+    if (!check.ok) {
+      return res.status(check.status).json({ success: false, message: check.message });
+    }
+
+    await cascadeDeleteLimitedUser(target.role, target._id);
+    res.status(200).json({
+      success: true,
+      message:
+        target.role === 'faculty'
+          ? 'Faculty account removed along with assessments and teaching materials they created here.'
+          : 'Student account and related learner data removed.',
+      data: { deletedId: id },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Server error',
+    });
+  }
+};
+
+// @desc    Remove many roster members (same checks as single delete).
+// @route   POST /api/college/roster/members/delete-many
+exports.deleteCollegeRosterMembersBulk = async (req, res) => {
+  try {
+    if (normalizeRole(req.user.role) !== 'college') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only a campus dashboard account can remove roster members.',
+      });
+    }
+
+    const rawIds = req.body?.userIds ?? req.body?.ids;
+    if (!Array.isArray(rawIds) || rawIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Send userIds as a non-empty array of user ids.',
+      });
+    }
+    if (rawIds.length > 250) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum 250 accounts per request.',
+      });
+    }
+
+    const collegeOid = req.user._id;
+    const dedup = [...new Set(rawIds.map((x) => String(x).trim()))].filter((x) =>
+      mongoose.Types.ObjectId.isValid(x)
+    );
+    if (dedup.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid member ids were sent.',
+      });
+    }
+
+    const removed = [];
+    const failed = [];
+
+    for (const idStr of dedup) {
+      const target = await User.findById(idStr).select('role managedByCollege').lean();
+      const check = assertCollegeOwnsRosterMember(collegeOid, target);
+      if (!check.ok) {
+        failed.push({ id: idStr, message: check.message });
+        continue;
+      }
+      try {
+        await cascadeDeleteLimitedUser(target.role, target._id);
+        removed.push(idStr);
+      } catch (e) {
+        failed.push({ id: idStr, message: e.message || 'Delete failed.' });
+      }
+    }
+
+    if (removed.length === 0 && dedup.length > 0) {
+      const hint =
+        failed.length && typeof failed[0]?.message === 'string'
+          ? failed[0].message
+          : 'Only people added by your campus from this dashboard can be removed.';
+      return res.status(422).json({
+        success: false,
+        message: hint,
+        data: { removed, failed },
+      });
+    }
+
+    let message = removed.length ? `Removed ${removed.length}.` : 'Nothing was removed.';
+    if (failed.length) {
+      message += ` ${failed.length} skipped (not yours or invalid).`;
+    }
+
+    res.status(200).json({
+      success: true,
+      message,
+      data: { removed, failed },
     });
   } catch (err) {
     res.status(500).json({
