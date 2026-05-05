@@ -54,7 +54,7 @@ function Dashboard() {
   if (user.role === "student") {
     return <StudentDashboard user={user} onLogout={handleLogout} />;
   }
-
+ 
   if (user.role === "faculty") {
     return <FacultyDashboard user={user} onLogout={handleLogout} />;
   }

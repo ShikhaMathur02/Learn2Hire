@@ -212,7 +212,7 @@ const FALLBACK_LANDING_TESTIMONIALS = [
       "The analytics dashboard gives us real-time insights into student performance, allowing us to plan targeted interventions and improve placement outcomes.",
   },
   {
-    name: "Ananya Gupta",
+    name: "Gupta jee",
     role: "HR Manager",
     image:
       "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80",
